@@ -315,6 +315,12 @@ export const orders = pgTable("orders", {
   loyaltyPointsRedeemed: integer("loyalty_points_redeemed").notNull().default(0),
   loyaltyDiscount: decimal("loyalty_discount", { precision: 10, scale: 2 }).notNull().default('0'),
   storeCreditUsed: decimal("store_credit_used", { precision: 10, scale: 2 }).notNull().default('0'),
+  // Total refunded so far across all refund records (Tier 3). paymentStatus moves to
+  // 'partially_refunded' or 'refunded' as this grows toward `total`.
+  refundedAmount: decimal("refunded_amount", { precision: 10, scale: 2 }).notNull().default('0'),
+  // Drafts: a merchant-built order (phone/invoice) that isn't in the kitchen queue yet.
+  // status stays 'draft' until finalized, then becomes 'pending'/'confirmed'.
+  isDraft: boolean("is_draft").notNull().default(false),
   shippingAddress: text("shipping_address"),
   deliveryCountry: varchar("delivery_country", { length: 100 }),
   deliveryCity: varchar("delivery_city", { length: 100 }),
@@ -375,8 +381,45 @@ export const orderItems = pgTable("order_items", {
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   selectedOptions: json("selected_options"),
   notes: text("notes"),
+  // Tier 3 — how many units of this line have been refunded/returned so far.
+  quantityRefunded: integer("quantity_refunded").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Order Refunds (Tier 3) — one row per refund action against an order. An order can
+// have several partial refunds. `method` decides where the money goes.
+export const orderRefunds = pgTable("order_refunds", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  reason: text("reason"),
+  method: varchar("method", { length: 40 }).notNull().default('original_payment'), // 'original_payment' | 'store_credit' | 'manual'
+  restock: boolean("restock").notNull().default(false),
+  // [{ orderItemId, quantity }] — the returned lines, if the merchant itemised the refund
+  items: jsonb("items"),
+  stripeRefundId: varchar("stripe_refund_id", { length: 255 }),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_order_refunds_order").on(table.orderId),
+  index("idx_order_refunds_restaurant").on(table.restaurantId),
+]);
+
+// Order Events (Tier 3) — an append-only timeline shown in the order detail view.
+export const orderEvents = pgTable("order_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  restaurantId: varchar("restaurant_id").references(() => restaurants.id, { onDelete: 'cascade' }),
+  type: varchar("type", { length: 50 }).notNull(), // 'created' | 'status' | 'driver' | 'refund' | 'note' | 'payment' | 'draft'
+  message: text("message").notNull(),
+  meta: jsonb("meta"),
+  createdBy: varchar("created_by"),
+  actorType: varchar("actor_type", { length: 20 }).default('merchant'), // 'merchant' | 'customer' | 'driver' | 'system'
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_order_events_order").on(table.orderId),
+]);
 
 // Staff
 export const staff = pgTable("staff", {
@@ -1611,6 +1654,20 @@ export const insertOrderItemSchema = createInsertSchema(orderItems).omit({
 });
 export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
 export type OrderItem = typeof orderItems.$inferSelect;
+
+export const insertOrderRefundSchema = createInsertSchema(orderRefunds).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertOrderRefund = z.infer<typeof insertOrderRefundSchema>;
+export type OrderRefund = typeof orderRefunds.$inferSelect;
+
+export const insertOrderEventSchema = createInsertSchema(orderEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertOrderEvent = z.infer<typeof insertOrderEventSchema>;
+export type OrderEvent = typeof orderEvents.$inferSelect;
 
 export const insertStaffSchema = createInsertSchema(staff).omit({
   id: true,

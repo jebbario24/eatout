@@ -65,7 +65,7 @@ async function generateOrderNumber(restaurantId: string, prefix: 'ORD' | 'WEB'):
   
   // Extract number from order number - only match 3-digit padded format (e.g., "WEB-001" -> 1)
   // This regex specifically looks for exactly 3 digits to avoid matching old timestamp-based formats
-  const match = lastOrder.orderNumber.match(new RegExp(`^${prefix}-(\\d{3})$`));
+  const match = lastOrder.orderNumber.match(new RegExp(`^${prefix}-(\\d{3,})$`));
   
   if (!match) {
     // If no match (old format or invalid), start fresh from 001
@@ -1955,12 +1955,313 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (orderData.order.restaurantId !== restaurant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
-      
+
+      if (orderData.order.isDraft) {
+        return res.status(400).json({ message: "Finalize this draft before changing its status" });
+      }
+
+      const fromStatus = orderData.order.status;
       const updated = await storage.updateOrderStatus(id, status);
+      await storage.logOrderEvent({
+        orderId: id,
+        restaurantId: restaurant.id,
+        type: "status",
+        message: `Status changed from ${fromStatus} to ${status}`,
+        meta: { from: fromStatus, to: status },
+        createdBy: req.user.id,
+      }).catch((e) => logError("logOrderEvent (status) failed", e));
       res.json(updated);
     } catch (error) {
       console.error("Error updating order status:", error);
       res.status(400).json({ message: "Failed to update order status" });
+    }
+  });
+
+  // ==========================================
+  // ORDER OPERATIONS — drafts, refunds, timeline (Tier 3)
+  // ==========================================
+
+  const ownerRestaurantForOrders = async (req: any) => storage.getRestaurantByOwnerId(req.user.id);
+
+  // Load an order and confirm it belongs to the caller's restaurant.
+  async function loadOwnedOrder(req: any) {
+    const restaurant = await ownerRestaurantForOrders(req);
+    if (!restaurant) return { error: res_404("Restaurant not found") };
+    const data = await storage.getOrderWithItems(req.params.id);
+    if (!data) return { error: res_404("Order not found") };
+    if (data.order.restaurantId !== restaurant.id) return { error: { status: 403, message: "Unauthorized" } };
+    return { restaurant, data };
+  }
+  function res_404(message: string) { return { status: 404, message }; }
+
+  const draftItemSchema = z.object({
+    menuItemId: z.string().optional(),
+    bundleId: z.string().optional(),
+    quantity: z.number().int().positive(),
+    unitPrice: z.string(),
+    notes: z.string().nullable().optional(),
+    selectedOptions: z.any().nullable().optional(),
+  });
+  const draftOrderSchema = z.object({
+    orderType: z.enum(["pickup", "delivery", "dine_in"]).default("pickup"),
+    customerName: z.string().nullable().optional(),
+    customerPhone: z.string().nullable().optional(),
+    customerEmail: z.string().nullable().optional(),
+    shippingAddress: z.string().nullable().optional(),
+    notes: z.string().nullable().optional(),
+    taxRate: z.number().min(0).max(1).optional(),
+    deliveryFee: z.string().nullable().optional(),
+    items: z.array(draftItemSchema).min(1),
+  });
+
+  function computeDraftTotals(items: z.infer<typeof draftItemSchema>[], taxRate = 0, deliveryFee = 0) {
+    const lineRows = items.map((it) => ({
+      menuItemId: it.menuItemId || null,
+      bundleId: it.bundleId || null,
+      quantity: it.quantity,
+      unitPrice: parseFloat(it.unitPrice).toFixed(2),
+      subtotal: (parseFloat(it.unitPrice) * it.quantity).toFixed(2),
+      notes: it.notes || null,
+      selectedOptions: it.selectedOptions ?? null,
+    }));
+    const subtotal = lineRows.reduce((s, r) => s + parseFloat(r.subtotal), 0);
+    const tax = Math.round(subtotal * taxRate * 100) / 100;
+    const total = Math.round((subtotal + tax + deliveryFee) * 100) / 100;
+    return { lineRows, subtotal: subtotal.toFixed(2), tax: tax.toFixed(2), total: total.toFixed(2) };
+  }
+
+  // Create a draft order
+  app.post('/api/orders/draft', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurantForOrders(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const data = draftOrderSchema.parse(req.body);
+      const taxRate = data.taxRate ?? (restaurant.taxRate ? parseFloat(restaurant.taxRate) / 100 : 0);
+      const deliveryFee = data.deliveryFee ? parseFloat(data.deliveryFee) : 0;
+      const { lineRows, subtotal, tax, total } = computeDraftTotals(data.items, taxRate, deliveryFee);
+      const orderNumber = await generateOrderNumber(restaurant.id, 'ORD');
+
+      const order = await storage.createDraftOrder({
+        restaurantId: restaurant.id,
+        orderNumber,
+        orderType: data.orderType,
+        customerName: data.customerName || null,
+        customerPhone: data.customerPhone || null,
+        customerEmail: data.customerEmail || null,
+        shippingAddress: data.shippingAddress || null,
+        notes: data.notes || null,
+        deliveryFee: deliveryFee.toFixed(2),
+        subtotal,
+        tax,
+        total,
+      } as any, lineRows as any);
+
+      await storage.logOrderEvent({
+        orderId: order.id, restaurantId: restaurant.id, type: "draft",
+        message: "Draft order created", createdBy: req.user.id,
+      }).catch(() => {});
+      res.json(order);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: error.errors?.[0]?.message || "Invalid draft" });
+      logError("Create draft order failed", error);
+      res.status(400).json({ message: "Failed to create draft order" });
+    }
+  });
+
+  // Edit a draft order (line items + customer + notes)
+  app.patch('/api/orders/:id/draft', isAuthenticated, async (req: any, res) => {
+    try {
+      const owned = await loadOwnedOrder(req);
+      if (owned.error) return res.status(owned.error.status).json({ message: owned.error.message });
+      if (!owned.data.order.isDraft) return res.status(400).json({ message: "Only draft orders can be edited" });
+
+      const data = draftOrderSchema.parse(req.body);
+      const taxRate = data.taxRate ?? (owned.restaurant.taxRate ? parseFloat(owned.restaurant.taxRate) / 100 : 0);
+      const deliveryFee = data.deliveryFee ? parseFloat(data.deliveryFee) : 0;
+      const { lineRows, subtotal, tax, total } = computeDraftTotals(data.items, taxRate, deliveryFee);
+
+      const updated = await storage.updateDraftOrder(req.params.id, {
+        orderType: data.orderType,
+        customerName: data.customerName || null,
+        customerPhone: data.customerPhone || null,
+        customerEmail: data.customerEmail || null,
+        shippingAddress: data.shippingAddress || null,
+        notes: data.notes || null,
+        deliveryFee: deliveryFee.toFixed(2),
+        subtotal, tax, total,
+      } as any, lineRows as any);
+      res.json(updated);
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: error.errors?.[0]?.message || "Invalid draft" });
+      logError("Update draft order failed", error);
+      res.status(400).json({ message: error?.message || "Failed to update draft" });
+    }
+  });
+
+  // Finalize a draft -> live order
+  app.post('/api/orders/:id/draft/finalize', isAuthenticated, async (req: any, res) => {
+    try {
+      const owned = await loadOwnedOrder(req);
+      if (owned.error) return res.status(owned.error.status).json({ message: owned.error.message });
+      if (!owned.data.order.isDraft) return res.status(400).json({ message: "Order is not a draft" });
+
+      const markPaid = req.body?.markPaid === true;
+      const paymentMethod = typeof req.body?.paymentMethod === "string" ? req.body.paymentMethod : null;
+      const order = await storage.finalizeDraftOrder(req.params.id, { markPaid, paymentMethod });
+
+      // Link to a customer profile + rewards, same as storefront checkout.
+      try {
+        const c = await storage.upsertGuestCustomer(owned.restaurant.id, {
+          name: order.customerName, email: order.customerEmail, phone: order.customerPhone,
+        });
+        if (c) {
+          await storage.linkOrderToCustomer(order.id, c.id);
+          if (markPaid) {
+            await storage.recordCustomerOrder(c.id, parseFloat(order.total));
+            await storage.awardLoyaltyForOrder(order.id);
+          }
+        }
+      } catch (e) { logError("Draft finalize: customer/loyalty link failed (non-critical)", e); }
+
+      await storage.logOrderEvent({
+        orderId: order.id, restaurantId: owned.restaurant.id, type: "draft",
+        message: markPaid ? "Draft finalized and marked paid" : "Draft finalized",
+        meta: { markPaid, paymentMethod }, createdBy: req.user.id,
+      }).catch(() => {});
+
+      wsManager.broadcastToRestaurant(owned.restaurant.id, { type: "new_order", data: { orderId: order.id } });
+      res.json(order);
+    } catch (error: any) {
+      logError("Finalize draft failed", error);
+      res.status(400).json({ message: error?.message || "Failed to finalize draft" });
+    }
+  });
+
+  // Order timeline
+  app.get('/api/orders/:id/events', isAuthenticated, async (req: any, res) => {
+    const owned = await loadOwnedOrder(req);
+    if (owned.error) return res.status(owned.error.status).json({ message: owned.error.message });
+    res.json(await storage.listOrderEvents(req.params.id));
+  });
+
+  // Refunds list
+  app.get('/api/orders/:id/refunds', isAuthenticated, async (req: any, res) => {
+    const owned = await loadOwnedOrder(req);
+    if (owned.error) return res.status(owned.error.status).json({ message: owned.error.message });
+    res.json(await storage.listOrderRefunds(req.params.id));
+  });
+
+  const refundSchema = z.object({
+    amount: z.number().positive(),
+    reason: z.string().max(500).nullable().optional(),
+    method: z.enum(["original_payment", "store_credit", "manual"]).default("original_payment"),
+    restock: z.boolean().optional(),
+    items: z.array(z.object({ orderItemId: z.string(), quantity: z.number().int().positive() })).optional(),
+  });
+
+  // Issue a refund (full or partial)
+  app.post('/api/orders/:id/refund', isAuthenticated, async (req: any, res) => {
+    try {
+      const owned = await loadOwnedOrder(req);
+      if (owned.error) return res.status(owned.error.status).json({ message: owned.error.message });
+      const order = owned.data.order;
+      if (order.isDraft) return res.status(400).json({ message: "Drafts can't be refunded" });
+
+      const body = refundSchema.parse(req.body);
+      const total = parseFloat(order.total || "0");
+      const already = parseFloat(order.refundedAmount || "0");
+      const remaining = Math.round((total - already) * 100) / 100;
+      if (body.amount > remaining + 0.001) {
+        return res.status(400).json({ message: `Only $${remaining.toFixed(2)} can still be refunded` });
+      }
+
+      let method = body.method;
+      let stripeRefundId: string | null = null;
+
+      if (method === "original_payment") {
+        if (order.paymentProvider === "stripe" && order.paymentIntentId && stripe) {
+          try {
+            const r = await stripe.refunds.create({
+              payment_intent: order.paymentIntentId,
+              amount: Math.round(body.amount * 100),
+            });
+            stripeRefundId = r.id;
+          } catch (e: any) {
+            logError("Stripe refund failed", e);
+            return res.status(502).json({ message: e?.message || "Card refund failed at the processor" });
+          }
+        } else {
+          // No captured card payment to reverse — record it as a manual refund.
+          method = "manual";
+        }
+      }
+
+      if (method === "store_credit") {
+        if (!order.customerId) {
+          return res.status(400).json({ message: "This order has no customer profile to credit" });
+        }
+        await storage.applyStoreCredit(owned.restaurant.id, order.customerId, Math.round(body.amount * 100), "refund", {
+          orderId: order.id,
+          reason: body.reason || `Refund for ${order.orderNumber}`,
+          createdBy: req.user.id,
+        });
+      }
+
+      const { refund, order: updated } = await storage.recordOrderRefund({
+        orderId: order.id,
+        restaurantId: owned.restaurant.id,
+        amount: body.amount,
+        reason: body.reason || null,
+        method,
+        restock: body.restock ?? false,
+        items: body.items ?? null,
+        stripeRefundId,
+        createdBy: req.user.id,
+      });
+
+      await storage.logOrderEvent({
+        orderId: order.id, restaurantId: owned.restaurant.id, type: "refund",
+        message: `Refunded $${body.amount.toFixed(2)} via ${method.replace("_", " ")}${body.restock ? " · items restocked" : ""}`,
+        meta: { amount: body.amount, method, reason: body.reason, stripeRefundId },
+        createdBy: req.user.id,
+      }).catch(() => {});
+
+      res.json({ refund, order: updated });
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: error.errors?.[0]?.message || "Invalid refund" });
+      logError("Refund failed", error);
+      res.status(400).json({ message: error?.message || "Failed to issue refund" });
+    }
+  });
+
+  // Add a manual note to the timeline
+  app.post('/api/orders/:id/note', isAuthenticated, async (req: any, res) => {
+    const owned = await loadOwnedOrder(req);
+    if (owned.error) return res.status(owned.error.status).json({ message: owned.error.message });
+    const note = String(req.body?.note || "").trim();
+    if (!note) return res.status(400).json({ message: "Note is empty" });
+    await storage.logOrderEvent({
+      orderId: req.params.id, restaurantId: owned.restaurant.id, type: "note",
+      message: note, createdBy: req.user.id,
+    });
+    res.json({ ok: true });
+  });
+
+  // Delete an order — only drafts and cancelled orders, so paid history stays intact.
+  app.delete('/api/orders/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const owned = await loadOwnedOrder(req);
+      if (owned.error) return res.status(owned.error.status).json({ message: owned.error.message });
+      const o = owned.data.order;
+      const deletable = o.isDraft || o.status === "cancelled" || (o.status === "pending" && o.paymentStatus !== "paid");
+      if (!deletable) {
+        return res.status(400).json({ message: "Cancel and refund this order instead of deleting it" });
+      }
+      await storage.deleteOrder(req.params.id);
+      res.json({ ok: true });
+    } catch (error) {
+      logError("Delete order failed", error);
+      res.status(400).json({ message: "Failed to delete order" });
     }
   });
 

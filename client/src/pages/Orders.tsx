@@ -8,7 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Plus, Eye, Clock, CheckCircle, XCircle, ChefHat, Printer, Trash2, Download, Truck, User } from "lucide-react";
+import { Plus, Eye, Clock, CheckCircle, XCircle, ChefHat, Printer, Trash2, Download, Truck, User, FileText, RotateCcw, Pencil, CheckCheck } from "lucide-react";
+import {
+  DraftBuilderDialog,
+  FinalizeDraftDialog,
+  RefundDialog,
+  OrderTimeline,
+  extractErrorMessage,
+} from "@/components/orders/OrderOpsDialogs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -49,6 +56,7 @@ import {
 } from "@/components/ui/select";
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  draft: "outline",
   pending: "secondary",
   confirmed: "default",
   preparing: "default",
@@ -59,6 +67,7 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 const statusLabels: Record<string, string> = {
+  draft: "Draft",
   pending: "Pending",
   confirmed: "Confirmed",
   preparing: "Preparing",
@@ -117,6 +126,11 @@ export default function Orders() {
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [previousOrderCount, setPreviousOrderCount] = useState<number>(0);
+  // Tier 3 — order ops dialogs
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [editDraft, setEditDraft] = useState<{ id: string; order: any; items: any[] } | null>(null);
+  const [finalizeOrder, setFinalizeOrder] = useState<any | null>(null);
+  const [refundOrder, setRefundOrder] = useState<{ order: any; items: any[] } | null>(null);
   
   // PWA Features
   const { playOrderAlert } = useOrderAlert();
@@ -569,25 +583,28 @@ export default function Orders() {
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (orderIds: string[]) => {
-      return await Promise.all(
+      // Settle all so one un-deletable order (paid) doesn't hide the rest succeeding.
+      const results = await Promise.allSettled(
         orderIds.map(id => apiRequest(`/api/orders/${id}`, "DELETE"))
       );
+      const rejected = results.filter(r => r.status === "rejected") as PromiseRejectedResult[];
+      return { deleted: orderIds.length - rejected.length, rejected };
     },
-    onSuccess: (_, orderIds) => {
+    onSuccess: ({ deleted, rejected }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       setSelectedOrders(new Set());
       setShowDeleteDialog(false);
-      toast({
-        title: "Orders Deleted",
-        description: `Successfully deleted ${orderIds.length} order(s)`,
-      });
+      if (deleted > 0) toast({ title: "Orders deleted", description: `Deleted ${deleted} order(s)` });
+      if (rejected.length > 0) {
+        toast({
+          variant: "destructive",
+          title: `${rejected.length} order(s) kept`,
+          description: extractErrorMessage(rejected[0].reason, "Paid orders can't be deleted — cancel and refund instead"),
+        });
+      }
     },
     onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to delete orders",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to delete orders", variant: "destructive" });
     },
   });
 
@@ -915,6 +932,10 @@ export default function Orders() {
         </div>
         <div className="flex items-center gap-2">
           <RestaurantNotificationHeader />
+          <Button variant="outline" onClick={() => { setEditDraft(null); setDraftOpen(true); }} data-testid="button-new-draft">
+            <FileText className="mr-2 h-4 w-4" />
+            New Draft
+          </Button>
           <Link href="/pos">
             <Button data-testid="button-new-order">
               <Plus className="mr-2 h-4 w-4" />
@@ -947,6 +968,7 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="preparing">Preparing</SelectItem>
@@ -1163,8 +1185,18 @@ export default function Orders() {
                             )}
                           </TooltipProvider>
                         </TableCell>
-                        <TableCell className="font-semibold">${order.total}</TableCell>
+                        <TableCell className="font-semibold">
+                          ${order.total}
+                          {Number((order as any).refundedAmount) > 0 && (
+                            <span className="ml-1 text-xs font-normal text-muted-foreground" data-testid={`text-refunded-${order.id}`}>
+                              (−${Number((order as any).refundedAmount).toFixed(2)})
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell>
+                          {(order as any).isDraft ? (
+                            <Badge variant="outline" data-testid={`badge-draft-${order.id}`}>Draft</Badge>
+                          ) : (
                           <Select
                             value={order.status}
                             onValueChange={(newStatus) => handleStatusChange(order.id, newStatus)}
@@ -1191,10 +1223,11 @@ export default function Orders() {
                               <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>
                           </Select>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={order.paymentStatus === "paid" ? "default" : "secondary"}>
-                            {order.paymentStatus}
+                          <Badge variant={order.paymentStatus === "paid" ? "default" : order.paymentStatus?.includes("refund") ? "destructive" : "secondary"}>
+                            {order.paymentStatus?.replace(/_/g, " ")}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -1210,14 +1243,37 @@ export default function Orders() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => handlePrintTicket(order)}
                               data-testid={`button-print-ticket-${order.id}`}
                             >
                               <Printer className="h-4 w-4" />
                             </Button>
+                            {(order as any).isDraft && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={async () => {
+                                    const r = await fetch(`/api/orders/${order.id}`, { credentials: "include" });
+                                    if (r.ok) { const d = await r.json(); setEditDraft({ id: order.id, order: d.order, items: d.items }); setDraftOpen(true); }
+                                  }}
+                                  data-testid={`button-edit-draft-${order.id}`}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  onClick={() => setFinalizeOrder(order)}
+                                  data-testid={`button-finalize-draft-${order.id}`}
+                                >
+                                  <CheckCheck className="h-4 w-4 mr-1" />Finalize
+                                </Button>
+                              </>
+                            )}
                             {nextStatus && order.status !== 'completed' && order.status !== 'cancelled' && (
                               <Button 
                                 variant="default" 
@@ -1361,6 +1417,18 @@ export default function Orders() {
                   <span className="text-muted-foreground">Subtotal</span>
                   <span data-testid="text-subtotal">${orderDetails.order.subtotal}</span>
                 </div>
+                {Number((orderDetails.order as any).loyaltyDiscount) > 0 && (
+                  <div className="flex justify-between text-green-600 dark:text-green-400">
+                    <span>Points redeemed</span>
+                    <span>-${Number((orderDetails.order as any).loyaltyDiscount).toFixed(2)}</span>
+                  </div>
+                )}
+                {Number((orderDetails.order as any).storeCreditUsed) > 0 && (
+                  <div className="flex justify-between text-green-600 dark:text-green-400">
+                    <span>Store credit</span>
+                    <span>-${Number((orderDetails.order as any).storeCreditUsed).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Tax</span>
                   <span data-testid="text-tax">${orderDetails.order.tax}</span>
@@ -1369,6 +1437,40 @@ export default function Orders() {
                   <span>Total</span>
                   <span data-testid="text-total">${orderDetails.order.total}</span>
                 </div>
+                {Number((orderDetails.order as any).refundedAmount) > 0 && (
+                  <div className="flex justify-between text-destructive">
+                    <span>Refunded</span>
+                    <span data-testid="text-refunded">-${Number((orderDetails.order as any).refundedAmount).toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Order-ops actions */}
+              <div className="flex flex-wrap gap-2">
+                {(orderDetails.order as any).isDraft ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => { setEditDraft({ id: orderDetails.order.id, order: orderDetails.order, items: orderDetails.items }); setDraftOpen(true); }}
+                      data-testid="button-detail-edit-draft"
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />Edit draft
+                    </Button>
+                    <Button onClick={() => setFinalizeOrder(orderDetails.order)} data-testid="button-detail-finalize">
+                      <CheckCheck className="mr-2 h-4 w-4" />Finalize
+                    </Button>
+                  </>
+                ) : (
+                  Number((orderDetails.order as any).refundedAmount || 0) < Number(orderDetails.order.total) && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setRefundOrder({ order: orderDetails.order, items: orderDetails.items })}
+                      data-testid="button-detail-refund"
+                    >
+                      <RotateCcw className="mr-2 h-4 w-4" />Issue refund
+                    </Button>
+                  )
+                )}
               </div>
 
               {orderDetails.order.notes && (
@@ -1377,10 +1479,35 @@ export default function Orders() {
                   <p className="mt-1" data-testid="text-order-notes">{orderDetails.order.notes}</p>
                 </div>
               )}
+
+              <div className="border-t pt-4">
+                <OrderTimeline orderId={orderDetails.order.id} open={!!selectedOrder} />
+              </div>
             </div>
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <DraftBuilderDialog
+        open={draftOpen}
+        onOpenChange={(v) => { setDraftOpen(v); if (!v) setEditDraft(null); }}
+        editOrder={editDraft}
+      />
+      {finalizeOrder && (
+        <FinalizeDraftDialog
+          order={finalizeOrder}
+          open={!!finalizeOrder}
+          onOpenChange={(v) => !v && setFinalizeOrder(null)}
+        />
+      )}
+      {refundOrder && (
+        <RefundDialog
+          order={refundOrder.order}
+          items={refundOrder.items}
+          open={!!refundOrder}
+          onOpenChange={(v) => !v && setRefundOrder(null)}
+        />
+      )}
 
       {/* Bulk Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

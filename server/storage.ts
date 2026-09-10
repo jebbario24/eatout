@@ -8,6 +8,8 @@ import {
   reservations,
   orders,
   orderItems,
+  orderRefunds,
+  orderEvents,
   staff,
   inventory,
   deliveryZones,
@@ -47,6 +49,8 @@ import {
   type InsertOrder,
   type OrderItem,
   type InsertOrderItem,
+  type OrderRefund,
+  type OrderEvent,
   type Staff,
   type InsertStaff,
   type Inventory,
@@ -79,6 +83,13 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, asc, like, sql, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+
+// A driver can be attached to an order two ways: the merchant assigns one directly
+// (orders.assignedDriverId), or a self-serve driver accepts via the delivery link
+// (driverDeliveryStatus). List/detail queries must resolve a name from either path.
+const assignedDriverProfile = alias(driverProfiles, "assigned_driver_profile");
+const assignedDriverUser = alias(users, "assigned_driver_user");
 
 export interface IStorage {
   // User operations
@@ -492,24 +503,32 @@ export class DatabaseStorage implements IStorage {
         deliveryStatus: driverDeliveryStatus,
         driverProfile: driverProfiles,
         driverUser: users,
+        assignedProfile: assignedDriverProfile,
+        assignedUser: assignedDriverUser,
       })
       .from(orders)
       .leftJoin(driverDeliveryStatus, eq(orders.id, driverDeliveryStatus.orderId))
       .leftJoin(driverProfiles, eq(driverDeliveryStatus.driverId, driverProfiles.id))
       .leftJoin(users, eq(driverProfiles.userId, users.id))
+      .leftJoin(assignedDriverProfile, eq(orders.assignedDriverId, assignedDriverProfile.id))
+      .leftJoin(assignedDriverUser, eq(assignedDriverProfile.userId, assignedDriverUser.id))
       .where(eq(orders.restaurantId, restaurantId))
       .orderBy(desc(orders.createdAt));
 
-    return results.map(result => ({
-      ...result.order,
-      driverId: result.driverProfile?.id || null,
-      driverName: result.driverUser
-        ? `${result.driverUser.firstName || ''} ${result.driverUser.lastName || ''}`.trim()
-        : null,
-      driverPhone: result.driverProfile?.phone || null,
-      deliveryStatus: result.deliveryStatus?.status || null,
-      deliveryUpdatedAt: result.deliveryStatus?.updatedAt || null,
-    } as any));
+    return results.map(result => {
+      const profile = result.driverProfile || result.assignedProfile;
+      const user = result.driverUser || result.assignedUser;
+      return {
+        ...result.order,
+        driverId: profile?.id || null,
+        driverName: user
+          ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || null
+          : null,
+        driverPhone: profile?.phone || null,
+        deliveryStatus: result.deliveryStatus?.status || null,
+        deliveryUpdatedAt: result.deliveryStatus?.updatedAt || null,
+      } as any;
+    });
   }
 
   async getRecentOrders(restaurantId: string, limit: number): Promise<Order[]> {
@@ -597,24 +616,30 @@ export class DatabaseStorage implements IStorage {
         deliveryStatus: driverDeliveryStatus,
         driverProfile: driverProfiles,
         driverUser: users,
+        assignedProfile: assignedDriverProfile,
+        assignedUser: assignedDriverUser,
       })
       .from(orders)
       .leftJoin(driverDeliveryStatus, eq(orders.id, driverDeliveryStatus.orderId))
       .leftJoin(driverProfiles, eq(driverDeliveryStatus.driverId, driverProfiles.id))
       .leftJoin(users, eq(driverProfiles.userId, users.id))
+      .leftJoin(assignedDriverProfile, eq(orders.assignedDriverId, assignedDriverProfile.id))
+      .leftJoin(assignedDriverUser, eq(assignedDriverProfile.userId, assignedDriverUser.id))
       .where(eq(orders.id, orderId))
       .limit(1);
-    
+
     if (orderResults.length === 0) return undefined;
-    
+
     const result = orderResults[0];
+    const dProfile = result.driverProfile || result.assignedProfile;
+    const dUser = result.driverUser || result.assignedUser;
     const orderWithDriver = {
       ...result.order,
-      driverId: result.driverProfile?.id || null,
-      driverName: result.driverUser
-        ? `${result.driverUser.firstName || ''} ${result.driverUser.lastName || ''}`.trim()
+      driverId: dProfile?.id || null,
+      driverName: dUser
+        ? `${dUser.firstName || ''} ${dUser.lastName || ''}`.trim() || null
         : null,
-      driverPhone: result.driverProfile?.phone || null,
+      driverPhone: dProfile?.phone || null,
       deliveryStatus: result.deliveryStatus?.status || null,
       deliveryUpdatedAt: result.deliveryStatus?.updatedAt || null,
     };
@@ -705,16 +730,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLastOrderByPrefix(restaurantId: string, prefix: string): Promise<Order | undefined> {
+    // Only consider order numbers in the exact "PREFIX-NNN" padded format, ordered by
+    // the numeric sequence — not by createdAt. A stray non-conforming number (imported
+    // data, a manual fix) must not reset the counter and cause duplicates.
     const [lastOrder] = await db
       .select()
       .from(orders)
       .where(and(
         eq(orders.restaurantId, restaurantId),
-        like(orders.orderNumber, `${prefix}-%`)
+        sql`${orders.orderNumber} ~ ${`^${prefix}-[0-9]{3,}$`}`,
       ))
-      .orderBy(desc(orders.createdAt))
+      .orderBy(sql`length(${orders.orderNumber}) desc, ${orders.orderNumber} desc`)
       .limit(1);
-    
+
     return lastOrder;
   }
 
@@ -2102,6 +2130,169 @@ export class DatabaseStorage implements IStorage {
       createdBy: opts.createdBy ?? null,
     });
     return after;
+  }
+
+  // ---- Order operations: drafts, refunds, timeline (Tier 3) ----
+
+  async logOrderEvent(input: {
+    orderId: string;
+    restaurantId?: string | null;
+    type: string;
+    message: string;
+    meta?: any;
+    createdBy?: string | null;
+    actorType?: "merchant" | "customer" | "driver" | "system";
+  }): Promise<void> {
+    await db.insert(orderEvents).values({
+      orderId: input.orderId,
+      restaurantId: input.restaurantId ?? null,
+      type: input.type,
+      message: input.message,
+      meta: input.meta ?? null,
+      createdBy: input.createdBy ?? null,
+      actorType: input.actorType ?? "merchant",
+    });
+  }
+
+  async listOrderEvents(orderId: string): Promise<OrderEvent[]> {
+    return db
+      .select()
+      .from(orderEvents)
+      .where(eq(orderEvents.orderId, orderId))
+      .orderBy(desc(orderEvents.createdAt));
+  }
+
+  async listOrderRefunds(orderId: string): Promise<OrderRefund[]> {
+    return db
+      .select()
+      .from(orderRefunds)
+      .where(eq(orderRefunds.orderId, orderId))
+      .orderBy(desc(orderRefunds.createdAt));
+  }
+
+  /**
+   * Record a refund against an order. Bumps orders.refundedAmount + per-line
+   * quantityRefunded, moves paymentStatus, and returns the created refund row.
+   * The caller is responsible for moving the actual money (Stripe / store credit)
+   * and passing stripeRefundId when relevant.
+   */
+  async recordOrderRefund(input: {
+    orderId: string;
+    restaurantId: string;
+    amount: number;
+    reason?: string | null;
+    method: "original_payment" | "store_credit" | "manual";
+    restock?: boolean;
+    items?: Array<{ orderItemId: string; quantity: number }> | null;
+    stripeRefundId?: string | null;
+    createdBy?: string | null;
+  }): Promise<{ refund: OrderRefund; order: Order }> {
+    const [order] = await db.select().from(orders).where(eq(orders.id, input.orderId)).limit(1);
+    if (!order) throw new Error("Order not found");
+
+    const prevRefunded = parseFloat(order.refundedAmount || "0");
+    const total = parseFloat(order.total || "0");
+    const newRefunded = Math.round((prevRefunded + input.amount) * 100) / 100;
+    if (input.amount <= 0) throw new Error("Refund amount must be greater than 0");
+    if (newRefunded > total + 0.001) {
+      throw new Error(`Refund exceeds remaining balance ($${(total - prevRefunded).toFixed(2)})`);
+    }
+
+    const [refund] = await db
+      .insert(orderRefunds)
+      .values({
+        orderId: input.orderId,
+        restaurantId: input.restaurantId,
+        amount: input.amount.toFixed(2),
+        reason: input.reason ?? null,
+        method: input.method,
+        restock: input.restock ?? false,
+        items: input.items ?? null,
+        stripeRefundId: input.stripeRefundId ?? null,
+        createdBy: input.createdBy ?? null,
+      })
+      .returning();
+
+    for (const line of input.items ?? []) {
+      if (!line.quantity) continue;
+      await db
+        .update(orderItems)
+        .set({ quantityRefunded: sql`${orderItems.quantityRefunded} + ${line.quantity}` })
+        .where(eq(orderItems.id, line.orderItemId));
+    }
+
+    const paymentStatus = newRefunded >= total - 0.001 ? "refunded" : "partially_refunded";
+    const [updated] = await db
+      .update(orders)
+      .set({ refundedAmount: newRefunded.toFixed(2), paymentStatus, updatedAt: new Date() })
+      .where(eq(orders.id, input.orderId))
+      .returning();
+
+    return { refund, order: updated };
+  }
+
+  /** Create a merchant-built draft order (not in the kitchen queue until finalized). */
+  async createDraftOrder(
+    order: InsertOrder,
+    items: Omit<InsertOrderItem, "orderId">[],
+  ): Promise<Order> {
+    const [newOrder] = await db
+      .insert(orders)
+      .values({ ...order, isDraft: true, status: "draft", paymentStatus: "pending" })
+      .returning();
+    if (items.length > 0) {
+      await db.insert(orderItems).values(items.map((item) => ({ ...item, orderId: newOrder.id })));
+    }
+    return newOrder;
+  }
+
+  /** Replace a draft's line items and money fields. Only valid while isDraft. */
+  async updateDraftOrder(
+    orderId: string,
+    patch: Partial<InsertOrder>,
+    items?: Omit<InsertOrderItem, "orderId">[],
+  ): Promise<Order> {
+    const [existing] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    if (!existing) throw new Error("Order not found");
+    if (!existing.isDraft) throw new Error("Only draft orders can be edited");
+
+    const [updated] = await db
+      .update(orders)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    if (items) {
+      await db.delete(orderItems).where(eq(orderItems.orderId, orderId));
+      if (items.length > 0) {
+        await db.insert(orderItems).values(items.map((item) => ({ ...item, orderId })));
+      }
+    }
+    return updated;
+  }
+
+  /** Turn a draft into a live order. */
+  async finalizeDraftOrder(orderId: string, opts: { markPaid?: boolean; paymentMethod?: string | null }): Promise<Order> {
+    const [existing] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    if (!existing) throw new Error("Order not found");
+    if (!existing.isDraft) throw new Error("Order is not a draft");
+
+    const [updated] = await db
+      .update(orders)
+      .set({
+        isDraft: false,
+        status: opts.markPaid ? "confirmed" : "pending",
+        paymentStatus: opts.markPaid ? "paid" : "pending",
+        paymentMethod: opts.paymentMethod ?? existing.paymentMethod ?? "manual",
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+    return updated;
+  }
+
+  async deleteOrder(orderId: string): Promise<void> {
+    await db.delete(orders).where(eq(orders.id, orderId));
   }
 
   // Inbox Messages
