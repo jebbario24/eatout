@@ -7,7 +7,8 @@ import {
   MessageSquare, 
   Share2, 
   Zap,
-  Gift
+  Gift,
+  Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -22,6 +23,14 @@ export default function Marketing() {
       url: "/marketing/promos",
       color: "text-orange-500",
       bgColor: "bg-orange-500/10"
+    },
+    {
+      title: "Loyalty & Rewards",
+      description: "Points on every order, tiers, and redeem-at-checkout",
+      icon: Heart,
+      url: "/marketing/loyalty",
+      color: "text-rose-500",
+      bgColor: "bg-rose-500/10"
     },
     {
       title: "Boosts",

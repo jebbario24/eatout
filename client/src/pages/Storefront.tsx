@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -32,7 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Plus, Minus, Trash2, Store, Clock, CreditCard, Banknote, Star, Mail, Phone, MessageSquare, Send, AlertCircle, Users, UserRound, PackageSearch } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Store, Clock, CreditCard, Banknote, Star, Mail, Phone, MessageSquare, Send, AlertCircle, Users, UserRound, PackageSearch, Gift } from "lucide-react";
 import { SiPaypal, SiApple, SiGoogle } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -230,6 +231,26 @@ export default function Storefront() {
   const { customer: sfCustomer } = useStorefrontCustomer(sfSlug);
   const accountHref = slug ? `/store/${slug}/account` : "/account";
   const trackHref = slug ? `/store/${slug}/track` : "/track";
+
+  // Rewards: the store's program terms (public) and the signed-in customer's balances
+  const loyaltyProgramQ = useQuery<any>({
+    queryKey: [`/api/storefront/${sfSlug}/loyalty`],
+    enabled: !!sfSlug,
+    queryFn: async () => {
+      const r = await fetch(`/api/storefront/${sfSlug}/loyalty`);
+      return r.ok ? r.json() : { enabled: false };
+    },
+  });
+  const rewardsQ = useQuery<any>({
+    queryKey: [`/api/storefront/${sfSlug}/account/rewards`],
+    enabled: !!sfSlug && !!sfCustomer,
+    queryFn: async () => {
+      const r = await fetch(`/api/storefront/${sfSlug}/account/rewards`, { credentials: "include" });
+      return r.ok ? r.json() : null;
+    },
+  });
+  const [redeemPoints, setRedeemPoints] = useState(false);
+  const [useStoreCredit, setUseStoreCredit] = useState(false);
 
   // Prefill checkout from the signed-in customer (only if the field is still empty)
   useEffect(() => {
@@ -751,10 +772,39 @@ export default function Storefront() {
     ? subtotalAfterDiscount * (taxRate / (1 + taxRate))  // Extract tax that's already included
     : subtotalAfterDiscount * taxRate;  // Add tax on top
   
-  const total = taxIncludedInPrice 
+  const total = taxIncludedInPrice
     ? subtotalAfterDiscount + deliveryFee  // Tax already in subtotal
     : subtotalAfterDiscount + taxAmount + deliveryFee;  // Add tax and delivery fee
-  
+
+  // --- Rewards (loyalty points + store credit) redemption estimate ---
+  // The server re-computes and caps everything on checkout; this is a client-side
+  // preview so the totals the customer sees match what they'll be charged.
+  const loyaltyProgram = loyaltyProgramQ.data?.enabled ? loyaltyProgramQ.data : null;
+  const pointsBalance = rewardsQ.data?.pointsBalance ?? 0;
+  const storeCreditCents = rewardsQ.data?.storeCreditCents ?? 0;
+  const canRedeemPoints =
+    !!sfCustomer &&
+    !!loyaltyProgram &&
+    pointsBalance >= (loyaltyProgram.minRedeemPoints ?? 0) &&
+    pointsBalance > 0;
+  const canUseStoreCredit = !!sfCustomer && storeCreditCents > 0;
+
+  let redeemableCents = Math.round(total * 100);
+  let loyaltyDiscountEst = 0;
+  if (canRedeemPoints && redeemPoints) {
+    const capFraction = loyaltyProgram.maxRedeemFraction ?? 1;
+    const maxByPoints = Math.floor(pointsBalance * (loyaltyProgram.redeemCentsPerPoint ?? 0));
+    const maxByFraction = Math.floor(subtotal * 100 * capFraction);
+    loyaltyDiscountEst = Math.max(0, Math.min(maxByPoints, maxByFraction, redeemableCents));
+    redeemableCents -= loyaltyDiscountEst;
+  }
+  let storeCreditEst = 0;
+  if (canUseStoreCredit && useStoreCredit) {
+    storeCreditEst = Math.max(0, Math.min(storeCreditCents, redeemableCents));
+  }
+  const rewardsDiscount = (loyaltyDiscountEst + storeCreditEst) / 100;
+  const displayTotal = Math.max(0, total - rewardsDiscount);
+
   // Apply promo code function
   const handleApplyPromo = async () => {
     if (!promoCode.trim()) {
@@ -858,6 +908,8 @@ export default function Storefront() {
           promoDiscount: promoDiscount > 0 ? promoDiscount.toFixed(2) : null,
           tax: taxAmount.toFixed(2),
           total: total.toFixed(2),
+          redeemPoints: canRedeemPoints && redeemPoints ? pointsBalance : undefined,
+          useStoreCredit: canUseStoreCredit && useStoreCredit ? true : undefined,
         }),
       }).then((res) => res.json());
     },
@@ -875,9 +927,12 @@ export default function Storefront() {
         setAppliedPromo(null);
         setPromoCode("");
         setPromoCodeError("");
+        setRedeemPoints(false);
+        setUseStoreCredit(false);
+        queryClient.invalidateQueries({ queryKey: [`/api/storefront/${sfSlug}/account/rewards`] });
       } else if (data.paymentMethod === 'paypal') {
         setCurrentOrderId(data.orderId);
-        renderPayPalButtons(data.orderId, total);
+        renderPayPalButtons(data.orderId, displayTotal);
       } else if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else {
@@ -1655,14 +1710,55 @@ export default function Storefront() {
                           </span>
                         </div>
                       )}
+                      {loyaltyDiscountEst > 0 && (
+                        <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
+                          <span>{loyaltyProgram?.programName || 'Points'} redeemed</span>
+                          <span data-testid="loyalty-discount">-{formatPrice(loyaltyDiscountEst / 100)}</span>
+                        </div>
+                      )}
+                      {storeCreditEst > 0 && (
+                        <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
+                          <span>Store credit</span>
+                          <span data-testid="store-credit-used">-{formatPrice(storeCreditEst / 100)}</span>
+                        </div>
+                      )}
                       <Separator />
                       <div className="flex justify-between text-lg font-bold">
                         <span>{t('storefront.total')}</span>
                         <span data-testid="total">
-                          {formatPrice(total)}
+                          {formatPrice(displayTotal)}
                         </span>
                       </div>
                     </div>
+
+                    {(canRedeemPoints || canUseStoreCredit) && (
+                      <div className="w-full space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+                        <div className="flex items-center gap-1.5 text-sm font-medium">
+                          <Gift className="h-4 w-4 text-primary" />
+                          Your rewards
+                        </div>
+                        {canRedeemPoints && (
+                          <label className="flex items-center justify-between gap-2 text-sm cursor-pointer">
+                            <span>
+                              Redeem {pointsBalance.toLocaleString()} points
+                              <span className="text-muted-foreground">
+                                {" "}(−{formatPrice(Math.min(
+                                  Math.floor(pointsBalance * (loyaltyProgram.redeemCentsPerPoint ?? 0)),
+                                  Math.floor(subtotal * 100 * (loyaltyProgram.maxRedeemFraction ?? 1))
+                                ) / 100)})
+                              </span>
+                            </span>
+                            <Switch checked={redeemPoints} onCheckedChange={setRedeemPoints} data-testid="switch-redeem-points" />
+                          </label>
+                        )}
+                        {canUseStoreCredit && (
+                          <label className="flex items-center justify-between gap-2 text-sm cursor-pointer">
+                            <span>Use store credit <span className="text-muted-foreground">({formatPrice(storeCreditCents / 100)} available)</span></span>
+                            <Switch checked={useStoreCredit} onCheckedChange={setUseStoreCredit} data-testid="switch-use-store-credit" />
+                          </label>
+                        )}
+                      </div>
+                    )}
 
                     <div className="w-full space-y-3">
                       <Label className="text-sm font-medium">{t('storefront.paymentMethod')}</Label>

@@ -153,6 +153,9 @@ const onlineOrderSchema = z.object({
   // logged-in customer can save the delivery address to their address book
   saveAddress: z.boolean().optional(),
   addressLabel: z.string().nullable().optional(),
+  // rewards (only honoured for a signed-in customer; server recomputes the discount)
+  redeemPoints: z.number().int().nonnegative().optional(),
+  useStoreCredit: z.boolean().optional(),
 });
 
 // Middleware to check if user is authenticated
@@ -2113,6 +2116,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ---- Loyalty & store credit (merchant) ----
+
+  const ownerRestaurant = async (req: any) => storage.getRestaurantByOwnerId(req.user.id);
+
+  app.get('/api/loyalty/program', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.json(null);
+      const program = (await storage.getLoyaltyProgram(restaurant.id)) || null;
+      const tiers = await storage.listLoyaltyTiers(restaurant.id);
+      res.json({ program, tiers });
+    } catch (e) {
+      logError("Fetch loyalty program failed", e);
+      res.status(500).json({ message: "Failed to load loyalty settings" });
+    }
+  });
+
+  app.put('/api/loyalty/program', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const b = req.body || {};
+      const patch: any = {};
+      if (b.isEnabled !== undefined) patch.isEnabled = !!b.isEnabled;
+      if (typeof b.programName === "string") patch.programName = b.programName.slice(0, 120) || "Rewards";
+      if (b.pointsPerUnit !== undefined) patch.pointsPerUnit = String(Math.max(0, Number(b.pointsPerUnit) || 0));
+      if (b.redeemCentsPerPoint !== undefined) patch.redeemCentsPerPoint = String(Math.max(0.0001, Number(b.redeemCentsPerPoint) || 1));
+      if (b.minRedeemPoints !== undefined) patch.minRedeemPoints = Math.max(0, Math.floor(Number(b.minRedeemPoints) || 0));
+      if (b.maxRedeemFraction !== undefined) patch.maxRedeemFraction = String(Math.min(1, Math.max(0, Number(b.maxRedeemFraction) || 0)));
+      if (b.earnOnDeliveryFee !== undefined) patch.earnOnDeliveryFee = !!b.earnOnDeliveryFee;
+      const program = await storage.upsertLoyaltyProgram(restaurant.id, patch);
+      res.json(program);
+    } catch (e) {
+      logError("Update loyalty program failed", e);
+      res.status(500).json({ message: "Failed to save loyalty settings" });
+    }
+  });
+
+  app.post('/api/loyalty/tiers', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const b = req.body || {};
+      if (!b.name || !String(b.name).trim()) return res.status(400).json({ message: "Tier name is required" });
+      const tier = await storage.createLoyaltyTier({
+        restaurantId: restaurant.id,
+        name: String(b.name).trim().slice(0, 100),
+        minPoints: Math.max(0, Math.floor(Number(b.minPoints) || 0)),
+        benefits: b.benefits ?? null,
+        displayOrder: Math.floor(Number(b.displayOrder) || 0),
+        isActive: b.isActive !== false,
+      } as any);
+      res.json(tier);
+    } catch (e) {
+      logError("Create loyalty tier failed", e);
+      res.status(500).json({ message: "Failed to create tier" });
+    }
+  });
+
+  app.patch('/api/loyalty/tiers/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const b = req.body || {};
+      const patch: any = {};
+      if (typeof b.name === "string") patch.name = b.name.trim().slice(0, 100);
+      if (b.minPoints !== undefined) patch.minPoints = Math.max(0, Math.floor(Number(b.minPoints) || 0));
+      if (b.benefits !== undefined) patch.benefits = b.benefits;
+      if (b.displayOrder !== undefined) patch.displayOrder = Math.floor(Number(b.displayOrder) || 0);
+      if (b.isActive !== undefined) patch.isActive = !!b.isActive;
+      const tier = await storage.updateLoyaltyTier(req.params.id, restaurant.id, patch);
+      if (!tier) return res.status(404).json({ message: "Tier not found" });
+      res.json(tier);
+    } catch (e) {
+      logError("Update loyalty tier failed", e);
+      res.status(500).json({ message: "Failed to update tier" });
+    }
+  });
+
+  app.delete('/api/loyalty/tiers/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    await storage.deleteLoyaltyTier(req.params.id, restaurant.id);
+    res.json({ ok: true });
+  });
+
+  // Merchant customers list + detail (Tier 2 — minimal CRM)
+  app.get('/api/customers', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.json([]);
+      const search = typeof req.query.q === "string" ? req.query.q : undefined;
+      const rows = await storage.listRestaurantCustomers(restaurant.id, search);
+      res.json(rows);
+    } catch (e) {
+      logError("List customers failed", e);
+      res.status(500).json({ message: "Failed to load customers" });
+    }
+  });
+
+  app.get('/api/customers/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const customer = await storage.getCustomerById(req.params.id);
+      if (!customer || customer.restaurantId !== restaurant.id) {
+        return res.status(404).json({ message: "Customer not found" });
+      }
+      const [orders, loyaltyAccount, creditTx] = await Promise.all([
+        storage.getCustomerOrders(customer.id),
+        storage.getLoyaltyAccount(restaurant.id, customer.id),
+        storage.listCreditTransactions(customer.id, 20),
+      ]);
+      const loyaltyTx = loyaltyAccount ? await storage.listLoyaltyTransactions(loyaltyAccount.id, 20) : [];
+      res.json({ customer, orders, loyaltyAccount, loyaltyTx, creditTx });
+    } catch (e) {
+      logError("Customer detail failed", e);
+      res.status(500).json({ message: "Failed to load customer" });
+    }
+  });
+
+  app.post('/api/customers/:id/loyalty-adjust', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const customer = await storage.getCustomerById(req.params.id);
+      if (!customer || customer.restaurantId !== restaurant.id) return res.status(404).json({ message: "Customer not found" });
+      const points = Math.trunc(Number(req.body?.points) || 0);
+      if (!points) return res.status(400).json({ message: "Enter a non-zero point amount" });
+      const account = await storage.adjustLoyaltyPoints(restaurant.id, customer.id, points, req.body?.reason || "Manual adjustment");
+      res.json(account);
+    } catch (e: any) {
+      res.status(400).json({ message: e?.message || "Adjustment failed" });
+    }
+  });
+
+  app.post('/api/customers/:id/credit-adjust', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const customer = await storage.getCustomerById(req.params.id);
+      if (!customer || customer.restaurantId !== restaurant.id) return res.status(404).json({ message: "Customer not found" });
+      const amountCents = Math.trunc(Number(req.body?.amountCents) || 0);
+      if (!amountCents) return res.status(400).json({ message: "Enter a non-zero amount" });
+      const balance = await storage.applyStoreCredit(restaurant.id, customer.id, amountCents, "adjustment", {
+        reason: req.body?.reason || "Manual adjustment",
+        createdBy: req.user.id,
+      });
+      res.json({ storeCreditCents: balance });
+    } catch (e: any) {
+      res.status(400).json({ message: e?.message || "Adjustment failed" });
+    }
+  });
+
   // Upsell rule routes (owner-facing management; the storefront reads via
   // /api/storefront/:slug/upsell-rules)
   app.get('/api/upsells', isAuthenticated, async (req: any, res) => {
@@ -3313,6 +3470,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(result);
   });
 
+  // Public: is loyalty on for this store, and the earn/redeem terms
+  app.get('/api/storefront/:slug/loyalty', async (req: any, res) => {
+    const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+    if (!restaurant) return res.status(404).json({ message: "Store not found" });
+    const program = await storage.getLoyaltyProgram(restaurant.id);
+    if (!program?.isEnabled) return res.json({ enabled: false });
+    res.json({
+      enabled: true,
+      programName: program.programName,
+      pointsPerUnit: Number(program.pointsPerUnit),
+      redeemCentsPerPoint: Number(program.redeemCentsPerPoint),
+      minRedeemPoints: program.minRedeemPoints,
+      maxRedeemFraction: program.maxRedeemFraction != null ? Number(program.maxRedeemFraction) : null,
+    });
+  });
+
+  // The signed-in customer's rewards: points, tier, progress, store credit, history
+  app.get('/api/storefront/:slug/account/rewards', requireStorefrontAuth, async (req: any, res) => {
+    try {
+      const rid = req.storeRestaurant.id;
+      const program = await storage.getLoyaltyProgram(rid);
+      const account = await storage.getLoyaltyAccount(rid, req.storeCustomer.id);
+      const tiers = (await storage.listLoyaltyTiers(rid)).filter((t) => t.isActive);
+      const lifetime = account?.lifetimePoints ?? 0;
+      const currentTier = [...tiers].reverse().find((t) => lifetime >= t.minPoints) || null;
+      const nextTier = tiers.find((t) => t.minPoints > lifetime) || null;
+      const loyaltyTx = account ? await storage.listLoyaltyTransactions(account.id, 20) : [];
+      const creditTx = await storage.listCreditTransactions(req.storeCustomer.id, 20);
+      const customer = await storage.getCustomerById(req.storeCustomer.id);
+      res.json({
+        program: program?.isEnabled
+          ? {
+              programName: program.programName,
+              pointsPerUnit: Number(program.pointsPerUnit),
+              redeemCentsPerPoint: Number(program.redeemCentsPerPoint),
+              minRedeemPoints: program.minRedeemPoints,
+            }
+          : null,
+        pointsBalance: account?.pointsBalance ?? 0,
+        lifetimePoints: lifetime,
+        currentTier,
+        nextTier,
+        pointsToNextTier: nextTier ? Math.max(0, nextTier.minPoints - lifetime) : 0,
+        storeCreditCents: customer?.storeCreditCents ?? 0,
+        loyaltyTx,
+        creditTx,
+      });
+    } catch (e) {
+      logError("Rewards fetch failed", e);
+      res.status(500).json({ message: "Failed to load rewards" });
+    }
+  });
+
   app.get('/api/storefront/:slug/account/addresses', requireStorefrontAuth, async (req: any, res) => {
     res.json(await storage.listCustomerAddresses(req.storeCustomer.id));
   });
@@ -3743,7 +3953,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const data = onlineOrderSchema.parse(req.body);
       const orderNumber = await generateOrderNumber(restaurant.id, 'WEB');
-      
+
+      // Resolve the customer up front (signed-in account, or a guest row keyed by
+      // email/phone) so we can apply rewards to the total before the order is written.
+      const sessionCustomer = await loadSessionCustomer(req, restaurant.id);
+      const checkoutCustomer =
+        sessionCustomer ||
+        (await storage.upsertGuestCustomer(restaurant.id, {
+          name: data.customerName,
+          email: data.customerEmail,
+          phone: data.customerPhone,
+          signupSource: "checkout",
+        }));
+      const checkoutCustomerId = checkoutCustomer?.id || null;
+
+      // Rewards — only for a signed-in customer. Server is authoritative for the
+      // discount; the client's redeemPoints / useStoreCredit are just requests.
+      let loyaltyDiscountCents = 0;
+      let loyaltyPointsToRedeem = 0;
+      let storeCreditCentsToUse = 0;
+      if (sessionCustomer) {
+        const itemSubtotalCents = Math.round(parseFloat(data.subtotal || "0") * 100);
+        const promoCents = Math.round(parseFloat(data.promoDiscount || "0") * 100);
+        let redeemableCents = Math.max(0, itemSubtotalCents - promoCents);
+
+        if (data.redeemPoints && data.redeemPoints > 0) {
+          const program = await storage.getLoyaltyProgram(restaurant.id);
+          if (program?.isEnabled) {
+            const capFraction = program.maxRedeemFraction != null ? Number(program.maxRedeemFraction) : 1;
+            const cap = Math.min(redeemableCents, Math.floor(itemSubtotalCents * capFraction));
+            try {
+              const r = await storage.previewLoyaltyRedemption(restaurant.id, sessionCustomer.id, data.redeemPoints, cap);
+              loyaltyDiscountCents = r.discountCents;
+              loyaltyPointsToRedeem = r.pointsUsed;
+              redeemableCents -= loyaltyDiscountCents;
+            } catch (e) {
+              logError("Loyalty redemption skipped", e);
+            }
+          }
+        }
+
+        if (data.useStoreCredit && redeemableCents > 0) {
+          const bal = sessionCustomer.storeCreditCents || 0;
+          storeCreditCentsToUse = Math.min(bal, redeemableCents);
+        }
+      }
+      const rewardsDiscount = (loyaltyDiscountCents + storeCreditCentsToUse) / 100;
+      const adjustedTotal = Math.max(0, parseFloat(data.total || "0") - rewardsDiscount).toFixed(2);
+
       // Find matching delivery zone for delivery orders
       let deliveryZoneId: string | null = null;
       let deliveryLat: string | null = null;
@@ -3789,8 +4046,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         subtotal: data.subtotal,
         promoCode: data.promoCode || null,
         promoDiscount: data.promoDiscount || '0',
+        customerId: checkoutCustomerId,
+        loyaltyPointsRedeemed: loyaltyPointsToRedeem,
+        loyaltyDiscount: (loyaltyDiscountCents / 100).toFixed(2),
+        storeCreditUsed: (storeCreditCentsToUse / 100).toFixed(2),
         tax: data.tax,
-        total: data.total,
+        total: adjustedTotal,
         status: 'pending',
         paymentStatus: 'pending',
       }, data.items.map(item => ({
@@ -3802,40 +4063,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         selectedOptions: item.selectedOptions || null,
       })));
 
-      // Attach this order to a customer record — the logged-in storefront
-      // account if there is one, otherwise a guest row keyed by email/phone.
-      // This is what powers order history, re-order, loyalty and segments.
-      let checkoutCustomerId: string | null = null;
+      // Burn the rewards that were applied to the total, and save the address.
       try {
-        const sessionCustomer = await loadSessionCustomer(req, restaurant.id);
-        const customer =
-          sessionCustomer ||
-          (await storage.upsertGuestCustomer(restaurant.id, {
-            name: data.customerName,
-            email: data.customerEmail,
-            phone: data.customerPhone,
-            signupSource: "checkout",
-          }));
-        if (customer) {
-          checkoutCustomerId = customer.id;
-          await storage.linkOrderToCustomer(order.id, customer.id);
-          if (sessionCustomer && data.saveAddress && data.orderType === "delivery" && data.deliveryAddress) {
-            await storage.createCustomerAddress({
-              customerId: customer.id,
-              restaurantId: restaurant.id,
-              label: data.addressLabel || null,
-              recipientName: data.customerName || customer.name || null,
-              phone: data.customerPhone || customer.phone || null,
-              country: data.deliveryCountry || null,
-              city: data.deliveryCity || null,
-              addressLine: data.deliveryAddress,
-              lat: deliveryLat,
-              lng: deliveryLng,
-            } as any);
-          }
+        if (sessionCustomer && loyaltyPointsToRedeem > 0) {
+          await storage.burnLoyaltyPoints(restaurant.id, sessionCustomer.id, loyaltyPointsToRedeem, order.id);
+        }
+        if (sessionCustomer && storeCreditCentsToUse > 0) {
+          await storage.applyStoreCredit(restaurant.id, sessionCustomer.id, -storeCreditCentsToUse, "redeem", {
+            orderId: order.id,
+            reason: `Used at checkout on ${order.orderNumber}`,
+          });
+        }
+        if (
+          checkoutCustomer && sessionCustomer && data.saveAddress &&
+          data.orderType === "delivery" && data.deliveryAddress
+        ) {
+          await storage.createCustomerAddress({
+            customerId: checkoutCustomer.id,
+            restaurantId: restaurant.id,
+            label: data.addressLabel || null,
+            recipientName: data.customerName || checkoutCustomer.name || null,
+            phone: data.customerPhone || checkoutCustomer.phone || null,
+            country: data.deliveryCountry || null,
+            city: data.deliveryCity || null,
+            addressLine: data.deliveryAddress,
+            lat: deliveryLat,
+            lng: deliveryLng,
+          } as any);
         }
       } catch (error) {
-        logError("Failed to link order to customer (non-critical)", error);
+        logError("Post-order rewards/address step failed (non-critical)", error);
       }
 
       // PHASE 6: Make prep time prediction when order is created
@@ -3868,13 +4125,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           order.id,
           'cash',
           `cash-${order.orderNumber}`,
-          parseFloat(data.total),
+          parseFloat(adjustedTotal),
           parseFloat(data.deliveryFee || '0')
         );
 
         if (checkoutCustomerId) {
-          await storage.recordCustomerOrder(checkoutCustomerId, parseFloat(data.total)).catch((e) =>
+          await storage.recordCustomerOrder(checkoutCustomerId, parseFloat(adjustedTotal)).catch((e) =>
             logError("Failed to update customer order stats (non-critical)", e),
+          );
+          await storage.awardLoyaltyForOrder(order.id).catch((e) =>
+            logError("Failed to award loyalty points (non-critical)", e),
           );
         }
 

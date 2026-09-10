@@ -38,8 +38,13 @@ export function BundlesSection({ bundles, onAddToCart, formatPrice }: BundlesSec
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {activeBundles.map((bundle) => {
+          const bundleItems: string[] = Array.isArray(bundle.items) ? bundle.items : [];
+          const hasRegularPrice =
+            (bundle.regularPrice as number | null) != null && Number(bundle.regularPrice) > 0;
           const savings = Number(bundle.regularPrice) - Number(bundle.bundlePrice);
-          const savingsPercent = Math.round((savings / Number(bundle.regularPrice)) * 100);
+          const savingsPercent = hasRegularPrice
+            ? Math.round((savings / Number(bundle.regularPrice)) * 100)
+            : 0;
 
           return (
             <Card key={bundle.id} className="overflow-hidden hover-elevate" data-testid={`bundle-${bundle.id}`}>
@@ -52,16 +57,20 @@ export function BundlesSection({ bundles, onAddToCart, formatPrice }: BundlesSec
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
-                  <Badge className="absolute top-3 right-3 bg-green-600 text-white shadow-lg">
-                    Save {savingsPercent}%
-                  </Badge>
+                  {savingsPercent > 0 && (
+                    <Badge className="absolute top-3 right-3 bg-green-600 text-white shadow-lg">
+                      Save {savingsPercent}%
+                    </Badge>
+                  )}
                 </div>
               ) : (
                 <div className="relative h-48 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
                   <Package className="h-20 w-20 text-primary/20" />
-                  <Badge className="absolute top-3 right-3 bg-green-600 text-white shadow-lg">
-                    Save {savingsPercent}%
-                  </Badge>
+                  {savingsPercent > 0 && (
+                    <Badge className="absolute top-3 right-3 bg-green-600 text-white shadow-lg">
+                      Save {savingsPercent}%
+                    </Badge>
+                  )}
                 </div>
               )}
 
@@ -70,15 +79,15 @@ export function BundlesSection({ bundles, onAddToCart, formatPrice }: BundlesSec
                 <h3 className="text-lg font-semibold line-clamp-2 mb-3">{bundle.name}</h3>
                 
                 <div className="space-y-1 mb-4">
-                  {bundle.items.slice(0, 3).map((item, idx) => (
+                  {bundleItems.slice(0, 3).map((item, idx) => (
                     <div key={idx} className="flex items-center gap-2 text-sm text-muted-foreground">
                       <div className="h-1.5 w-1.5 rounded-full bg-primary" />
                       <span className="line-clamp-1">{item}</span>
                     </div>
                   ))}
-                  {bundle.items.length > 3 && (
+                  {bundleItems.length > 3 && (
                     <div className="text-xs text-muted-foreground pl-3.5">
-                      +{bundle.items.length - 3} more items
+                      +{bundleItems.length - 3} more items
                     </div>
                   )}
                 </div>
@@ -87,9 +96,11 @@ export function BundlesSection({ bundles, onAddToCart, formatPrice }: BundlesSec
                   <div className="text-2xl font-bold">
                     {formatPrice ? formatPrice(bundle.bundlePrice) : `$${Number(bundle.bundlePrice).toFixed(2)}`}
                   </div>
-                  <div className="text-sm text-muted-foreground line-through">
-                    {formatPrice ? formatPrice(bundle.regularPrice) : `$${Number(bundle.regularPrice).toFixed(2)}`}
-                  </div>
+                  {hasRegularPrice && (
+                    <div className="text-sm text-muted-foreground line-through">
+                      {formatPrice ? formatPrice(Number(bundle.regularPrice)) : `$${Number(bundle.regularPrice).toFixed(2)}`}
+                    </div>
+                  )}
                 </div>
               </div>
 

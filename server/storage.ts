@@ -20,6 +20,11 @@ import {
   customerReviews,
   customers,
   customerAddresses,
+  loyaltyPrograms,
+  loyaltyTiers,
+  loyaltyAccounts,
+  loyaltyTransactions,
+  customerCreditTransactions,
   inboxMessages,
   promoRules,
   bundles as bundlesTable,
@@ -58,6 +63,12 @@ import {
   type InsertCustomer,
   type CustomerAddress,
   type InsertCustomerAddress,
+  type LoyaltyProgram,
+  type LoyaltyTier,
+  type InsertLoyaltyTier,
+  type LoyaltyAccount,
+  type LoyaltyTransaction,
+  type CustomerCreditTransaction,
   type InboxMessage,
   type InsertInboxMessage,
   type Bundle,
@@ -1829,6 +1840,268 @@ export class DatabaseStorage implements IStorage {
       .update(customerAddresses)
       .set({ isDefault: true, updatedAt: new Date() })
       .where(and(eq(customerAddresses.id, id), eq(customerAddresses.customerId, customerId)));
+  }
+
+  // ---- Loyalty program config & tiers ----
+
+  async getLoyaltyProgram(restaurantId: string): Promise<LoyaltyProgram | undefined> {
+    const [p] = await db.select().from(loyaltyPrograms).where(eq(loyaltyPrograms.restaurantId, restaurantId));
+    return p;
+  }
+
+  async upsertLoyaltyProgram(restaurantId: string, patch: Partial<LoyaltyProgram>): Promise<LoyaltyProgram> {
+    const existing = await this.getLoyaltyProgram(restaurantId);
+    if (existing) {
+      const [updated] = await db
+        .update(loyaltyPrograms)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(eq(loyaltyPrograms.restaurantId, restaurantId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(loyaltyPrograms)
+      .values({ restaurantId, ...patch } as any)
+      .returning();
+    return created;
+  }
+
+  async listLoyaltyTiers(restaurantId: string): Promise<LoyaltyTier[]> {
+    return db
+      .select()
+      .from(loyaltyTiers)
+      .where(eq(loyaltyTiers.restaurantId, restaurantId))
+      .orderBy(asc(loyaltyTiers.minPoints));
+  }
+
+  async createLoyaltyTier(data: InsertLoyaltyTier): Promise<LoyaltyTier> {
+    const [t] = await db.insert(loyaltyTiers).values(data).returning();
+    return t;
+  }
+
+  async updateLoyaltyTier(id: string, restaurantId: string, patch: Partial<InsertLoyaltyTier>): Promise<LoyaltyTier | undefined> {
+    const [t] = await db
+      .update(loyaltyTiers)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(and(eq(loyaltyTiers.id, id), eq(loyaltyTiers.restaurantId, restaurantId)))
+      .returning();
+    return t;
+  }
+
+  async deleteLoyaltyTier(id: string, restaurantId: string): Promise<void> {
+    await db.delete(loyaltyTiers).where(and(eq(loyaltyTiers.id, id), eq(loyaltyTiers.restaurantId, restaurantId)));
+  }
+
+  // ---- Loyalty accounts & points ledger ----
+
+  async getLoyaltyAccount(restaurantId: string, customerId: string): Promise<LoyaltyAccount | undefined> {
+    const [a] = await db
+      .select()
+      .from(loyaltyAccounts)
+      .where(and(eq(loyaltyAccounts.restaurantId, restaurantId), eq(loyaltyAccounts.customerId, customerId)));
+    return a;
+  }
+
+  private async getOrCreateLoyaltyAccount(restaurantId: string, customerId: string): Promise<LoyaltyAccount> {
+    const existing = await this.getLoyaltyAccount(restaurantId, customerId);
+    if (existing) return existing;
+    const [created] = await db
+      .insert(loyaltyAccounts)
+      .values({ restaurantId, customerId })
+      .returning();
+    return created;
+  }
+
+  async listLoyaltyTransactions(loyaltyAccountId: string, limit = 50): Promise<LoyaltyTransaction[]> {
+    return db
+      .select()
+      .from(loyaltyTransactions)
+      .where(eq(loyaltyTransactions.loyaltyAccountId, loyaltyAccountId))
+      .orderBy(desc(loyaltyTransactions.createdAt))
+      .limit(limit);
+  }
+
+  /** Move points on an account, write the ledger row, and re-evaluate the tier. */
+  private async applyLoyaltyDelta(
+    restaurantId: string,
+    customerId: string,
+    points: number,
+    type: "earn" | "redeem" | "expire" | "adjustment",
+    opts: { orderId?: string | null; description?: string } = {},
+  ): Promise<LoyaltyAccount> {
+    const account = await this.getOrCreateLoyaltyAccount(restaurantId, customerId);
+    const before = account.pointsBalance;
+    const after = Math.max(0, before + points);
+    const lifetime = points > 0 ? account.lifetimePoints + points : account.lifetimePoints;
+
+    // pick the highest tier whose threshold the lifetime points have reached
+    const tiers = await this.listLoyaltyTiers(restaurantId);
+    const activeTiers = tiers.filter((t) => t.isActive);
+    const tierId =
+      [...activeTiers].reverse().find((t) => lifetime >= t.minPoints)?.id ?? null;
+
+    const [updated] = await db
+      .update(loyaltyAccounts)
+      .set({ pointsBalance: after, lifetimePoints: lifetime, tierId, updatedAt: new Date() })
+      .where(eq(loyaltyAccounts.id, account.id))
+      .returning();
+
+    await db.insert(loyaltyTransactions).values({
+      restaurantId,
+      loyaltyAccountId: account.id,
+      type,
+      points,
+      balanceBefore: before,
+      balanceAfter: after,
+      orderId: opts.orderId ?? null,
+      description: opts.description ?? null,
+    });
+
+    return updated;
+  }
+
+  /** Idempotent: award earn points for a confirmed order. No-op if already awarded or program off. */
+  async awardLoyaltyForOrder(orderId: string): Promise<void> {
+    const [existing] = await db
+      .select({ id: loyaltyTransactions.id })
+      .from(loyaltyTransactions)
+      .where(and(eq(loyaltyTransactions.orderId, orderId), eq(loyaltyTransactions.type, "earn")))
+      .limit(1);
+    if (existing) return;
+
+    const order = await this.getOrder(orderId);
+    if (!order?.customerId || !order.restaurantId) return;
+    const program = await this.getLoyaltyProgram(order.restaurantId);
+    if (!program?.isEnabled) return;
+
+    const base =
+      parseFloat(order.subtotal || "0") +
+      (program.earnOnDeliveryFee ? parseFloat(order.deliveryFee || "0") : 0);
+    const points = Math.floor(base * parseFloat(program.pointsPerUnit || "1"));
+    if (points <= 0) return;
+
+    await this.applyLoyaltyDelta(order.restaurantId, order.customerId, points, "earn", {
+      orderId,
+      description: `Earned on order ${order.orderNumber}`,
+    });
+  }
+
+  /** Validate a redemption request and compute the discount. No side effects. */
+  async previewLoyaltyRedemption(
+    restaurantId: string,
+    customerId: string,
+    points: number,
+    maxDiscountCents?: number,
+  ): Promise<{ discountCents: number; pointsUsed: number }> {
+    const program = await this.getLoyaltyProgram(restaurantId);
+    if (!program?.isEnabled) throw new Error("Loyalty program is not active");
+    const account = await this.getLoyaltyAccount(restaurantId, customerId);
+    const balance = account?.pointsBalance ?? 0;
+
+    let use = Math.min(Math.floor(points), balance);
+    if (use < program.minRedeemPoints) {
+      throw new Error(`Redeem at least ${program.minRedeemPoints} points`);
+    }
+    let discountCents = Math.round(use * parseFloat(program.redeemCentsPerPoint || "1"));
+    if (maxDiscountCents != null && discountCents > maxDiscountCents) {
+      discountCents = maxDiscountCents;
+      use = Math.floor(discountCents / parseFloat(program.redeemCentsPerPoint || "1"));
+      discountCents = Math.round(use * parseFloat(program.redeemCentsPerPoint || "1"));
+    }
+    return { discountCents, pointsUsed: use };
+  }
+
+  /** Burn points for a completed redemption, linked to the order. */
+  async burnLoyaltyPoints(restaurantId: string, customerId: string, points: number, orderId: string): Promise<void> {
+    if (points <= 0) return;
+    await this.applyLoyaltyDelta(restaurantId, customerId, -points, "redeem", {
+      orderId,
+      description: "Redeemed at checkout",
+    });
+  }
+
+  async adjustLoyaltyPoints(
+    restaurantId: string,
+    customerId: string,
+    points: number,
+    reason: string,
+  ): Promise<LoyaltyAccount> {
+    return this.applyLoyaltyDelta(restaurantId, customerId, points, "adjustment", { description: reason });
+  }
+
+  async listRestaurantCustomers(restaurantId: string, search?: string): Promise<any[]> {
+    const conds = [eq(customers.restaurantId, restaurantId)];
+    if (search && search.trim()) {
+      const q = `%${search.trim().toLowerCase()}%`;
+      conds.push(
+        or(
+          sql`lower(${customers.name}) like ${q}`,
+          sql`lower(${customers.email}) like ${q}`,
+          sql`${customers.phone} like ${q}`,
+        )!,
+      );
+    }
+    const rows = await db
+      .select({
+        id: customers.id,
+        name: customers.name,
+        email: customers.email,
+        phone: customers.phone,
+        ordersCount: customers.ordersCount,
+        lifetimeValueCents: customers.lifetimeValueCents,
+        storeCreditCents: customers.storeCreditCents,
+        hasAccount: sql<boolean>`${customers.passwordHash} is not null`,
+        lastOrderAt: customers.lastOrderAt,
+        createdAt: customers.createdAt,
+        pointsBalance: loyaltyAccounts.pointsBalance,
+        tierId: loyaltyAccounts.tierId,
+      })
+      .from(customers)
+      .leftJoin(loyaltyAccounts, eq(loyaltyAccounts.customerId, customers.id))
+      .where(and(...conds))
+      .orderBy(desc(customers.lastOrderAt), desc(customers.createdAt))
+      .limit(200);
+    return rows;
+  }
+
+  // ---- Store credit ----
+
+  async listCreditTransactions(customerId: string, limit = 50): Promise<CustomerCreditTransaction[]> {
+    return db
+      .select()
+      .from(customerCreditTransactions)
+      .where(eq(customerCreditTransactions.customerId, customerId))
+      .orderBy(desc(customerCreditTransactions.createdAt))
+      .limit(limit);
+  }
+
+  /** Move store credit and write the ledger row. amountCents signed (+credit / -spend). Returns new balance (cents). */
+  async applyStoreCredit(
+    restaurantId: string,
+    customerId: string,
+    amountCents: number,
+    type: "earn" | "redeem" | "refund" | "adjustment" | "expire",
+    opts: { orderId?: string | null; reason?: string; createdBy?: string } = {},
+  ): Promise<number> {
+    const customer = await this.getCustomerById(customerId);
+    if (!customer) throw new Error("Customer not found");
+    const before = customer.storeCreditCents;
+    const after = Math.max(0, before + Math.round(amountCents));
+    await db
+      .update(customers)
+      .set({ storeCreditCents: after, updatedAt: new Date() })
+      .where(eq(customers.id, customerId));
+    await db.insert(customerCreditTransactions).values({
+      restaurantId,
+      customerId,
+      type,
+      amountCents: after - before,
+      balanceAfterCents: after,
+      orderId: opts.orderId ?? null,
+      reason: opts.reason ?? null,
+      createdBy: opts.createdBy ?? null,
+    });
+    return after;
   }
 
   // Inbox Messages

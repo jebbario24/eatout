@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
-  ArrowLeft, Package, MapPin, User as UserIcon, LogOut, Plus, Trash2, Loader2, RotateCcw, Star,
+  ArrowLeft, Package, MapPin, User as UserIcon, LogOut, Plus, Trash2, Loader2, RotateCcw, Star, Gift,
 } from "lucide-react";
 
 function useResolvedSlug() {
@@ -60,6 +60,16 @@ export default function CustomerAccount() {
     queryFn: async () => {
       const r = await fetch(`/api/storefront/${slug}/account/orders`, { credentials: "include" });
       if (!r.ok) return [];
+      return r.json();
+    },
+  });
+
+  const rewardsQ = useQuery<any>({
+    queryKey: [`/api/storefront/${slug}/account/rewards`],
+    enabled: !!customer && !!slug,
+    queryFn: async () => {
+      const r = await fetch(`/api/storefront/${slug}/account/rewards`, { credentials: "include" });
+      if (!r.ok) return null;
       return r.json();
     },
   });
@@ -204,8 +214,9 @@ export default function CustomerAccount() {
       </div>
 
       <Tabs defaultValue="orders">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="orders"><Package className="mr-1.5 h-4 w-4" />Orders</TabsTrigger>
+          <TabsTrigger value="rewards"><Gift className="mr-1.5 h-4 w-4" />Rewards</TabsTrigger>
           <TabsTrigger value="addresses"><MapPin className="mr-1.5 h-4 w-4" />Addresses</TabsTrigger>
           <TabsTrigger value="profile"><UserIcon className="mr-1.5 h-4 w-4" />Profile</TabsTrigger>
         </TabsList>
@@ -243,6 +254,79 @@ export default function CustomerAccount() {
               </CardContent>
             </Card>
           ))}
+        </TabsContent>
+
+        {/* REWARDS */}
+        <TabsContent value="rewards" className="mt-4 space-y-3">
+          {rewardsQ.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+          {rewardsQ.data && !rewardsQ.data.program && (rewardsQ.data.storeCreditCents ?? 0) === 0 && (
+            <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
+              This store doesn't have a rewards program yet.
+            </CardContent></Card>
+          )}
+          {rewardsQ.data && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                {rewardsQ.data.program && (
+                  <Card><CardContent className="py-4">
+                    <div className="text-xs text-muted-foreground">{rewardsQ.data.program.programName || "Points"}</div>
+                    <div className="text-2xl font-semibold">{(rewardsQ.data.pointsBalance ?? 0).toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">
+                      ≈ {money(((rewardsQ.data.pointsBalance ?? 0) * (rewardsQ.data.program.redeemCentsPerPoint ?? 0)) / 100)} off
+                    </div>
+                  </CardContent></Card>
+                )}
+                <Card><CardContent className="py-4">
+                  <div className="text-xs text-muted-foreground">Store credit</div>
+                  <div className="text-2xl font-semibold">{money((rewardsQ.data.storeCreditCents ?? 0) / 100)}</div>
+                  <div className="text-xs text-muted-foreground">Applied automatically at checkout</div>
+                </CardContent></Card>
+              </div>
+
+              {rewardsQ.data.program && rewardsQ.data.currentTier && (
+                <Card><CardContent className="py-4">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="bg-primary/15 text-primary">{rewardsQ.data.currentTier.name}</Badge>
+                    <span className="text-xs text-muted-foreground">{(rewardsQ.data.lifetimePoints ?? 0).toLocaleString()} lifetime points</span>
+                  </div>
+                  {rewardsQ.data.nextTier && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {rewardsQ.data.pointsToNextTier.toLocaleString()} more points to reach {rewardsQ.data.nextTier.name}
+                    </p>
+                  )}
+                </CardContent></Card>
+              )}
+              {rewardsQ.data.program && !rewardsQ.data.currentTier && rewardsQ.data.nextTier && (
+                <Card><CardContent className="py-4 text-xs text-muted-foreground">
+                  {rewardsQ.data.pointsToNextTier.toLocaleString()} points to reach {rewardsQ.data.nextTier.name}
+                </CardContent></Card>
+              )}
+
+              {(rewardsQ.data.loyaltyTx?.length > 0 || rewardsQ.data.creditTx?.length > 0) && (
+                <Card><CardContent className="py-4">
+                  <div className="mb-2 text-sm font-medium">Activity</div>
+                  <ul className="space-y-1 text-sm">
+                    {(rewardsQ.data.loyaltyTx || []).map((tx: any) => (
+                      <li key={tx.id} className="flex justify-between border-b py-1 last:border-0">
+                        <span className="text-muted-foreground">{tx.description || tx.type}</span>
+                        <span className={tx.points >= 0 ? "text-primary" : "text-destructive"}>
+                          {tx.points >= 0 ? "+" : ""}{tx.points} pts
+                        </span>
+                      </li>
+                    ))}
+                    {(rewardsQ.data.creditTx || []).map((tx: any) => (
+                      <li key={tx.id} className="flex justify-between border-b py-1 last:border-0">
+                        <span className="text-muted-foreground">{tx.reason || tx.type}</span>
+                        <span className={tx.amountCents >= 0 ? "text-primary" : "text-destructive"}>
+                          {tx.amountCents >= 0 ? "+" : "-"}{money(Math.abs(tx.amountCents) / 100)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent></Card>
+              )}
+            </>
+          )}
         </TabsContent>
 
         {/* ADDRESSES */}

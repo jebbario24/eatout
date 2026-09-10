@@ -311,6 +311,10 @@ export const orders = pgTable("orders", {
   // Links the order to a customer profile (guest or registered). Populated at
   // checkout; drives order history, re-order, loyalty and segmentation.
   customerId: varchar("customer_id").references((): any => customers.id, { onDelete: 'set null' }),
+  // Rewards applied to this order (Tier 2)
+  loyaltyPointsRedeemed: integer("loyalty_points_redeemed").notNull().default(0),
+  loyaltyDiscount: decimal("loyalty_discount", { precision: 10, scale: 2 }).notNull().default('0'),
+  storeCreditUsed: decimal("store_credit_used", { precision: 10, scale: 2 }).notNull().default('0'),
   shippingAddress: text("shipping_address"),
   deliveryCountry: varchar("delivery_country", { length: 100 }),
   deliveryCity: varchar("delivery_city", { length: 100 }),
@@ -629,6 +633,10 @@ export const customers = pgTable("customers", {
   name: varchar("name", { length: 255 }),
   passwordHash: varchar("password_hash", { length: 255 }),
   emailVerifiedAt: timestamp("email_verified_at"),
+  // Store credit balance in the smallest currency unit (cents). Ledger lives in
+  // customer_credit_transactions. Refunds-to-credit, referral rewards and merchant
+  // adjustments all land here.
+  storeCreditCents: integer("store_credit_cents").notNull().default(0),
   orderType: varchar("order_type", { length: 50 }).default('delivery'),
   signupSource: varchar("signup_source", { length: 100 }),
   firstOrderAt: timestamp("first_order_at"),
@@ -816,6 +824,42 @@ export const promoPerformance = pgTable("promo_performance", {
 }, (table) => [
   index("idx_promo_performance_restaurant_date").on(table.restaurantId, table.date),
   index("idx_promo_performance_promo").on(table.promoRuleId),
+]);
+
+// Loyalty Program - one config row per merchant. Controls earn/redeem rates.
+export const loyaltyPrograms = pgTable("loyalty_programs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().unique().references(() => restaurants.id, { onDelete: 'cascade' }),
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  programName: varchar("program_name", { length: 120 }).default("Rewards"),
+  // points earned per 1 unit of currency spent (on the item subtotal)
+  pointsPerUnit: decimal("points_per_unit", { precision: 10, scale: 2 }).notNull().default('1'),
+  // currency value (in cents) of one point when redeeming — e.g. 1 => 100 pts = $1
+  redeemCentsPerPoint: decimal("redeem_cents_per_point", { precision: 10, scale: 4 }).notNull().default('1'),
+  minRedeemPoints: integer("min_redeem_points").notNull().default(100),
+  // cap redemption at this fraction of the order subtotal (0-1); null = no cap
+  maxRedeemFraction: decimal("max_redeem_fraction", { precision: 3, scale: 2 }).default('0.5'),
+  earnOnDeliveryFee: boolean("earn_on_delivery_fee").notNull().default(false),
+  pointsExpiryMonths: integer("points_expiry_months"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Customer store-credit ledger (balance cached on customers.storeCreditCents)
+export const customerCreditTransactions = pgTable("customer_credit_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  type: varchar("type", { length: 40 }).notNull(), // 'earn' | 'redeem' | 'refund' | 'adjustment' | 'expire'
+  amountCents: integer("amount_cents").notNull(), // signed: +credit, -spend
+  balanceAfterCents: integer("balance_after_cents").notNull(),
+  orderId: varchar("order_id").references(() => orders.id, { onDelete: 'set null' }),
+  reason: text("reason"),
+  createdBy: varchar("created_by"), // merchant user id for manual adjustments
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_credit_tx_customer").on(table.customerId),
+  index("idx_credit_tx_restaurant").on(table.restaurantId),
 ]);
 
 // Loyalty Tiers - Bronze, Silver, Gold tiers
@@ -2524,6 +2568,21 @@ export const insertPromoRedemptionSchema = createInsertSchema(promoRedemptions).
 });
 export type InsertPromoRedemption = z.infer<typeof insertPromoRedemptionSchema>;
 export type PromoRedemption = typeof promoRedemptions.$inferSelect;
+
+export const insertLoyaltyProgramSchema = createInsertSchema(loyaltyPrograms).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertLoyaltyProgram = z.infer<typeof insertLoyaltyProgramSchema>;
+export type LoyaltyProgram = typeof loyaltyPrograms.$inferSelect;
+
+export const insertCustomerCreditTransactionSchema = createInsertSchema(customerCreditTransactions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCustomerCreditTransaction = z.infer<typeof insertCustomerCreditTransactionSchema>;
+export type CustomerCreditTransaction = typeof customerCreditTransactions.$inferSelect;
 
 export const insertLoyaltyTierSchema = createInsertSchema(loyaltyTiers).omit({
   id: true,

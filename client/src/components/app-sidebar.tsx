@@ -18,7 +18,9 @@ import {
   MessageSquare,
   DollarSign,
   Shield,
-  Activity
+  Activity,
+  Heart,
+  UserRound
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -62,6 +64,11 @@ const marketingItems = [
     titleKey: "Marketing",
     url: "/marketing",
     icon: Megaphone,
+  },
+  {
+    titleKey: "Loyalty & Rewards",
+    url: "/marketing/loyalty",
+    icon: Heart,
   },
 ];
 
@@ -119,6 +126,11 @@ const reportsItems = [
 
 // Customer section
 const customerItems = [
+  {
+    titleKey: "Customers",
+    url: "/customers",
+    icon: UserRound,
+  },
   {
     titleKey: "Inbox",
     url: "/inbox",
