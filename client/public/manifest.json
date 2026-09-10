@@ -1,0 +1,65 @@
+{
+  "name": "EatOut Driver",
+  "short_name": "EatOut Driver",
+  "description": "EatOut delivery driver application for managing deliveries and earnings",
+  "start_url": "/driver/dashboard",
+  "display": "standalone",
+  "background_color": "#02090a",
+  "theme_color": "#061a1c",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/driver-dashboard.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Driver Dashboard - View available orders and earnings"
+    },
+    {
+      "src": "/screenshots/active-delivery.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Active Delivery - Track your current delivery in real-time"
+    }
+  ],
+  "categories": ["food", "delivery", "business"],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View available orders",
+      "url": "/driver/dashboard",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Settings",
+      "short_name": "Settings",
+      "description": "Manage your profile",
+      "url": "/driver/settings",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192" }]
+    }
+  ]
+}

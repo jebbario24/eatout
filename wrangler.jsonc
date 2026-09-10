@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "eatout",
+  "main": "cloudflare/worker.ts",
+  "compatibility_date": "2025-09-01",
+
+  // A thin Worker sits in front and forwards every request (HTTP + WebSocket)
+  // to a single long-lived container running the Express app.
+  "containers": [
+    {
+      "class_name": "EatOutContainer",
+      "image": "./Dockerfile",
+      "max_instances": 1,
+      // "basic" = 1/4 vCPU, 1 GiB RAM, 4 GB disk — cheapest that comfortably runs
+      // the Node server. Bump to "standard-1" (1/2 vCPU, 4 GiB) if it OOMs under load.
+      "instance_type": "basic"
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [
+      { "class_name": "EatOutContainer", "name": "EATOUT_CONTAINER" }
+    ]
+  },
+
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["EatOutContainer"] }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+}

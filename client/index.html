@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;420;450;500;550;600;700&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+    <title>EatOut - Restaurant Management Platform</title>
+    <meta name="description" content="EatOut is a modern restaurant management platform with online ordering, POS, reservations, and comprehensive business tools.">
+
+    <!-- Single platform-wide theme (Shopify-style dark/mint) — force the .dark
+         class before first paint so there is no flash of the old light theme. -->
+    <script>document.documentElement.classList.add('dark');</script>
+
+    <!-- PWA Configuration - Dynamic based on user role -->
+    <link rel="manifest" href="/manifest.json" id="app-manifest">
+    <meta name="theme-color" content="#061a1c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EatOut">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512x512.png">
+    
+    <!-- Dynamic manifest loader -->
+    <script>
+      // Set correct manifest based on current path
+      (function() {
+        const path = window.location.pathname;
+        const manifestLink = document.getElementById('app-manifest');
+        
+        if (path.startsWith('/deliver')) {
+          manifestLink.setAttribute('href', '/manifest.json');
+          document.querySelector('meta[name="apple-mobile-web-app-title"]').setAttribute('content', 'EatOut Delivery');
+        } else if (path.startsWith('/dashboard') || path.startsWith('/orders') || path.startsWith('/menu') || path.startsWith('/settings')) {
+          manifestLink.setAttribute('href', '/restaurant-manifest.json');
+          document.querySelector('meta[name="apple-mobile-web-app-title"]').setAttribute('content', 'EatOut Manager');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
