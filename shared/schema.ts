@@ -308,6 +308,9 @@ export const orders = pgTable("orders", {
   customerName: varchar("customer_name", { length: 255 }),
   customerPhone: varchar("customer_phone", { length: 50 }),
   customerEmail: varchar("customer_email", { length: 255 }),
+  // Links the order to a customer profile (guest or registered). Populated at
+  // checkout; drives order history, re-order, loyalty and segmentation.
+  customerId: varchar("customer_id").references((): any => customers.id, { onDelete: 'set null' }),
   shippingAddress: text("shipping_address"),
   deliveryCountry: varchar("delivery_country", { length: 100 }),
   deliveryCity: varchar("delivery_city", { length: 100 }),
@@ -614,13 +617,18 @@ export const driverDeliveryStatus = pgTable("driver_delivery_status", {
   index("idx_driver_delivery_status").on(table.status),
 ]);
 
-// Customers - Customer profiles for marketing & loyalty
+// Customers - Customer profiles for marketing, loyalty, and storefront accounts.
+// Scoped per-merchant: the same person shopping at two stores has two rows.
+// A row with no passwordHash is a "guest" customer (created at checkout);
+// setting a password upgrades it to a real account.
 export const customers = pgTable("customers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
   phone: varchar("phone", { length: 50 }),
   email: varchar("email", { length: 255 }),
   name: varchar("name", { length: 255 }),
+  passwordHash: varchar("password_hash", { length: 255 }),
+  emailVerifiedAt: timestamp("email_verified_at"),
   orderType: varchar("order_type", { length: 50 }).default('delivery'),
   signupSource: varchar("signup_source", { length: 100 }),
   firstOrderAt: timestamp("first_order_at"),
@@ -633,6 +641,27 @@ export const customers = pgTable("customers", {
 }, (table) => [
   index("idx_customers_restaurant_email").on(table.restaurantId, table.email),
   index("idx_customers_restaurant_phone").on(table.restaurantId, table.phone),
+]);
+
+// Customer Addresses - saved delivery addresses for a storefront account
+export const customerAddresses = pgTable("customer_addresses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  label: varchar("label", { length: 100 }),
+  recipientName: varchar("recipient_name", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
+  country: varchar("country", { length: 100 }),
+  city: varchar("city", { length: 100 }),
+  addressLine: text("address_line").notNull(),
+  notes: text("notes"),
+  lat: decimal("lat", { precision: 10, scale: 7 }),
+  lng: decimal("lng", { precision: 10, scale: 7 }),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_customer_addresses_customer").on(table.customerId),
 ]);
 
 // Customer Reviews - Reviews and ratings for restaurants
@@ -2455,6 +2484,14 @@ export const insertCustomerSchema = createInsertSchema(customers).omit({
 });
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Customer = typeof customers.$inferSelect;
+
+export const insertCustomerAddressSchema = createInsertSchema(customerAddresses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCustomerAddress = z.infer<typeof insertCustomerAddressSchema>;
+export type CustomerAddress = typeof customerAddresses.$inferSelect;
 
 export const insertCustomerReviewSchema = createInsertSchema(customerReviews).omit({
   id: true,

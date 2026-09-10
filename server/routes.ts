@@ -5,7 +5,7 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { env, getBaseUrl } from "./env";
 import { storage } from "./storage";
-import { passport, hashPassword } from "./auth";
+import { passport, hashPassword, verifyPassword } from "./auth";
 import {
   insertRestaurantSchema,
   insertMenuCategorySchema,
@@ -150,6 +150,9 @@ const onlineOrderSchema = z.object({
   promoDiscount: z.string().nullable().optional(),
   tax: z.string(),
   total: z.string(),
+  // logged-in customer can save the delivery address to their address book
+  saveAddress: z.boolean().optional(),
+  addressLabel: z.string().nullable().optional(),
 });
 
 // Middleware to check if user is authenticated
@@ -3169,6 +3172,214 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ---- Storefront customer accounts ----
+  // Session-based, scoped to one merchant. Stored under `sfCustomer` so it never
+  // collides with a merchant/admin passport session in the same browser.
+
+  const publicCustomer = (c: any) => ({
+    id: c.id,
+    name: c.name,
+    email: c.email,
+    phone: c.phone,
+    ordersCount: c.ordersCount,
+    createdAt: c.createdAt,
+  });
+
+  async function loadSessionCustomer(req: any, restaurantId: string) {
+    const s = req.session?.sfCustomer;
+    if (!s?.id || s.restaurantId !== restaurantId) return null;
+    const c = await storage.getCustomerById(s.id);
+    return c && c.restaurantId === restaurantId ? c : null;
+  }
+
+  const requireStorefrontAuth = async (req: any, res: any, next: any) => {
+    const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+    if (!restaurant) return res.status(404).json({ message: "Store not found" });
+    const customer = await loadSessionCustomer(req, restaurant.id);
+    if (!customer) return res.status(401).json({ message: "Not signed in" });
+    req.storeRestaurant = restaurant;
+    req.storeCustomer = customer;
+    next();
+  };
+
+  const sfRegisterSchema = z.object({
+    name: z.string().trim().min(1).max(120),
+    email: z.string().trim().email(),
+    phone: z.string().trim().min(4).max(40).optional().or(z.literal("")),
+    password: z.string().min(8).max(200),
+  });
+
+  app.post('/api/storefront/:slug/account/register', authLimiter, async (req: any, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const data = sfRegisterSchema.parse(req.body);
+      const email = data.email.toLowerCase();
+
+      const existing = await storage.findCustomer(restaurant.id, { email });
+      if (existing?.passwordHash) {
+        return res.status(409).json({ message: "An account with this email already exists. Try signing in." });
+      }
+
+      const passwordHash = await hashPassword(data.password);
+      const customer = existing
+        ? await storage.updateCustomer(existing.id, {
+            passwordHash,
+            name: existing.name || data.name,
+            phone: existing.phone || data.phone || null,
+          } as any)
+        : await storage.createCustomer({
+            restaurantId: restaurant.id,
+            name: data.name,
+            email,
+            phone: data.phone || null,
+            passwordHash,
+            signupSource: "storefront_account",
+          } as any);
+
+      req.session.sfCustomer = { id: customer.id, restaurantId: restaurant.id };
+      res.json(publicCustomer(customer));
+    } catch (error: any) {
+      if (error?.name === "ZodError") return res.status(400).json({ message: "Check the form and try again" });
+      logError("Storefront register failed", error);
+      res.status(500).json({ message: "Could not create account" });
+    }
+  });
+
+  app.post('/api/storefront/:slug/account/login', authLimiter, async (req: any, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const emailOrPhone = String(req.body?.emailOrPhone || "").trim();
+      const password = String(req.body?.password || "");
+      if (!emailOrPhone || !password) return res.status(400).json({ message: "Enter your email and password" });
+
+      const isEmail = emailOrPhone.includes("@");
+      const customer = await storage.findCustomer(restaurant.id, {
+        email: isEmail ? emailOrPhone : null,
+        phone: isEmail ? null : emailOrPhone,
+      });
+      if (!customer?.passwordHash || !(await verifyPassword(password, customer.passwordHash))) {
+        return res.status(401).json({ message: "Wrong email or password" });
+      }
+
+      req.session.sfCustomer = { id: customer.id, restaurantId: restaurant.id };
+      res.json(publicCustomer(customer));
+    } catch (error) {
+      logError("Storefront login failed", error);
+      res.status(500).json({ message: "Could not sign in" });
+    }
+  });
+
+  app.post('/api/storefront/:slug/account/logout', (req: any, res) => {
+    if (req.session) delete req.session.sfCustomer;
+    res.json({ ok: true });
+  });
+
+  app.get('/api/storefront/:slug/account/me', async (req: any, res) => {
+    const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+    if (!restaurant) return res.status(404).json({ message: "Store not found" });
+    const customer = await loadSessionCustomer(req, restaurant.id);
+    res.json(customer ? publicCustomer(customer) : null);
+  });
+
+  app.patch('/api/storefront/:slug/account/me', requireStorefrontAuth, async (req: any, res) => {
+    try {
+      const patch: any = {};
+      if (typeof req.body?.name === "string" && req.body.name.trim()) patch.name = req.body.name.trim();
+      if (typeof req.body?.phone === "string") patch.phone = req.body.phone.trim() || null;
+      if (typeof req.body?.password === "string" && req.body.password) {
+        if (req.body.password.length < 8) return res.status(400).json({ message: "Password must be at least 8 characters" });
+        patch.passwordHash = await hashPassword(req.body.password);
+      }
+      const updated = await storage.updateCustomer(req.storeCustomer.id, patch);
+      res.json(publicCustomer(updated));
+    } catch (error) {
+      logError("Storefront profile update failed", error);
+      res.status(500).json({ message: "Could not save changes" });
+    }
+  });
+
+  app.get('/api/storefront/:slug/account/orders', requireStorefrontAuth, async (req: any, res) => {
+    const orders = await storage.getCustomerOrders(req.storeCustomer.id);
+    res.json(orders);
+  });
+
+  app.get('/api/storefront/:slug/account/orders/:orderId', requireStorefrontAuth, async (req: any, res) => {
+    const result = await storage.getOrderWithItems(req.params.orderId);
+    if (!result || result.order.customerId !== req.storeCustomer.id) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+    res.json(result);
+  });
+
+  app.get('/api/storefront/:slug/account/addresses', requireStorefrontAuth, async (req: any, res) => {
+    res.json(await storage.listCustomerAddresses(req.storeCustomer.id));
+  });
+
+  app.post('/api/storefront/:slug/account/addresses', requireStorefrontAuth, async (req: any, res) => {
+    try {
+      const b = req.body || {};
+      if (!b.addressLine || !String(b.addressLine).trim()) {
+        return res.status(400).json({ message: "Address is required" });
+      }
+      const created = await storage.createCustomerAddress({
+        customerId: req.storeCustomer.id,
+        restaurantId: req.storeRestaurant.id,
+        label: b.label || null,
+        recipientName: b.recipientName || req.storeCustomer.name || null,
+        phone: b.phone || req.storeCustomer.phone || null,
+        country: b.country || null,
+        city: b.city || null,
+        addressLine: String(b.addressLine).trim(),
+        notes: b.notes || null,
+        lat: b.lat ?? null,
+        lng: b.lng ?? null,
+        isDefault: !!b.isDefault,
+      } as any);
+      res.json(created);
+    } catch (error) {
+      logError("Add address failed", error);
+      res.status(500).json({ message: "Could not save address" });
+    }
+  });
+
+  app.patch('/api/storefront/:slug/account/addresses/:id', requireStorefrontAuth, async (req: any, res) => {
+    const updated = await storage.updateCustomerAddress(req.params.id, req.storeCustomer.id, req.body || {});
+    if (!updated) return res.status(404).json({ message: "Address not found" });
+    res.json(updated);
+  });
+
+  app.delete('/api/storefront/:slug/account/addresses/:id', requireStorefrontAuth, async (req: any, res) => {
+    await storage.deleteCustomerAddress(req.params.id, req.storeCustomer.id);
+    res.json({ ok: true });
+  });
+
+  // Public order tracking — look up one order by number + the email or phone on it
+  app.post('/api/storefront/:slug/order-lookup', async (req: any, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const orderNumber = String(req.body?.orderNumber || "").trim();
+      const contact = String(req.body?.contact || "").trim().toLowerCase();
+      if (!orderNumber || !contact) return res.status(400).json({ message: "Enter your order number and email or phone" });
+
+      const order = await storage.getOrderByNumber(restaurant.id, orderNumber);
+      const matches =
+        order &&
+        ((order.customerEmail && order.customerEmail.toLowerCase() === contact) ||
+          (order.customerPhone && order.customerPhone.replace(/\s/g, "") === contact.replace(/\s/g, "")));
+      if (!order || !matches) {
+        return res.status(404).json({ message: "No order found with those details" });
+      }
+      const withItems = await storage.getOrderWithItems(order.id);
+      res.json(withItems);
+    } catch (error) {
+      logError("Order lookup failed", error);
+      res.status(500).json({ message: "Could not look up that order" });
+    }
+  });
+
   app.get('/api/storefront/:slug', async (req, res) => {
     try {
       const restaurant = await storage.getRestaurantBySlug(req.params.slug);
@@ -3591,6 +3802,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         selectedOptions: item.selectedOptions || null,
       })));
 
+      // Attach this order to a customer record — the logged-in storefront
+      // account if there is one, otherwise a guest row keyed by email/phone.
+      // This is what powers order history, re-order, loyalty and segments.
+      let checkoutCustomerId: string | null = null;
+      try {
+        const sessionCustomer = await loadSessionCustomer(req, restaurant.id);
+        const customer =
+          sessionCustomer ||
+          (await storage.upsertGuestCustomer(restaurant.id, {
+            name: data.customerName,
+            email: data.customerEmail,
+            phone: data.customerPhone,
+            signupSource: "checkout",
+          }));
+        if (customer) {
+          checkoutCustomerId = customer.id;
+          await storage.linkOrderToCustomer(order.id, customer.id);
+          if (sessionCustomer && data.saveAddress && data.orderType === "delivery" && data.deliveryAddress) {
+            await storage.createCustomerAddress({
+              customerId: customer.id,
+              restaurantId: restaurant.id,
+              label: data.addressLabel || null,
+              recipientName: data.customerName || customer.name || null,
+              phone: data.customerPhone || customer.phone || null,
+              country: data.deliveryCountry || null,
+              city: data.deliveryCity || null,
+              addressLine: data.deliveryAddress,
+              lat: deliveryLat,
+              lng: deliveryLng,
+            } as any);
+          }
+        }
+      } catch (error) {
+        logError("Failed to link order to customer (non-critical)", error);
+      }
+
       // PHASE 6: Make prep time prediction when order is created
       try {
         const { prepTimePredictionService } = await import('./services/prepTimePrediction');
@@ -3624,7 +3871,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           parseFloat(data.total),
           parseFloat(data.deliveryFee || '0')
         );
-        
+
+        if (checkoutCustomerId) {
+          await storage.recordCustomerOrder(checkoutCustomerId, parseFloat(data.total)).catch((e) =>
+            logError("Failed to update customer order stats (non-critical)", e),
+          );
+        }
+
         // Broadcast to restaurant
         wsManager.broadcastToRestaurant(restaurant.id, {
           type: 'new_order',

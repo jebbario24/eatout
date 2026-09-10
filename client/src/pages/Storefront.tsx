@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useParams } from "wouter";
+import { useParams, Link } from "wouter";
+import { useStorefrontCustomer } from "@/hooks/useStorefrontCustomer";
+import { CustomerAuthDialog } from "@/components/storefront/CustomerAuthDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Restaurant, MenuItem, MenuCategory, CustomerReview } from "@shared/schema";
@@ -30,7 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Plus, Minus, Trash2, Store, Clock, CreditCard, Banknote, Star, Mail, Phone, MessageSquare, Send, AlertCircle, Users } from "lucide-react";
+import { ShoppingCart, Plus, Minus, Trash2, Store, Clock, CreditCard, Banknote, Star, Mail, Phone, MessageSquare, Send, AlertCircle, Users, UserRound, PackageSearch } from "lucide-react";
 import { SiPaypal, SiApple, SiGoogle } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
@@ -134,6 +136,8 @@ export default function Storefront() {
   const { slug } = useParams();
   const { toast } = useToast();
   const { t, i18n } = useTranslation();
+  const [authOpen, setAuthOpen] = useState(false);
+  const [saveAddress, setSaveAddress] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<'pickup' | 'delivery'>('delivery');
@@ -221,6 +225,38 @@ export default function Storefront() {
       return response.json();
     },
   });
+
+  const sfSlug = slug || restaurant?.slug || undefined;
+  const { customer: sfCustomer } = useStorefrontCustomer(sfSlug);
+  const accountHref = slug ? `/store/${slug}/account` : "/account";
+  const trackHref = slug ? `/store/${slug}/track` : "/track";
+
+  // Prefill checkout from the signed-in customer (only if the field is still empty)
+  useEffect(() => {
+    if (!sfCustomer) return;
+    setCustomerName((v) => v || sfCustomer.name || "");
+    setCustomerPhone((v) => v || sfCustomer.phone || "");
+    setCustomerEmail((v) => v || sfCustomer.email || "");
+  }, [sfCustomer]);
+
+  // Re-order: CustomerAccount stashes the items in sessionStorage then sends us here with ?reorder=1
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const wantsReorder = new URLSearchParams(window.location.search).get("reorder");
+    if (!wantsReorder || !sfSlug) return;
+    try {
+      const raw = sessionStorage.getItem(`sf_reorder_${sfSlug}`);
+      if (raw) {
+        const items = JSON.parse(raw) as CartItem[];
+        if (Array.isArray(items) && items.length) {
+          setCart(items);
+          toast({ title: "Added your last order to the cart" });
+        }
+        sessionStorage.removeItem(`sf_reorder_${sfSlug}`);
+      }
+    } catch {}
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [sfSlug]);
 
   // Set storefront language based on restaurant settings
   useEffect(() => {
@@ -780,11 +816,13 @@ export default function Storefront() {
       return await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           orderType,
           customerName,
           customerPhone,
           customerEmail: customerEmail || null,
+          saveAddress: !!sfCustomer && orderType === 'delivery' && saveAddress,
           shippingAddress: fullAddress || null,
           deliveryCountry: orderType === 'delivery' ? deliveryCountry : null,
           deliveryCity: orderType === 'delivery' ? deliveryCity : null,
@@ -1192,11 +1230,31 @@ export default function Storefront() {
           </div>
           
           <div className="flex items-center gap-2">
-            <LanguageSelector 
-              enabledLanguages={restaurant?.enabledLanguages || ['en']} 
+            <LanguageSelector
+              enabledLanguages={restaurant?.enabledLanguages || ['en']}
               restaurantId={restaurant?.id}
             />
-            
+
+            <Link href={trackHref}>
+              <Button variant="ghost" size="icon" title="Track an order" data-testid="button-track-order">
+                <PackageSearch className="h-5 w-5" />
+              </Button>
+            </Link>
+
+            {sfCustomer ? (
+              <Link href={accountHref}>
+                <Button variant="ghost" size="sm" data-testid="button-account">
+                  <UserRound className="h-4 w-4 mr-1.5" />
+                  {sfCustomer.name ? sfCustomer.name.split(" ")[0] : "Account"}
+                </Button>
+              </Link>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} data-testid="button-signin">
+                <UserRound className="h-4 w-4 mr-1.5" />
+                Sign in
+              </Button>
+            )}
+
             <Sheet>
             <SheetTrigger asChild>
               <Button variant="default" className="relative" data-testid="button-cart">
@@ -1473,6 +1531,16 @@ export default function Storefront() {
                           onChange={(e) => setHomeAddress(e.target.value)}
                           data-testid="input-home-address"
                         />
+                        {sfCustomer && homeAddress.trim() && (
+                          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Checkbox
+                              checked={saveAddress}
+                              onCheckedChange={(v) => setSaveAddress(v === true)}
+                              data-testid="checkbox-save-address"
+                            />
+                            Save this address to my account
+                          </label>
+                        )}
                     {deliveryFeeLoading && (
                       <p className="text-xs text-muted-foreground">
                         Calculating delivery fee...
@@ -2814,6 +2882,14 @@ export default function Storefront() {
         formatPrice={formatPrice}
         selectedLanguage={i18n.language}
       />
+
+      {sfSlug && (
+        <CustomerAuthDialog
+          slug={sfSlug}
+          open={authOpen}
+          onOpenChange={setAuthOpen}
+        />
+      )}
     </div>
   );
 }

@@ -27,6 +27,8 @@ import Analytics from "@/pages/Analytics";
 import Settings from "@/pages/Settings";
 import POS from "@/pages/POS";
 import Storefront from "@/pages/Storefront";
+import CustomerAccount from "@/pages/storefront/CustomerAccount";
+import OrderTracking from "@/pages/storefront/OrderTracking";
 import Subscribe from "@/pages/Subscribe";
 import DeliveryZones from "@/pages/DeliveryZones";
 import OnlineStore from "@/pages/OnlineStore";
@@ -201,6 +203,10 @@ function AppContent() {
 function StorefrontRouter() {
   return (
     <Switch>
+      <Route path="/store/:slug/account" component={CustomerAccount} />
+      <Route path="/store/:slug/track" component={OrderTracking} />
+      <Route path="/account" component={CustomerAccount} />
+      <Route path="/track" component={OrderTracking} />
       <Route path="/" component={Storefront} />
       <Route path="/store/:slug" component={Storefront} />
       <Route component={Storefront} />

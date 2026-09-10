@@ -18,6 +18,8 @@ import {
   payoutRuns,
   payoutRunLedgerEntries,
   customerReviews,
+  customers,
+  customerAddresses,
   inboxMessages,
   promoRules,
   bundles as bundlesTable,
@@ -52,6 +54,10 @@ import {
   type InsertRestaurantPayoutAccount,
   type CustomerReview,
   type InsertCustomerReview,
+  type Customer,
+  type InsertCustomer,
+  type CustomerAddress,
+  type InsertCustomerAddress,
   type InboxMessage,
   type InsertInboxMessage,
   type Bundle,
@@ -61,7 +67,7 @@ import {
   type InsertTranslationRecord,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, like, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, asc, like, sql, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -1665,6 +1671,164 @@ export class DatabaseStorage implements IStorage {
       .values(review)
       .returning();
     return created;
+  }
+
+  // ---- Customers & storefront accounts ----
+
+  async getCustomerById(id: string): Promise<Customer | undefined> {
+    const [c] = await db.select().from(customers).where(eq(customers.id, id));
+    return c;
+  }
+
+  async findCustomer(
+    restaurantId: string,
+    opts: { email?: string | null; phone?: string | null },
+  ): Promise<Customer | undefined> {
+    const email = opts.email?.trim().toLowerCase() || null;
+    const phone = opts.phone?.trim() || null;
+    if (!email && !phone) return undefined;
+    const matchers = [];
+    if (email) matchers.push(eq(sql`lower(${customers.email})`, email));
+    if (phone) matchers.push(eq(customers.phone, phone));
+    const [c] = await db
+      .select()
+      .from(customers)
+      .where(and(eq(customers.restaurantId, restaurantId), or(...matchers)))
+      .orderBy(desc(customers.passwordHash), desc(customers.createdAt));
+    return c;
+  }
+
+  async createCustomer(data: InsertCustomer): Promise<Customer> {
+    const [created] = await db
+      .insert(customers)
+      .values({ ...data, email: data.email?.trim().toLowerCase() || null })
+      .returning();
+    return created;
+  }
+
+  async updateCustomer(id: string, updates: Partial<InsertCustomer>): Promise<Customer> {
+    const patch: Record<string, unknown> = { ...updates, updatedAt: new Date() };
+    if (typeof updates.email === "string") patch.email = updates.email.trim().toLowerCase();
+    const [updated] = await db
+      .update(customers)
+      .set(patch)
+      .where(eq(customers.id, id))
+      .returning();
+    return updated;
+  }
+
+  /**
+   * Returns the existing customer matched by email/phone, otherwise creates a
+   * lightweight guest row. Returns null only when there's nothing to key on.
+   */
+  async upsertGuestCustomer(
+    restaurantId: string,
+    data: { name?: string | null; email?: string | null; phone?: string | null; signupSource?: string },
+  ): Promise<Customer | null> {
+    if (!data.email && !data.phone) return null;
+    const existing = await this.findCustomer(restaurantId, { email: data.email, phone: data.phone });
+    if (existing) {
+      // backfill any missing contact detail we just learned
+      const patch: Partial<InsertCustomer> = {};
+      if (!existing.name && data.name) patch.name = data.name;
+      if (!existing.email && data.email) patch.email = data.email;
+      if (!existing.phone && data.phone) patch.phone = data.phone;
+      return Object.keys(patch).length ? this.updateCustomer(existing.id, patch) : existing;
+    }
+    return this.createCustomer({
+      restaurantId,
+      name: data.name || null,
+      email: data.email || null,
+      phone: data.phone || null,
+      signupSource: data.signupSource || "checkout",
+    } as InsertCustomer);
+  }
+
+  async recordCustomerOrder(customerId: string, orderTotal: number): Promise<void> {
+    const cents = Math.round((Number.isFinite(orderTotal) ? orderTotal : 0) * 100);
+    await db
+      .update(customers)
+      .set({
+        ordersCount: sql`${customers.ordersCount} + 1`,
+        lifetimeValueCents: sql`${customers.lifetimeValueCents} + ${cents}`,
+        lastOrderAt: new Date(),
+        firstOrderAt: sql`COALESCE(${customers.firstOrderAt}, now())`,
+        updatedAt: new Date(),
+      })
+      .where(eq(customers.id, customerId));
+  }
+
+  async getCustomerOrders(customerId: string): Promise<Order[]> {
+    return db
+      .select()
+      .from(orders)
+      .where(eq(orders.customerId, customerId))
+      .orderBy(desc(orders.createdAt));
+  }
+
+  async linkOrderToCustomer(orderId: string, customerId: string): Promise<void> {
+    await db
+      .update(orders)
+      .set({ customerId, updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
+  }
+
+  async getOrderByNumber(restaurantId: string, orderNumber: string): Promise<Order | undefined> {
+    const [o] = await db
+      .select()
+      .from(orders)
+      .where(and(eq(orders.restaurantId, restaurantId), eq(orders.orderNumber, orderNumber.trim().toUpperCase())));
+    return o;
+  }
+
+  async listCustomerAddresses(customerId: string): Promise<CustomerAddress[]> {
+    return db
+      .select()
+      .from(customerAddresses)
+      .where(eq(customerAddresses.customerId, customerId))
+      .orderBy(desc(customerAddresses.isDefault), desc(customerAddresses.createdAt));
+  }
+
+  async createCustomerAddress(data: InsertCustomerAddress): Promise<CustomerAddress> {
+    const existing = await this.listCustomerAddresses(data.customerId);
+    const shouldDefault = data.isDefault === true || existing.length === 0;
+    const [created] = await db
+      .insert(customerAddresses)
+      .values({ ...data, isDefault: shouldDefault })
+      .returning();
+    if (shouldDefault) await this.setDefaultCustomerAddress(created.id, created.customerId);
+    return created;
+  }
+
+  async updateCustomerAddress(
+    id: string,
+    customerId: string,
+    updates: Partial<InsertCustomerAddress>,
+  ): Promise<CustomerAddress | undefined> {
+    const [updated] = await db
+      .update(customerAddresses)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(customerAddresses.id, id), eq(customerAddresses.customerId, customerId)))
+      .returning();
+    if (updated?.isDefault) await this.setDefaultCustomerAddress(id, customerId);
+    return updated;
+  }
+
+  async deleteCustomerAddress(id: string, customerId: string): Promise<void> {
+    await db
+      .delete(customerAddresses)
+      .where(and(eq(customerAddresses.id, id), eq(customerAddresses.customerId, customerId)));
+  }
+
+  async setDefaultCustomerAddress(id: string, customerId: string): Promise<void> {
+    await db
+      .update(customerAddresses)
+      .set({ isDefault: false })
+      .where(and(eq(customerAddresses.customerId, customerId), sql`${customerAddresses.id} <> ${id}`));
+    await db
+      .update(customerAddresses)
+      .set({ isDefault: true, updatedAt: new Date() })
+      .where(and(eq(customerAddresses.id, id), eq(customerAddresses.customerId, customerId)));
   }
 
   // Inbox Messages
