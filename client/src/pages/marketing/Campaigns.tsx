@@ -174,6 +174,7 @@ function CampaignsTab() {
   const { toast } = useToast();
   const { data: campaigns = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/campaigns"] });
   const { data: segments = [] } = useQuery<any[]>({ queryKey: ["/api/segments"] });
+  const { data: channels } = useQuery<any>({ queryKey: ["/api/messaging/status"] });
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<any>({ ...blankCampaign });
@@ -215,6 +216,19 @@ function CampaignsTab() {
 
   return (
     <div className="space-y-4">
+      {channels && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm" data-testid="channel-status">
+          <span className="text-muted-foreground">Delivery channels:</span>
+          {(["email", "sms", "push"] as const).map((ch) => (
+            <Badge key={ch} variant={channels[ch] ? "default" : "secondary"} className="capitalize">
+              {ch}: {channels[ch] ? "connected" : "not configured"}
+            </Badge>
+          ))}
+          {!channels.email && !channels.sms && (
+            <span className="text-xs text-muted-foreground">— sends are recorded in the outbox until a provider is set (SMTP_* / TWILIO_*).</span>
+          )}
+        </div>
+      )}
       <div className="flex justify-end">
         <Button onClick={openCreate} data-testid="button-new-campaign"><Plus className="mr-2 h-4 w-4" />New campaign</Button>
       </div>

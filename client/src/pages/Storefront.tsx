@@ -29,6 +29,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -74,6 +75,11 @@ interface CartItem {
     optionGroupLabel: string;
     choices: Array<{ label: string; priceCents: number }>;
   }>;
+  // Tier 8 — the specific variant purchased, when menuItem.hasVariants. menuItem.price
+  // is already overridden to the variant's price so existing subtotal/checkout math
+  // (which reads menuItem.price) needs no other changes.
+  variantId?: string;
+  variantName?: string;
 }
 
 interface OpeningHours {
@@ -173,6 +179,9 @@ export default function Storefront() {
   // Item options modal state
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [itemModalOpen, setItemModalOpen] = useState(false);
+  // Variant picker (Tier 8)
+  const [variantPickerItem, setVariantPickerItem] = useState<MenuItem | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [selectedItemOptions, setSelectedItemOptions] = useState<Array<{
     optionGroupLabel: string;
     choices: Array<{ label: string; priceCents: number }>;
@@ -583,6 +592,14 @@ export default function Storefront() {
   }, [pendingCartItem, menuItems, marketingTriggerType]);
 
   const addToCart = (item: MenuItem, skipUpsell = false, skipMarketingTriggers = false) => {
+    // Variants (Tier 8) — a distinct price/stock per option value. Picked first,
+    // separately from the options/upsell/marketing-trigger flow below.
+    if ((item as any).hasVariants && (item as any).variants?.length) {
+      setVariantPickerItem(item);
+      setSelectedVariantId(null);
+      return;
+    }
+
     // Check if item has options - if yes, open modal for selection
     const itemOptions = (item.options as any) || [];
     if (itemOptions.length > 0) {
@@ -668,7 +685,34 @@ export default function Storefront() {
     }
     toast({ title: `${item.name} added to cart` });
   };
-  
+
+  // Confirm a variant choice and add that variant to the cart (Tier 8).
+  const confirmVariantAddToCart = () => {
+    if (!variantPickerItem || !selectedVariantId) return;
+    const variant = ((variantPickerItem as any).variants || []).find((v: any) => v.id === selectedVariantId);
+    if (!variant) return;
+    const itemForCart: MenuItem = { ...variantPickerItem, price: (variant.priceCents / 100).toFixed(2) } as MenuItem;
+
+    const existingItem = cart.find((ci) => ci.menuItem?.id === variantPickerItem.id && ci.variantId === variant.id);
+    if (existingItem) {
+      setCart(cart.map((ci) => (ci === existingItem ? { ...ci, quantity: ci.quantity + 1 } : ci)));
+    } else {
+      setCart([...cart, { menuItem: itemForCart, quantity: 1, variantId: variant.id, variantName: variant.name }]);
+    }
+    if (restaurant) {
+      trackAddToCart({
+        id: variantPickerItem.id,
+        name: `${variantPickerItem.name} — ${variant.name}`,
+        price: variant.priceCents / 100,
+        currency: restaurant.currency || 'USD',
+        quantity: 1,
+      }, pixelConfig);
+    }
+    toast({ title: `${variantPickerItem.name} (${variant.name}) added to cart` });
+    setVariantPickerItem(null);
+    setSelectedVariantId(null);
+  };
+
   const addToCartWithOptions = () => {
     if (!selectedItem) return;
     
@@ -1011,6 +1055,8 @@ export default function Storefront() {
               ) / 100;
               return {
                 menuItemId: ci.menuItem.id,
+                variantId: ci.variantId || null,
+                variantName: ci.variantName || null,
                 quantity: ci.quantity,
                 unitPrice: (parseFloat(ci.menuItem.price) + optionsTotal).toString(),
                 selectedOptions: ci.selectedOptions || null,
@@ -1540,6 +1586,9 @@ export default function Storefront() {
                             )}
                             <div className="flex-1">
                               <h4 className="font-medium mb-1">{translatedCartItem.name}</h4>
+                              {item.variantName && (
+                                <p className="text-xs text-muted-foreground mb-1">{item.variantName}</p>
+                              )}
                               {item.selectedOptions && item.selectedOptions.length > 0 && (
                                 <div className="text-xs text-muted-foreground mb-1 space-y-1">
                                   {item.selectedOptions.map((optionGroup, idx) => (
@@ -2914,6 +2963,49 @@ export default function Storefront() {
               data-testid="button-submit-review"
             >
               {submitReviewMutation.isPending ? "Submitting..." : "Submit Review"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Variant Picker Modal (Tier 8) */}
+      <Dialog open={!!variantPickerItem} onOpenChange={(open) => { if (!open) { setVariantPickerItem(null); setSelectedVariantId(null); } }}>
+        <DialogContent data-testid="dialog-variant-picker">
+          <DialogHeader>
+            <DialogTitle>{variantPickerItem?.name}</DialogTitle>
+            <DialogDescription>Choose an option</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {((variantPickerItem as any)?.variants || [])
+              .filter((v: any) => v.isActive)
+              .map((v: any) => {
+                const outOfStock = v.stockCount != null && v.stockCount <= 0;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    disabled={outOfStock}
+                    onClick={() => setSelectedVariantId(v.id)}
+                    className={`flex w-full items-center justify-between rounded-md border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      selectedVariantId === v.id ? "border-primary bg-primary/5" : "hover:bg-accent"
+                    }`}
+                    data-testid={`variant-option-${v.id}`}
+                  >
+                    <span className="font-medium">{v.name}</span>
+                    <span className="flex items-center gap-2 text-sm">
+                      {outOfStock ? <Badge variant="destructive">Out of stock</Badge> : v.stockCount != null && v.stockCount <= 5 ? (
+                        <Badge variant="outline" className="text-amber-600">Only {v.stockCount} left</Badge>
+                      ) : null}
+                      <span className="text-muted-foreground">{formatPrice(v.priceCents / 100)}</span>
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVariantPickerItem(null)}>Cancel</Button>
+            <Button onClick={confirmVariantAddToCart} disabled={!selectedVariantId} data-testid="button-confirm-variant">
+              Add to cart
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -5,6 +5,7 @@ export interface StorefrontCustomer {
   name: string | null;
   email: string | null;
   phone: string | null;
+  birthday?: string | null;
   ordersCount: number;
   createdAt: string;
 }

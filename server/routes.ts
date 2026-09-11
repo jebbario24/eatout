@@ -111,6 +111,8 @@ const orderSchema = z.object({
   items: z.array(z.object({
     menuItemId: z.string().optional(),
     bundleId: z.string().optional(),
+    variantId: z.string().nullable().optional(),
+    variantName: z.string().nullable().optional(),
     quantity: z.number(),
     unitPrice: z.string(),
     selectedOptions: z.any().nullable().optional(),
@@ -138,6 +140,8 @@ const onlineOrderSchema = z.object({
   items: z.array(z.object({
     menuItemId: z.string().optional(),
     bundleId: z.string().optional(),
+    variantId: z.string().nullable().optional(),
+    variantName: z.string().nullable().optional(),
     quantity: z.number(),
     unitPrice: z.string(),
     selectedOptions: z.any().nullable().optional(),
@@ -1336,6 +1340,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ---- Product variants (Tier 8) ----
+  app.get('/api/menu/items/:id/variants', isAuthenticated, async (req: any, res) => {
+    const restaurant = await storage.getRestaurantByOwnerId(req.user.id);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const item = await storage.getMenuItem(req.params.id);
+    if (!item || item.restaurantId !== restaurant.id) return res.status(404).json({ message: "Menu item not found" });
+    res.json({ optionNames: (item as any).variantOptions || [], variants: await storage.listVariants(item.id) });
+  });
+
+  app.put('/api/menu/items/:id/variants', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await storage.getRestaurantByOwnerId(req.user.id);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const item = await storage.getMenuItem(req.params.id);
+      if (!item || item.restaurantId !== restaurant.id) return res.status(404).json({ message: "Menu item not found" });
+
+      const optionNames = Array.isArray(req.body?.optionNames) ? req.body.optionNames.map((s: any) => String(s).slice(0, 60)) : [];
+      const variants = Array.isArray(req.body?.variants) ? req.body.variants : [];
+      for (const v of variants) {
+        if (!v.name || !String(v.name).trim()) return res.status(400).json({ message: "Every variant needs a name" });
+        if (!(Number(v.priceCents) >= 0)) return res.status(400).json({ message: `${v.name}: invalid price` });
+      }
+      const saved = await storage.setMenuItemVariants(item.id, restaurant.id, { optionNames, variants });
+      res.json({ optionNames, variants: saved });
+    } catch (e: any) {
+      logError("Save variants failed", e);
+      res.status(400).json({ message: e?.message || "Failed to save variants" });
+    }
+  });
+
   app.post('/api/menu/items/:id/duplicate', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
@@ -1916,11 +1950,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentStatus: 'pending',
       }, data.items.map(item => ({
         menuItemId: item.menuItemId,
+        variantId: item.variantId || null,
+        variantName: item.variantName || null,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         subtotal: (parseFloat(item.unitPrice) * item.quantity).toFixed(2),
         notes: item.notes || null,
       })));
+
+      for (const item of data.items) {
+        if (item.variantId) await storage.decrementVariantStock(item.variantId, item.quantity).catch((e) => logError("Variant stock decrement failed (non-critical)", e));
+      }
 
       // PHASE 6: Make prep time prediction when order is created
       try {
@@ -2033,6 +2073,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const draftItemSchema = z.object({
     menuItemId: z.string().optional(),
     bundleId: z.string().optional(),
+    variantId: z.string().nullable().optional(),
+    variantName: z.string().nullable().optional(),
     quantity: z.number().int().positive(),
     unitPrice: z.string(),
     notes: z.string().nullable().optional(),
@@ -2054,6 +2096,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const lineRows = items.map((it) => ({
       menuItemId: it.menuItemId || null,
       bundleId: it.bundleId || null,
+      variantId: it.variantId || null,
+      variantName: it.variantName || null,
       quantity: it.quantity,
       unitPrice: parseFloat(it.unitPrice).toFixed(2),
       subtotal: (parseFloat(it.unitPrice) * it.quantity).toFixed(2),
@@ -2915,6 +2959,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ---- Campaigns ----
+  app.get('/api/messaging/status', isAuthenticated, async (_req: any, res) => {
+    const { messagingStatus } = await import("./services/messaging");
+    res.json(messagingStatus());
+  });
+
   app.get('/api/campaigns', isAuthenticated, async (req: any, res) => {
     const restaurant = await ownerRestaurant(req);
     if (!restaurant) return res.json([]);
@@ -4073,6 +4122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     name: c.name,
     email: c.email,
     phone: c.phone,
+    birthday: c.birthday,
     ordersCount: c.ordersCount,
     createdAt: c.createdAt,
   });
@@ -4180,6 +4230,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const patch: any = {};
       if (typeof req.body?.name === "string" && req.body.name.trim()) patch.name = req.body.name.trim();
       if (typeof req.body?.phone === "string") patch.phone = req.body.phone.trim() || null;
+      if (typeof req.body?.birthday === "string") {
+        patch.birthday = /^\d{2}-\d{2}$/.test(req.body.birthday) ? req.body.birthday : null;
+      }
       if (typeof req.body?.password === "string" && req.body.password) {
         if (req.body.password.length < 8) return res.status(400).json({ message: "Password must be at least 8 characters" });
         patch.passwordHash = await hashPassword(req.body.password);
@@ -4358,8 +4411,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!restaurant) {
         return res.status(404).json({ message: "Restaurant not found" });
       }
-      const items = await storage.getMenuItems(restaurant.id);
-      res.json(items.filter(i => i.isAvailable));
+      const items = await storage.getStorefrontMenuItems(restaurant.id);
+      res.json(items.filter((i: any) => i.isAvailable));
     } catch (error) {
       console.error("Error fetching items:", error);
       res.status(500).json({ message: "Failed to fetch items" });
@@ -5001,11 +5054,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }, data.items.map(item => ({
         menuItemId: item.menuItemId || null,
         bundleId: item.bundleId || null,
+        variantId: item.variantId || null,
+        variantName: item.variantName || null,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         subtotal: (parseFloat(item.unitPrice) * item.quantity).toFixed(2),
         selectedOptions: item.selectedOptions || null,
       })));
+
+      for (const item of data.items) {
+        if (item.variantId) await storage.decrementVariantStock(item.variantId, item.quantity).catch((e) => logError("Variant stock decrement failed (non-critical)", e));
+      }
 
       // Burn the rewards that were applied to the total, and save the address.
       try {

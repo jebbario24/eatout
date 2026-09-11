@@ -17,6 +17,7 @@ import {
   collectionItems,
   storefrontPages,
   blogPosts,
+  productVariants,
   customerSegments,
   segmentMembers,
   campaigns,
@@ -72,6 +73,7 @@ import {
   type CollectionItem,
   type StorefrontPage,
   type BlogPost,
+  type ProductVariant,
   type CustomerSegment,
   type Campaign,
   type CampaignRun,
@@ -476,6 +478,84 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(menuItems.restaurantId, restaurantId), eq(menuItems.handle, handle)))
       .limit(1);
     return item;
+  }
+
+  // ---- Product variants (Tier 8) ----
+
+  async listVariants(menuItemId: string): Promise<ProductVariant[]> {
+    return db.select().from(productVariants)
+      .where(eq(productVariants.menuItemId, menuItemId))
+      .orderBy(asc(productVariants.position), asc(productVariants.name));
+  }
+
+  async getVariant(id: string): Promise<ProductVariant | undefined> {
+    const [v] = await db.select().from(productVariants).where(eq(productVariants.id, id)).limit(1);
+    return v;
+  }
+
+  /** Replace a menu item's variant set. `variants` may include an `id` to keep a
+   *  row (preserving its stock); rows not listed are removed. */
+  async setMenuItemVariants(
+    menuItemId: string,
+    restaurantId: string,
+    input: { optionNames: string[]; variants: Array<any> },
+  ): Promise<ProductVariant[]> {
+    const existing = await this.listVariants(menuItemId);
+    const keepIds = new Set(input.variants.filter((v) => v.id).map((v) => v.id));
+    for (const v of existing) {
+      if (!keepIds.has(v.id)) await db.delete(productVariants).where(eq(productVariants.id, v.id));
+    }
+    for (let i = 0; i < input.variants.length; i++) {
+      const v = input.variants[i];
+      const row = {
+        restaurantId,
+        menuItemId,
+        name: String(v.name || "Variant").slice(0, 255),
+        options: v.options ?? null,
+        priceCents: Math.max(0, Math.round(Number(v.priceCents) || 0)),
+        sku: v.sku || null,
+        stockCount: v.stockCount === "" || v.stockCount == null ? null : Math.max(0, Math.floor(Number(v.stockCount))),
+        imageUrl: v.imageUrl || null,
+        isActive: v.isActive !== false,
+        position: i,
+        updatedAt: new Date(),
+      };
+      if (v.id && keepIds.has(v.id)) {
+        await db.update(productVariants).set(row).where(eq(productVariants.id, v.id));
+      } else {
+        await db.insert(productVariants).values(row);
+      }
+    }
+    const hasVariants = input.variants.length > 0;
+    await db.update(menuItems).set({
+      hasVariants,
+      variantOptions: hasVariants ? input.optionNames : null,
+      updatedAt: new Date(),
+    }).where(eq(menuItems.id, menuItemId));
+    return this.listVariants(menuItemId);
+  }
+
+  async decrementVariantStock(variantId: string, qty: number): Promise<void> {
+    await db.update(productVariants)
+      .set({ stockCount: sql`GREATEST(0, COALESCE(${productVariants.stockCount}, 0) - ${qty})`, updatedAt: new Date() })
+      .where(and(eq(productVariants.id, variantId), sql`${productVariants.stockCount} IS NOT NULL`));
+  }
+
+  /** Storefront menu with variants attached to items that have them. */
+  async getStorefrontMenuItems(restaurantId: string): Promise<any[]> {
+    const items = await this.getMenuItems(restaurantId);
+    const withVariants = items.filter((i) => (i as any).hasVariants);
+    if (withVariants.length === 0) return items;
+    const vRows = await db.select().from(productVariants)
+      .where(and(eq(productVariants.restaurantId, restaurantId), eq(productVariants.isActive, true)))
+      .orderBy(asc(productVariants.position));
+    const byItem = new Map<string, ProductVariant[]>();
+    for (const v of vRows) {
+      const arr = byItem.get(v.menuItemId) || [];
+      arr.push(v);
+      byItem.set(v.menuItemId, arr);
+    }
+    return items.map((i) => ((i as any).hasVariants ? { ...i, variants: byItem.get(i.id) || [] } : i));
   }
 
   async createMenuItem(item: InsertMenuItem): Promise<MenuItem> {
@@ -2773,7 +2853,10 @@ export class DatabaseStorage implements IStorage {
       recipientsCount: contactable.length,
     }).returning();
 
+    const { sendEmail, sendSms, sendPush } = await import("./services/messaging");
+
     let sent = 0;
+    let delivered = 0;
     for (const c of contactable) {
       const ctx = {
         firstName: (c.name || "").split(" ")[0] || "there",
@@ -2781,30 +2864,45 @@ export class DatabaseStorage implements IStorage {
         storeName,
         email: c.email || "",
       };
+      const subject = campaign.subject ? this.renderTemplate(campaign.subject, ctx) : null;
+      const body = this.renderTemplate(campaign.message, ctx);
+      const toAddress = campaign.channel === "sms" ? c.phone : c.email;
+
+      let result: { status: "sent" | "failed" | "skipped"; error?: string };
       try {
-        await db.insert(campaignDeliveries).values({
-          restaurantId: campaign.restaurantId,
-          campaignId: campaign.id,
-          campaignRunId: run.id,
-          customerId: c.id,
-          channel: campaign.channel,
-          toAddress: campaign.channel === "sms" ? c.phone : c.email,
-          subject: campaign.subject ? this.renderTemplate(campaign.subject, ctx) : null,
-          body: this.renderTemplate(campaign.message, ctx),
-          status: "sent",
-        });
-        sent++;
+        if (campaign.channel === "sms") {
+          result = await sendSms({ to: c.phone, body });
+        } else if (campaign.channel === "push") {
+          result = c.pushSubscription
+            ? await sendPush({ subscription: c.pushSubscription, title: subject || storeName, body, url: `/store/${restaurant?.slug || ""}` })
+            : { status: "skipped", error: "no push subscription" };
+        } else {
+          result = await sendEmail({ to: c.email, subject: subject || storeName, body, fromName: storeName });
+        }
       } catch (e: any) {
-        await db.insert(campaignDeliveries).values({
-          restaurantId: campaign.restaurantId, campaignId: campaign.id, campaignRunId: run.id,
-          customerId: c.id, channel: campaign.channel, body: campaign.message,
-          status: "failed", error: String(e?.message || e),
-        });
+        result = { status: "failed", error: String(e?.message || e) };
       }
+
+      await db.insert(campaignDeliveries).values({
+        restaurantId: campaign.restaurantId,
+        campaignId: campaign.id,
+        campaignRunId: run.id,
+        customerId: c.id,
+        channel: campaign.channel,
+        toAddress,
+        subject,
+        body,
+        status: result.status,
+        error: result.error ?? null,
+      });
+      // "sent" = handed to the provider; "skipped" still counts as attempted so
+      // the run total matches the audience, but only real sends bump delivered.
+      if (result.status !== "failed") sent++;
+      if (result.status === "sent") delivered++;
     }
 
     const [updated] = await db.update(campaignRuns).set({
-      completedAt: new Date(), sentCount: sent, deliveredCount: sent, status: "completed",
+      completedAt: new Date(), sentCount: sent, deliveredCount: delivered, status: "completed",
     }).where(eq(campaignRuns.id, run.id)).returning();
     return updated;
   }
@@ -2875,6 +2973,57 @@ export class DatabaseStorage implements IStorage {
       eq(campaigns.restaurantId, restaurantId), eq(campaigns.type, type), eq(campaigns.isActive, true),
     )).limit(1);
     return c;
+  }
+
+  // ---- Automated campaign triggers (Tier 8) ----
+
+  async listActiveCampaignsByTypes(types: string[]): Promise<Campaign[]> {
+    return db.select().from(campaigns).where(and(eq(campaigns.isActive, true), inArray(campaigns.type, types)));
+  }
+
+  /** True if this customer already got this campaign within `sinceDays`. Guards
+   *  against a trigger re-firing on every cron tick. */
+  async hasRecentDelivery(campaignId: string, customerId: string, sinceDays: number): Promise<boolean> {
+    const [row] = await db.select({ n: sql<number>`count(*)::int` })
+      .from(campaignDeliveries)
+      .where(and(
+        eq(campaignDeliveries.campaignId, campaignId),
+        eq(campaignDeliveries.customerId, customerId),
+        sql`${campaignDeliveries.createdAt} > ${new Date(Date.now() - sinceDays * 86400000)}`,
+      ));
+    return (row?.n ?? 0) > 0;
+  }
+
+  async findCustomersWithFirstOrderSince(restaurantId: string, hours: number): Promise<any[]> {
+    return db.select().from(customers).where(and(
+      eq(customers.restaurantId, restaurantId),
+      sql`${customers.firstOrderAt} IS NOT NULL`,
+      sql`${customers.firstOrderAt} > ${new Date(Date.now() - hours * 3600000)}`,
+      sql`${customers.email} IS NOT NULL`,
+    ));
+  }
+
+  async findLapsedCustomers(restaurantId: string, minDays: number, maxDays: number): Promise<any[]> {
+    const now = Date.now();
+    return db.select().from(customers).where(and(
+      eq(customers.restaurantId, restaurantId),
+      sql`${customers.lastOrderAt} IS NOT NULL`,
+      sql`${customers.lastOrderAt} < ${new Date(now - minDays * 86400000)}`,
+      sql`${customers.lastOrderAt} > ${new Date(now - maxDays * 86400000)}`,
+      sql`${customers.email} IS NOT NULL`,
+    ));
+  }
+
+  async findBirthdayCustomers(restaurantId: string, mmdd: string): Promise<any[]> {
+    return db.select().from(customers).where(and(
+      eq(customers.restaurantId, restaurantId),
+      eq(customers.birthday, mmdd),
+      sql`${customers.email} IS NOT NULL`,
+    ));
+  }
+
+  async updateCustomerBirthday(customerId: string, mmdd: string | null): Promise<void> {
+    await db.update(customers).set({ birthday: mmdd, updatedAt: new Date() }).where(eq(customers.id, customerId));
   }
 
   // Boosts

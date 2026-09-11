@@ -20,12 +20,15 @@ import { Plus, Minus, Trash2, ShoppingCart } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { isUnauthorizedError } from "@/lib/authUtils";
 
 interface CartItem {
   menuItem: MenuItem;
   quantity: number;
   notes?: string;
+  variantId?: string;
+  variantName?: string;
 }
 
 export default function POS() {
@@ -73,12 +76,32 @@ export default function POS() {
     ? items?.filter((item) => item.categoryId === selectedCategory && item.isAvailable)
     : items?.filter((item) => item.isAvailable);
 
-  const addToCart = (item: MenuItem) => {
-    const existingItem = cart.find((ci) => ci.menuItem.id === item.id);
+  // Variant picker (Tier 8)
+  const [variantPickerItem, setVariantPickerItem] = useState<MenuItem | null>(null);
+  const [variantChoices, setVariantChoices] = useState<any[]>([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
+
+  const addToCart = async (item: MenuItem) => {
+    if ((item as any).hasVariants) {
+      setVariantPickerItem(item);
+      setVariantChoices([]);
+      setLoadingVariants(true);
+      try {
+        const r = await fetch(`/api/menu/items/${item.id}/variants`, { credentials: "include" });
+        const d = await r.json();
+        setVariantChoices((d.variants || []).filter((v: any) => v.isActive));
+      } catch {
+        setVariantChoices([]);
+      } finally {
+        setLoadingVariants(false);
+      }
+      return;
+    }
+    const existingItem = cart.find((ci) => ci.menuItem.id === item.id && !ci.variantId);
     if (existingItem) {
       setCart(
         cart.map((ci) =>
-          ci.menuItem.id === item.id
+          ci.menuItem.id === item.id && !ci.variantId
             ? { ...ci, quantity: ci.quantity + 1 }
             : ci
         )
@@ -88,11 +111,23 @@ export default function POS() {
     }
   };
 
-  const updateQuantity = (itemId: string, delta: number) => {
+  const addVariantToCart = (variant: any) => {
+    if (!variantPickerItem) return;
+    const itemForCart: MenuItem = { ...variantPickerItem, price: (variant.priceCents / 100).toFixed(2) } as MenuItem;
+    const existingItem = cart.find((ci) => ci.menuItem.id === variantPickerItem.id && ci.variantId === variant.id);
+    if (existingItem) {
+      setCart(cart.map((ci) => (ci === existingItem ? { ...ci, quantity: ci.quantity + 1 } : ci)));
+    } else {
+      setCart([...cart, { menuItem: itemForCart, quantity: 1, variantId: variant.id, variantName: variant.name }]);
+    }
+    setVariantPickerItem(null);
+  };
+
+  const updateQuantity = (itemId: string, delta: number, variantId?: string) => {
     setCart(
       cart
         .map((ci) =>
-          ci.menuItem.id === itemId
+          ci.menuItem.id === itemId && ci.variantId === variantId
             ? { ...ci, quantity: ci.quantity + delta }
             : ci
         )
@@ -100,8 +135,8 @@ export default function POS() {
     );
   };
 
-  const removeFromCart = (itemId: string) => {
-    setCart(cart.filter((ci) => ci.menuItem.id !== itemId));
+  const removeFromCart = (itemId: string, variantId?: string) => {
+    setCart(cart.filter((ci) => !(ci.menuItem.id === itemId && ci.variantId === variantId)));
   };
 
   const subtotal = cart.reduce(
@@ -120,6 +155,8 @@ export default function POS() {
         customerPhone: customerPhone || null,
         items: cart.map((ci) => ({
           menuItemId: ci.menuItem.id,
+          variantId: ci.variantId || null,
+          variantName: ci.variantName || null,
           quantity: ci.quantity,
           unitPrice: ci.menuItem.price,
           notes: ci.notes,
@@ -262,14 +299,15 @@ export default function POS() {
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-3">
               {cart.length > 0 ? (
-                cart.map((item) => (
+                cart.map((item, idx) => (
                   <div
-                    key={item.menuItem.id}
+                    key={`${item.menuItem.id}-${item.variantId || idx}`}
                     className="flex items-start gap-3 p-3 border rounded-lg"
                     data-testid={`cart-item-${item.menuItem.id}`}
                   >
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{item.menuItem.name}</p>
+                      {item.variantName && <p className="text-xs text-muted-foreground">{item.variantName}</p>}
                       <p className="text-sm text-muted-foreground">
                         ${parseFloat(item.menuItem.price).toFixed(2)} each
                       </p>
@@ -279,7 +317,7 @@ export default function POS() {
                         size="icon"
                         variant="outline"
                         className="h-8 w-8"
-                        onClick={() => updateQuantity(item.menuItem.id, -1)}
+                        onClick={() => updateQuantity(item.menuItem.id, -1, item.variantId)}
                         data-testid={`decrease-${item.menuItem.id}`}
                       >
                         <Minus className="h-3 w-3" />
@@ -289,7 +327,7 @@ export default function POS() {
                         size="icon"
                         variant="outline"
                         className="h-8 w-8"
-                        onClick={() => updateQuantity(item.menuItem.id, 1)}
+                        onClick={() => updateQuantity(item.menuItem.id, 1, item.variantId)}
                         data-testid={`increase-${item.menuItem.id}`}
                       >
                         <Plus className="h-3 w-3" />
@@ -298,7 +336,7 @@ export default function POS() {
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8"
-                        onClick={() => removeFromCart(item.menuItem.id)}
+                        onClick={() => removeFromCart(item.menuItem.id, item.variantId)}
                         data-testid={`remove-${item.menuItem.id}`}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -342,6 +380,45 @@ export default function POS() {
           </div>
         </div>
       </div>
+
+      {/* Variant picker (Tier 8) */}
+      <Dialog open={!!variantPickerItem} onOpenChange={(open) => !open && setVariantPickerItem(null)}>
+        <DialogContent data-testid="dialog-pos-variant-picker">
+          <DialogHeader>
+            <DialogTitle>{variantPickerItem?.name}</DialogTitle>
+            <DialogDescription>Choose an option</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {loadingVariants ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : variantChoices.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No variants configured.</p>
+            ) : (
+              variantChoices.map((v) => {
+                const outOfStock = v.stockCount != null && v.stockCount <= 0;
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    disabled={outOfStock}
+                    onClick={() => addVariantToCart(v)}
+                    className="flex w-full items-center justify-between rounded-md border p-3 text-left hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    data-testid={`pos-variant-option-${v.id}`}
+                  >
+                    <span className="font-medium">{v.name}</span>
+                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                      {outOfStock ? <Badge variant="destructive">Out of stock</Badge> : `$${(v.priceCents / 100).toFixed(2)}`}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVariantPickerItem(null)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

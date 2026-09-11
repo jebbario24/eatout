@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Package, MapPin, User as UserIcon, LogOut, Plus, Trash2, Loader2, RotateCcw, Star, Gift,
@@ -149,18 +150,27 @@ export default function CustomerAccount() {
   // profile
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [birthMonth, setBirthMonth] = useState("");
+  const [birthDay, setBirthDay] = useState("");
   const [newPw, setNewPw] = useState("");
   useEffect(() => {
-    if (customer) { setName(customer.name || ""); setPhone(customer.phone || ""); }
+    if (customer) {
+      setName(customer.name || "");
+      setPhone(customer.phone || "");
+      const [m, d] = (customer.birthday || "").split("-");
+      setBirthMonth(m || "");
+      setBirthDay(d || "");
+    }
   }, [customer]);
 
   const saveProfile = useMutation({
     mutationFn: async () => {
+      const birthday = birthMonth && birthDay ? `${birthMonth}-${birthDay}` : "";
       const r = await fetch(`/api/storefront/${slug}/account/me`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name, phone, ...(newPw ? { password: newPw } : {}) }),
+        body: JSON.stringify({ name, phone, birthday, ...(newPw ? { password: newPw } : {}) }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.message || "Could not save");
@@ -382,6 +392,27 @@ export default function CustomerAccount() {
           <Card><CardContent className="space-y-3 py-4">
             <div className="space-y-1.5"><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
             <div className="space-y-1.5"><Label>Phone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
+            <div className="space-y-1.5">
+              <Label>Birthday <span className="text-muted-foreground">(for a birthday treat — no year needed)</span></Label>
+              <div className="flex gap-2">
+                <Select value={birthMonth} onValueChange={setBirthMonth}>
+                  <SelectTrigger className="w-32"><SelectValue placeholder="Month" /></SelectTrigger>
+                  <SelectContent>
+                    {["01","02","03","04","05","06","07","08","09","10","11","12"].map((m, i) => (
+                      <SelectItem key={m} value={m}>{new Date(2000, i, 1).toLocaleString(undefined, { month: "long" })}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={birthDay} onValueChange={setBirthDay}>
+                  <SelectTrigger className="w-24"><SelectValue placeholder="Day" /></SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, "0")).map((d) => (
+                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="space-y-1.5"><Label>New password <span className="text-muted-foreground">(leave blank to keep)</span></Label><Input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} minLength={8} /></div>
             <Button size="sm" disabled={saveProfile.isPending} onClick={() => saveProfile.mutate()}>Save changes</Button>
           </CardContent></Card>

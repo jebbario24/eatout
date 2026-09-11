@@ -46,6 +46,7 @@ import { FormDescription } from "@/components/ui/form";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { getBusinessTypeConfig } from "@/lib/businessType";
 import { InlineImageUploader } from "@/components/InlineImageUploader";
+import { VariantsEditor } from "@/components/menu/VariantsEditor";
 import type { UploadResult } from "@uppy/core";
 
 const categorySchema = z.object({
@@ -1765,6 +1766,8 @@ export default function Menu() {
                       )}
                     />
                   </div>
+
+                  <VariantsEditor menuItemId={editingMenuItem?.id} />
 
                   <DialogFooter className="gap-2 sm:gap-0">
                     <Button

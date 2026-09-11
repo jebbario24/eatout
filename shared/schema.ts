@@ -270,6 +270,11 @@ export const menuItems = pgTable("menu_items", {
   handle: varchar("handle", { length: 255 }),
   seoTitle: varchar("seo_title", { length: 255 }),
   seoDescription: varchar("seo_description", { length: 500 }),
+  // Variants (Tier 8) — when true the item is sold as distinct product_variants,
+  // each with its own price / SKU / stock. variantOptions names the axes, e.g.
+  // ["Size", "Color"].
+  hasVariants: boolean("has_variants").notNull().default(false),
+  variantOptions: jsonb("variant_options"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -477,8 +482,31 @@ export const orderItems = pgTable("order_items", {
   notes: text("notes"),
   // Tier 3 — how many units of this line have been refunded/returned so far.
   quantityRefunded: integer("quantity_refunded").notNull().default(0),
+  // Tier 8 — the specific product variant purchased, if the item has variants.
+  variantId: varchar("variant_id"),
+  variantName: varchar("variant_name", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Product Variants (Tier 8) — distinct purchasable units of a menu item.
+export const productVariants = pgTable("product_variants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  menuItemId: varchar("menu_item_id").notNull().references(() => menuItems.id, { onDelete: 'cascade' }),
+  name: varchar("name", { length: 255 }).notNull(), // e.g. "Large / Red"
+  options: jsonb("options"), // { Size: "Large", Color: "Red" }
+  priceCents: integer("price_cents").notNull(),
+  sku: varchar("sku", { length: 100 }),
+  stockCount: integer("stock_count"), // null = not tracked
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_product_variants_item").on(table.menuItemId),
+  index("idx_product_variants_restaurant").on(table.restaurantId),
+]);
 
 // Order Refunds (Tier 3) — one row per refund action against an order. An order can
 // have several partial refunds. `method` decides where the money goes.
@@ -776,6 +804,8 @@ export const customers = pgTable("customers", {
   storeCreditCents: integer("store_credit_cents").notNull().default(0),
   orderType: varchar("order_type", { length: 50 }).default('delivery'),
   signupSource: varchar("signup_source", { length: 100 }),
+  // "MM-DD" — powers the birthday campaign trigger (Tier 8). Year is not stored.
+  birthday: varchar("birthday", { length: 5 }),
   firstOrderAt: timestamp("first_order_at"),
   lastOrderAt: timestamp("last_order_at"),
   ordersCount: integer("orders_count").notNull().default(0),
@@ -1835,6 +1865,14 @@ export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({
 });
 export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
 export type BlogPost = typeof blogPosts.$inferSelect;
+
+export const insertProductVariantSchema = createInsertSchema(productVariants).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertProductVariant = z.infer<typeof insertProductVariantSchema>;
+export type ProductVariant = typeof productVariants.$inferSelect;
 
 export const insertTableSchema = createInsertSchema(tables).omit({
   id: true,

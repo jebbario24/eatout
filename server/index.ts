@@ -144,6 +144,68 @@ app.use((req, res, next) => {
       }
     }, { timezone: "UTC" });
 
-    log('Marketing scheduler initialized (abandoned-cart reminders every 15m)');
+    // Welcome — every 15 minutes, greet customers whose first order landed in the
+    // last hour, via the merchant's active "welcome" campaign (once each).
+    cron.schedule('*/15 * * * *', async () => {
+      try {
+        const campaigns = await storage.listActiveCampaignsByTypes(['welcome']);
+        let sent = 0;
+        for (const campaign of campaigns) {
+          const customers = await storage.findCustomersWithFirstOrderSince(campaign.restaurantId, 1.25);
+          for (const c of customers) {
+            if (await storage.hasRecentDelivery(campaign.id, c.id, 3650)) continue; // once ever
+            await storage.sendCampaignNow(campaign.id, { audienceOverride: [c] });
+            sent++;
+          }
+        }
+        if (sent > 0) log(`[Marketing] Sent ${sent} welcome message(s)`);
+      } catch (error) {
+        log(`[Marketing] Welcome trigger error: ${error}`);
+      }
+    }, { timezone: "UTC" });
+
+    // Win-back — once daily, message customers who haven't ordered in 30-90 days,
+    // via the merchant's active "reactivation" campaign, at most once per 30 days.
+    cron.schedule('0 11 * * *', async () => {
+      try {
+        const campaigns = await storage.listActiveCampaignsByTypes(['reactivation']);
+        let sent = 0;
+        for (const campaign of campaigns) {
+          const customers = await storage.findLapsedCustomers(campaign.restaurantId, 30, 90);
+          for (const c of customers) {
+            if (await storage.hasRecentDelivery(campaign.id, c.id, 30)) continue;
+            await storage.sendCampaignNow(campaign.id, { audienceOverride: [c] });
+            sent++;
+          }
+        }
+        if (sent > 0) log(`[Marketing] Sent ${sent} win-back message(s)`);
+      } catch (error) {
+        log(`[Marketing] Win-back trigger error: ${error}`);
+      }
+    }, { timezone: "UTC" });
+
+    // Birthdays — once daily, message customers whose birthday is today, via the
+    // merchant's active "birthday" campaign, at most once per year.
+    cron.schedule('0 12 * * *', async () => {
+      try {
+        const today = new Date();
+        const mmdd = `${String(today.getUTCMonth() + 1).padStart(2, "0")}-${String(today.getUTCDate()).padStart(2, "0")}`;
+        const campaigns = await storage.listActiveCampaignsByTypes(['birthday']);
+        let sent = 0;
+        for (const campaign of campaigns) {
+          const customers = await storage.findBirthdayCustomers(campaign.restaurantId, mmdd);
+          for (const c of customers) {
+            if (await storage.hasRecentDelivery(campaign.id, c.id, 300)) continue; // once per year
+            await storage.sendCampaignNow(campaign.id, { audienceOverride: [c] });
+            sent++;
+          }
+        }
+        if (sent > 0) log(`[Marketing] Sent ${sent} birthday message(s)`);
+      } catch (error) {
+        log(`[Marketing] Birthday trigger error: ${error}`);
+      }
+    }, { timezone: "UTC" });
+
+    log('Marketing scheduler initialized (abandoned-cart every 15m; welcome every 15m; win-back + birthday daily)');
   });
 })();
