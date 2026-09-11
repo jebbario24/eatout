@@ -315,6 +315,9 @@ export const orders = pgTable("orders", {
   loyaltyPointsRedeemed: integer("loyalty_points_redeemed").notNull().default(0),
   loyaltyDiscount: decimal("loyalty_discount", { precision: 10, scale: 2 }).notNull().default('0'),
   storeCreditUsed: decimal("store_credit_used", { precision: 10, scale: 2 }).notNull().default('0'),
+  // Gift card applied to this order (Tier 4)
+  giftCardCode: varchar("gift_card_code", { length: 40 }),
+  giftCardAmount: decimal("gift_card_amount", { precision: 10, scale: 2 }).notNull().default('0'),
   // Total refunded so far across all refund records (Tier 3). paymentStatus moves to
   // 'partially_refunded' or 'refunded' as this grows toward `total`.
   refundedAmount: decimal("refunded_amount", { precision: 10, scale: 2 }).notNull().default('0'),
@@ -903,6 +906,49 @@ export const customerCreditTransactions = pgTable("customer_credit_transactions"
 }, (table) => [
   index("idx_credit_tx_customer").on(table.customerId),
   index("idx_credit_tx_restaurant").on(table.restaurantId),
+]);
+
+// Gift Cards (Tier 4) — a prepaid balance redeemable at checkout. Distinct from
+// store credit (which is tied to a customer profile): a gift card is a bearer
+// instrument identified by its code and can be handed to anyone.
+export const giftCards = pgTable("gift_cards", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  code: varchar("code", { length: 40 }).notNull(),
+  initialBalance: decimal("initial_balance", { precision: 10, scale: 2 }).notNull(),
+  balance: decimal("balance", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 10 }).notNull().default('USD'),
+  status: varchar("status", { length: 20 }).notNull().default('active'), // 'active' | 'disabled' | 'redeemed' | 'expired'
+  recipientName: varchar("recipient_name", { length: 255 }),
+  recipientEmail: varchar("recipient_email", { length: 255 }),
+  senderName: varchar("sender_name", { length: 255 }),
+  message: text("message"),
+  note: text("note"), // internal merchant note
+  // set when a customer bought the card through the storefront (vs merchant-issued)
+  purchaserOrderId: varchar("purchaser_order_id"),
+  expiresAt: timestamp("expires_at"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_gift_cards_restaurant").on(table.restaurantId),
+  unique("unique_gift_card_code_per_restaurant").on(table.restaurantId, table.code),
+]);
+
+export const giftCardTransactions = pgTable("gift_card_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  giftCardId: varchar("gift_card_id").notNull().references(() => giftCards.id, { onDelete: 'cascade' }),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  type: varchar("type", { length: 20 }).notNull(), // 'issue' | 'redeem' | 'refund' | 'adjustment'
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(), // signed: +load, -spend
+  balanceAfter: decimal("balance_after", { precision: 10, scale: 2 }).notNull(),
+  orderId: varchar("order_id").references(() => orders.id, { onDelete: 'set null' }),
+  note: text("note"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_gift_card_tx_card").on(table.giftCardId),
+  index("idx_gift_card_tx_restaurant").on(table.restaurantId),
 ]);
 
 // Loyalty Tiers - Bronze, Silver, Gold tiers
@@ -2618,6 +2664,21 @@ export const insertPromoRuleSchema = createInsertSchema(promoRules).omit({
 });
 export type InsertPromoRule = z.infer<typeof insertPromoRuleSchema>;
 export type PromoRule = typeof promoRules.$inferSelect;
+
+export const insertGiftCardSchema = createInsertSchema(giftCards).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertGiftCard = z.infer<typeof insertGiftCardSchema>;
+export type GiftCard = typeof giftCards.$inferSelect;
+
+export const insertGiftCardTransactionSchema = createInsertSchema(giftCardTransactions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertGiftCardTransaction = z.infer<typeof insertGiftCardTransactionSchema>;
+export type GiftCardTransaction = typeof giftCardTransactions.$inferSelect;
 
 export const insertPromoRedemptionSchema = createInsertSchema(promoRedemptions).omit({
   id: true,

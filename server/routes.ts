@@ -156,6 +156,8 @@ const onlineOrderSchema = z.object({
   // rewards (only honoured for a signed-in customer; server recomputes the discount)
   redeemPoints: z.number().int().nonnegative().optional(),
   useStoreCredit: z.boolean().optional(),
+  // gift card applied to the order (bearer instrument — no account needed)
+  giftCardCode: z.string().trim().max(40).nullable().optional(),
 });
 
 // Middleware to check if user is authenticated
@@ -2571,6 +2573,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ---- Gift cards (merchant) — Tier 4 ----
+
+  app.get('/api/gift-cards', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.json([]);
+      const search = typeof req.query.q === "string" ? req.query.q : undefined;
+      res.json(await storage.listGiftCards(restaurant.id, search));
+    } catch (e) {
+      logError("List gift cards failed", e);
+      res.status(500).json({ message: "Failed to load gift cards" });
+    }
+  });
+
+  const issueGiftCardSchema = z.object({
+    amount: z.number().positive().max(100000),
+    code: z.string().trim().min(4).max(40).optional(),
+    recipientName: z.string().max(255).nullable().optional(),
+    recipientEmail: z.string().email().max(255).nullable().optional(),
+    senderName: z.string().max(255).nullable().optional(),
+    message: z.string().max(2000).nullable().optional(),
+    note: z.string().max(2000).nullable().optional(),
+    expiresAt: z.string().datetime().nullable().optional(),
+  });
+
+  app.post('/api/gift-cards', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const b = issueGiftCardSchema.parse(req.body);
+      if (b.code) {
+        const clash = await storage.getGiftCardByCode(restaurant.id, b.code);
+        if (clash) return res.status(409).json({ message: "That code is already in use" });
+      }
+      const card = await storage.issueGiftCard({
+        restaurantId: restaurant.id,
+        amount: b.amount,
+        currency: restaurant.currency || "USD",
+        code: b.code,
+        recipientName: b.recipientName ?? null,
+        recipientEmail: b.recipientEmail ?? null,
+        senderName: b.senderName ?? null,
+        message: b.message ?? null,
+        note: b.note ?? null,
+        expiresAt: b.expiresAt ? new Date(b.expiresAt) : null,
+        createdBy: req.user.id,
+      });
+      res.json(card);
+    } catch (e: any) {
+      if (e?.name === "ZodError") return res.status(400).json({ message: e.errors?.[0]?.message || "Invalid gift card" });
+      logError("Issue gift card failed", e);
+      res.status(400).json({ message: "Failed to issue gift card" });
+    }
+  });
+
+  app.get('/api/gift-cards/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const card = await storage.getGiftCardById(req.params.id);
+      if (!card || card.restaurantId !== restaurant.id) return res.status(404).json({ message: "Gift card not found" });
+      const transactions = await storage.listGiftCardTransactions(card.id);
+      res.json({ card, transactions });
+    } catch (e) {
+      logError("Gift card detail failed", e);
+      res.status(500).json({ message: "Failed to load gift card" });
+    }
+  });
+
+  app.patch('/api/gift-cards/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const card = await storage.getGiftCardById(req.params.id);
+      if (!card || card.restaurantId !== restaurant.id) return res.status(404).json({ message: "Gift card not found" });
+
+      if (typeof req.body?.status === "string" && ["active", "disabled"].includes(req.body.status)) {
+        const updated = await storage.setGiftCardStatus(card.id, restaurant.id, req.body.status);
+        return res.json(updated);
+      }
+      const delta = Number(req.body?.adjustAmount);
+      if (delta) {
+        const { card: updated } = await storage.applyGiftCardDelta({
+          giftCardId: card.id,
+          restaurantId: restaurant.id,
+          delta,
+          type: "adjustment",
+          note: req.body?.note || "Manual adjustment",
+          createdBy: req.user.id,
+        });
+        return res.json(updated);
+      }
+      res.status(400).json({ message: "Nothing to update" });
+    } catch (e: any) {
+      logError("Update gift card failed", e);
+      res.status(400).json({ message: e?.message || "Failed to update gift card" });
+    }
+  });
+
   // Upsell rule routes (owner-facing management; the storefront reads via
   // /api/storefront/:slug/upsell-rules)
   app.get('/api/upsells', isAuthenticated, async (req: any, res) => {
@@ -4092,15 +4193,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check minimum order amount if specified
       const conditions = promo.conditions as any;
       if (conditions?.minOrderAmount && orderTotal < parseFloat(conditions.minOrderAmount)) {
-        return res.status(400).json({ 
-          message: `Minimum order amount of ${restaurant.currency} ${conditions.minOrderAmount} required` 
+        return res.status(400).json({
+          message: `Minimum order amount of ${restaurant.currency} ${conditions.minOrderAmount} required`
         });
+      }
+
+      // Total redemption limit
+      if (promo.redemptionLimit) {
+        const used = await storage.countPromoRedemptions(promo.id);
+        if (used >= promo.redemptionLimit) {
+          return res.status(400).json({ message: "This code has reached its redemption limit" });
+        }
+      }
+      // Per-customer limit (best effort — matched by the signed-in storefront customer)
+      if (promo.perCustomerLimit) {
+        const sc = await loadSessionCustomer(req, restaurant.id);
+        if (sc) {
+          const usedByCustomer = await storage.countCustomerPromoRedemptions(promo.id, sc.id);
+          if (usedByCustomer >= promo.perCustomerLimit) {
+            return res.status(400).json({ message: "You've already used this code" });
+          }
+        }
       }
 
       res.json(promo);
     } catch (error) {
       console.error("Error validating promo:", error);
       res.status(500).json({ message: "Failed to validate promo code" });
+    }
+  });
+
+  // Gift card balance check (public — bearer instrument, code is the secret)
+  app.get('/api/storefront/:slug/gift-card/:code', async (req, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const card = await storage.getGiftCardByCode(restaurant.id, req.params.code);
+      if (!card) return res.status(404).json({ message: "Gift card not found" });
+      const expired = card.expiresAt && new Date(card.expiresAt) < new Date();
+      const usable = card.status === "active" && !expired && parseFloat(card.balance) > 0;
+      res.json({
+        code: card.code,
+        balance: Number(card.balance),
+        currency: card.currency,
+        status: expired ? "expired" : card.status,
+        usable,
+        expiresAt: card.expiresAt,
+      });
+    } catch (error) {
+      logError("Gift card balance check failed", error);
+      res.status(500).json({ message: "Failed to check gift card" });
     }
   });
 
@@ -4254,10 +4396,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const data = onlineOrderSchema.parse(req.body);
       const orderNumber = await generateOrderNumber(restaurant.id, 'WEB');
+      const subtotalNum = parseFloat(data.subtotal || "0");
+      const deliveryFeeNum = parseFloat(data.deliveryFee || "0");
 
       // Resolve the customer up front (signed-in account, or a guest row keyed by
       // email/phone) so we can apply rewards to the total before the order is written.
       const sessionCustomer = await loadSessionCustomer(req, restaurant.id);
+
+      // --- Promo (server-authoritative) -------------------------------------
+      // The client tells us which code it wants; the server decides the amount,
+      // enforces limits, and falls back to the best auto-apply promo when there's
+      // no valid code.
+      const computePromoDiscount = (rule: any): number => {
+        const cond = (rule.conditions as any) || {};
+        const val = parseFloat(rule.discountValue || "0");
+        let d = 0;
+        if (rule.promoType === "percentage") d = subtotalNum * (val / 100);
+        else if (rule.promoType === "fixed_amount") d = Math.min(val, subtotalNum);
+        else if (rule.promoType === "free_delivery") d = deliveryFeeNum;
+        else d = Math.min(parseFloat(data.promoDiscount || "0"), subtotalNum); // BOGO etc — trust client, capped
+        if (cond.maxDiscount) d = Math.min(d, parseFloat(cond.maxDiscount));
+        return Math.max(0, Math.round(d * 100) / 100);
+      };
+
+      let promoRule: any = null;
+      if (data.promoCode) {
+        promoRule = await storage.validatePromoCode(restaurant.id, data.promoCode);
+      }
+      if (!promoRule) {
+        const autos = await storage.getActiveAutoApplyPromos(restaurant.id);
+        promoRule = autos[0] || null; // ordered by priority desc
+      }
+      let promoDiscountAmount = 0;
+      if (promoRule) {
+        const cond = (promoRule.conditions as any) || {};
+        let ok = true;
+        if (cond.minOrderAmount && subtotalNum < parseFloat(cond.minOrderAmount)) ok = false;
+        if (ok && promoRule.redemptionLimit) {
+          ok = (await storage.countPromoRedemptions(promoRule.id)) < promoRule.redemptionLimit;
+        }
+        if (ok && promoRule.perCustomerLimit && sessionCustomer) {
+          ok = (await storage.countCustomerPromoRedemptions(promoRule.id, sessionCustomer.id)) < promoRule.perCustomerLimit;
+        }
+        if (ok) promoDiscountAmount = computePromoDiscount(promoRule);
+        else promoRule = null;
+      }
+      const promoCents = Math.round(promoDiscountAmount * 100);
+      const clientPromoCents = Math.round(parseFloat(data.promoDiscount || "0") * 100);
+      // Correct the client's total for any promo mismatch (over-claim → total up).
+      const promoAdjustmentCents = clientPromoCents - promoCents;
       const checkoutCustomer =
         sessionCustomer ||
         (await storage.upsertGuestCustomer(restaurant.id, {
@@ -4274,8 +4461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let loyaltyPointsToRedeem = 0;
       let storeCreditCentsToUse = 0;
       if (sessionCustomer) {
-        const itemSubtotalCents = Math.round(parseFloat(data.subtotal || "0") * 100);
-        const promoCents = Math.round(parseFloat(data.promoDiscount || "0") * 100);
+        const itemSubtotalCents = Math.round(subtotalNum * 100);
         let redeemableCents = Math.max(0, itemSubtotalCents - promoCents);
 
         if (data.redeemPoints && data.redeemPoints > 0) {
@@ -4299,8 +4485,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           storeCreditCentsToUse = Math.min(bal, redeemableCents);
         }
       }
-      const rewardsDiscount = (loyaltyDiscountCents + storeCreditCentsToUse) / 100;
-      const adjustedTotal = Math.max(0, parseFloat(data.total || "0") - rewardsDiscount).toFixed(2);
+      // --- Gift card (bearer instrument — no account needed) ----------------
+      let giftCard: any = null;
+      if (data.giftCardCode) {
+        const gc = await storage.getGiftCardByCode(restaurant.id, data.giftCardCode);
+        const expired = gc?.expiresAt && new Date(gc.expiresAt) < new Date();
+        if (gc && gc.status === "active" && !expired && parseFloat(gc.balance) > 0) giftCard = gc;
+      }
+
+      // Build the final total: client total, corrected for the promo, minus rewards,
+      // minus whatever the gift card can cover of what's left.
+      const rewardsCents = loyaltyDiscountCents + storeCreditCentsToUse;
+      let runningCents = Math.max(
+        0,
+        Math.round(parseFloat(data.total || "0") * 100) + promoAdjustmentCents - rewardsCents,
+      );
+      let giftCardCents = 0;
+      if (giftCard) {
+        giftCardCents = Math.min(Math.round(parseFloat(giftCard.balance) * 100), runningCents);
+        runningCents -= giftCardCents;
+      }
+      const rewardsDiscount = rewardsCents / 100;
+      const adjustedTotal = (runningCents / 100).toFixed(2);
 
       // Find matching delivery zone for delivery orders
       let deliveryZoneId: string | null = null;
@@ -4345,12 +4551,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         deliveryZoneId,
         paymentMethod: data.paymentMethod || null,
         subtotal: data.subtotal,
-        promoCode: data.promoCode || null,
-        promoDiscount: data.promoDiscount || '0',
+        promoCode: promoRule ? (promoRule.promoCode || data.promoCode || null) : null,
+        promoDiscount: (promoCents / 100).toFixed(2),
         customerId: checkoutCustomerId,
         loyaltyPointsRedeemed: loyaltyPointsToRedeem,
         loyaltyDiscount: (loyaltyDiscountCents / 100).toFixed(2),
         storeCreditUsed: (storeCreditCentsToUse / 100).toFixed(2),
+        giftCardCode: giftCard ? giftCard.code : null,
+        giftCardAmount: (giftCardCents / 100).toFixed(2),
         tax: data.tax,
         total: adjustedTotal,
         status: 'pending',
@@ -4373,6 +4581,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.applyStoreCredit(restaurant.id, sessionCustomer.id, -storeCreditCentsToUse, "redeem", {
             orderId: order.id,
             reason: `Used at checkout on ${order.orderNumber}`,
+          });
+        }
+        if (giftCard && giftCardCents > 0) {
+          await storage.applyGiftCardDelta({
+            giftCardId: giftCard.id,
+            restaurantId: restaurant.id,
+            delta: -(giftCardCents / 100),
+            type: "redeem",
+            orderId: order.id,
+            note: `Redeemed at checkout on ${order.orderNumber}`,
+          });
+        }
+        if (promoRule) {
+          await storage.recordPromoRedemption({
+            restaurantId: restaurant.id,
+            promoRuleId: promoRule.id,
+            orderId: order.id,
+            customerId: checkoutCustomerId,
+            discountAmount: promoCents / 100,
           });
         }
         if (

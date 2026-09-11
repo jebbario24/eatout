@@ -251,6 +251,11 @@ export default function Storefront() {
   });
   const [redeemPoints, setRedeemPoints] = useState(false);
   const [useStoreCredit, setUseStoreCredit] = useState(false);
+  // Gift card (bearer instrument — no account needed)
+  const [giftCardInput, setGiftCardInput] = useState("");
+  const [giftCard, setGiftCard] = useState<{ code: string; balance: number } | null>(null);
+  const [giftCardError, setGiftCardError] = useState("");
+  const [checkingGiftCard, setCheckingGiftCard] = useState(false);
 
   // Prefill checkout from the signed-in customer (only if the field is still empty)
   useEffect(() => {
@@ -802,7 +807,9 @@ export default function Storefront() {
   if (canUseStoreCredit && useStoreCredit) {
     storeCreditEst = Math.max(0, Math.min(storeCreditCents, redeemableCents));
   }
-  const rewardsDiscount = (loyaltyDiscountEst + storeCreditEst) / 100;
+  redeemableCents -= storeCreditEst;
+  const giftCardEst = giftCard ? Math.min(Math.round(giftCard.balance * 100), redeemableCents) : 0;
+  const rewardsDiscount = (loyaltyDiscountEst + storeCreditEst + giftCardEst) / 100;
   const displayTotal = Math.max(0, total - rewardsDiscount);
 
   // Apply promo code function
@@ -852,6 +859,31 @@ export default function Storefront() {
     setPromoCode("");
     setPromoCodeError("");
     toast({ title: "Promo code removed" });
+  };
+
+  const handleApplyGiftCard = async () => {
+    const code = giftCardInput.trim();
+    if (!code) return;
+    setCheckingGiftCard(true);
+    setGiftCardError("");
+    try {
+      const s = sfSlug || restaurant?.slug;
+      const r = await fetch(`/api/storefront/${s}/gift-card/${encodeURIComponent(code)}`);
+      const d = await r.json();
+      if (!r.ok) { setGiftCardError(d.message || "Gift card not found"); return; }
+      if (!d.usable) { setGiftCardError(`This gift card is ${d.status}`); return; }
+      setGiftCard({ code: d.code, balance: d.balance });
+      toast({ title: "Gift card applied", description: `${formatPrice(d.balance)} available` });
+    } catch {
+      setGiftCardError("Could not check that gift card");
+    } finally {
+      setCheckingGiftCard(false);
+    }
+  };
+  const handleRemoveGiftCard = () => {
+    setGiftCard(null);
+    setGiftCardInput("");
+    setGiftCardError("");
   };
 
   const checkoutMutation = useMutation({
@@ -910,6 +942,7 @@ export default function Storefront() {
           total: total.toFixed(2),
           redeemPoints: canRedeemPoints && redeemPoints ? pointsBalance : undefined,
           useStoreCredit: canUseStoreCredit && useStoreCredit ? true : undefined,
+          giftCardCode: giftCard?.code || undefined,
         }),
       }).then((res) => res.json());
     },
@@ -929,6 +962,7 @@ export default function Storefront() {
         setPromoCodeError("");
         setRedeemPoints(false);
         setUseStoreCredit(false);
+        handleRemoveGiftCard();
         queryClient.invalidateQueries({ queryKey: [`/api/storefront/${sfSlug}/account/rewards`] });
       } else if (data.paymentMethod === 'paypal') {
         setCurrentOrderId(data.orderId);
@@ -1670,6 +1704,45 @@ export default function Storefront() {
                   )}
                 </div>
 
+                {/* Gift Card Section */}
+                <div className="space-y-2 border-t pt-4">
+                  {!giftCard ? (
+                    <div className="space-y-2">
+                      <Label className="text-sm">Gift Card</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Enter gift card code"
+                          value={giftCardInput}
+                          onChange={(e) => { setGiftCardInput(e.target.value.toUpperCase()); setGiftCardError(""); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleApplyGiftCard(); }}
+                          disabled={checkingGiftCard || cart.length === 0}
+                          data-testid="input-gift-card"
+                          className="flex-1 font-mono"
+                        />
+                        <Button
+                          onClick={handleApplyGiftCard}
+                          disabled={checkingGiftCard || !giftCardInput.trim() || cart.length === 0}
+                          data-testid="button-apply-gift-card"
+                        >
+                          {checkingGiftCard ? "Checking..." : "Apply"}
+                        </Button>
+                      </div>
+                      {giftCardError && <p className="text-xs text-destructive" data-testid="gift-card-error">{giftCardError}</p>}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-green-800 dark:text-green-200">Gift card applied</span>
+                        <span className="text-xs font-mono text-green-600 dark:text-green-300">{giftCard.code} · {formatPrice(giftCard.balance)} balance</span>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={handleRemoveGiftCard} data-testid="button-remove-gift-card"
+                        className="h-8 text-green-700 hover:text-green-900 dark:text-green-300 dark:hover:text-green-100">
+                        Remove
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-3 border-t pt-4">
                     <div className="space-y-2 w-full">
                       <div className="flex justify-between text-sm">
@@ -1720,6 +1793,12 @@ export default function Storefront() {
                         <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
                           <span>Store credit</span>
                           <span data-testid="store-credit-used">-{formatPrice(storeCreditEst / 100)}</span>
+                        </div>
+                      )}
+                      {giftCardEst > 0 && (
+                        <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
+                          <span>Gift card</span>
+                          <span data-testid="gift-card-applied">-{formatPrice(giftCardEst / 100)}</span>
                         </div>
                       )}
                       <Separator />

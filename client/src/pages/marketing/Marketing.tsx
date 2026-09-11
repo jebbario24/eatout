@@ -33,6 +33,14 @@ export default function Marketing() {
       bgColor: "bg-rose-500/10"
     },
     {
+      title: "Gift Cards",
+      description: "Issue prepaid cards customers redeem at checkout",
+      icon: Gift,
+      url: "/marketing/gift-cards",
+      color: "text-amber-500",
+      bgColor: "bg-amber-500/10"
+    },
+    {
       title: "Boosts",
       description: "Featured placement with FREE daily credits",
       icon: Zap,

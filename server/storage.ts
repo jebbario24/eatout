@@ -10,6 +10,9 @@ import {
   orderItems,
   orderRefunds,
   orderEvents,
+  giftCards,
+  giftCardTransactions,
+  promoRedemptions,
   staff,
   inventory,
   deliveryZones,
@@ -51,6 +54,8 @@ import {
   type InsertOrderItem,
   type OrderRefund,
   type OrderEvent,
+  type GiftCard,
+  type GiftCardTransaction,
   type Staff,
   type InsertStaff,
   type Inventory,
@@ -2293,6 +2298,182 @@ export class DatabaseStorage implements IStorage {
 
   async deleteOrder(orderId: string): Promise<void> {
     await db.delete(orders).where(eq(orders.id, orderId));
+  }
+
+  // ---- Gift cards (Tier 4) ----
+
+  async listGiftCards(restaurantId: string, search?: string): Promise<GiftCard[]> {
+    const conds = [eq(giftCards.restaurantId, restaurantId)];
+    if (search && search.trim()) {
+      const q = `%${search.trim().toLowerCase()}%`;
+      conds.push(
+        or(
+          sql`lower(${giftCards.code}) like ${q}`,
+          sql`lower(${giftCards.recipientEmail}) like ${q}`,
+          sql`lower(${giftCards.recipientName}) like ${q}`,
+        )!,
+      );
+    }
+    return db.select().from(giftCards).where(and(...conds)).orderBy(desc(giftCards.createdAt)).limit(300);
+  }
+
+  async getGiftCardById(id: string): Promise<GiftCard | undefined> {
+    const [g] = await db.select().from(giftCards).where(eq(giftCards.id, id)).limit(1);
+    return g;
+  }
+
+  async getGiftCardByCode(restaurantId: string, code: string): Promise<GiftCard | undefined> {
+    const [g] = await db
+      .select()
+      .from(giftCards)
+      .where(and(eq(giftCards.restaurantId, restaurantId), sql`upper(${giftCards.code}) = ${code.toUpperCase()}`))
+      .limit(1);
+    return g;
+  }
+
+  async listGiftCardTransactions(giftCardId: string): Promise<GiftCardTransaction[]> {
+    return db
+      .select()
+      .from(giftCardTransactions)
+      .where(eq(giftCardTransactions.giftCardId, giftCardId))
+      .orderBy(desc(giftCardTransactions.createdAt));
+  }
+
+  /** Generate a code unique for this merchant. Format XXXX-XXXX-XXXX (no ambiguous chars). */
+  private async generateGiftCardCode(restaurantId: string): Promise<string> {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const block = () => Array.from({ length: 4 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+    for (let i = 0; i < 8; i++) {
+      const code = `${block()}-${block()}-${block()}`;
+      const existing = await this.getGiftCardByCode(restaurantId, code);
+      if (!existing) return code;
+    }
+    return `${block()}-${block()}-${block()}-${Date.now().toString(36).toUpperCase()}`;
+  }
+
+  async issueGiftCard(input: {
+    restaurantId: string;
+    amount: number;
+    currency?: string;
+    code?: string;
+    recipientName?: string | null;
+    recipientEmail?: string | null;
+    senderName?: string | null;
+    message?: string | null;
+    note?: string | null;
+    expiresAt?: Date | null;
+    purchaserOrderId?: string | null;
+    createdBy?: string | null;
+  }): Promise<GiftCard> {
+    const code = (input.code?.trim().toUpperCase()) || (await this.generateGiftCardCode(input.restaurantId));
+    const [card] = await db
+      .insert(giftCards)
+      .values({
+        restaurantId: input.restaurantId,
+        code,
+        initialBalance: input.amount.toFixed(2),
+        balance: input.amount.toFixed(2),
+        currency: input.currency || "USD",
+        status: "active",
+        recipientName: input.recipientName ?? null,
+        recipientEmail: input.recipientEmail ?? null,
+        senderName: input.senderName ?? null,
+        message: input.message ?? null,
+        note: input.note ?? null,
+        expiresAt: input.expiresAt ?? null,
+        purchaserOrderId: input.purchaserOrderId ?? null,
+        createdBy: input.createdBy ?? null,
+      })
+      .returning();
+    await db.insert(giftCardTransactions).values({
+      giftCardId: card.id,
+      restaurantId: input.restaurantId,
+      type: "issue",
+      amount: input.amount.toFixed(2),
+      balanceAfter: input.amount.toFixed(2),
+      note: "Gift card issued",
+      createdBy: input.createdBy ?? null,
+    });
+    return card;
+  }
+
+  async setGiftCardStatus(id: string, restaurantId: string, status: string): Promise<GiftCard | undefined> {
+    const [updated] = await db
+      .update(giftCards)
+      .set({ status, updatedAt: new Date() })
+      .where(and(eq(giftCards.id, id), eq(giftCards.restaurantId, restaurantId)))
+      .returning();
+    return updated;
+  }
+
+  /** Move a gift card's balance and write the ledger row. `delta` signed. Returns new balance. */
+  async applyGiftCardDelta(input: {
+    giftCardId: string;
+    restaurantId: string;
+    delta: number;
+    type: "redeem" | "refund" | "adjustment";
+    orderId?: string | null;
+    note?: string | null;
+    createdBy?: string | null;
+  }): Promise<{ card: GiftCard; balanceAfter: number }> {
+    const card = await this.getGiftCardById(input.giftCardId);
+    if (!card) throw new Error("Gift card not found");
+    const before = parseFloat(card.balance);
+    const after = Math.round(Math.max(0, before + input.delta) * 100) / 100;
+    const [updated] = await db
+      .update(giftCards)
+      .set({
+        balance: after.toFixed(2),
+        status: after === 0 && card.status === "active" ? "redeemed" : card.status,
+        updatedAt: new Date(),
+      })
+      .where(eq(giftCards.id, input.giftCardId))
+      .returning();
+    await db.insert(giftCardTransactions).values({
+      giftCardId: input.giftCardId,
+      restaurantId: input.restaurantId,
+      type: input.type,
+      amount: (after - before).toFixed(2),
+      balanceAfter: after.toFixed(2),
+      orderId: input.orderId ?? null,
+      note: input.note ?? null,
+      createdBy: input.createdBy ?? null,
+    });
+    return { card: updated, balanceAfter: after };
+  }
+
+  // ---- Promo redemption tracking (Tier 4) ----
+
+  async countPromoRedemptions(promoRuleId: string): Promise<number> {
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(promoRedemptions)
+      .where(eq(promoRedemptions.promoRuleId, promoRuleId));
+    return row?.n ?? 0;
+  }
+
+  async countCustomerPromoRedemptions(promoRuleId: string, customerId: string): Promise<number> {
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(promoRedemptions)
+      .where(and(eq(promoRedemptions.promoRuleId, promoRuleId), eq(promoRedemptions.customerId, customerId)));
+    return row?.n ?? 0;
+  }
+
+  async recordPromoRedemption(input: {
+    restaurantId: string;
+    promoRuleId: string;
+    orderId: string;
+    customerId?: string | null;
+    discountAmount: number;
+  }): Promise<void> {
+    await db.insert(promoRedemptions).values({
+      restaurantId: input.restaurantId,
+      promoRuleId: input.promoRuleId,
+      orderId: input.orderId,
+      customerId: input.customerId ?? null,
+      discountAmount: input.discountAmount.toFixed(2),
+    });
   }
 
   // Inbox Messages

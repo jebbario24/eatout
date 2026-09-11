@@ -20,7 +20,8 @@ import {
   Shield,
   Activity,
   Heart,
-  UserRound
+  UserRound,
+  Gift
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -69,6 +70,11 @@ const marketingItems = [
     titleKey: "Loyalty & Rewards",
     url: "/marketing/loyalty",
     icon: Heart,
+  },
+  {
+    titleKey: "Gift Cards",
+    url: "/marketing/gift-cards",
+    icon: Gift,
   },
 ];
 
