@@ -29,6 +29,8 @@ import POS from "@/pages/POS";
 import Storefront from "@/pages/Storefront";
 import CustomerAccount from "@/pages/storefront/CustomerAccount";
 import OrderTracking from "@/pages/storefront/OrderTracking";
+import StorefrontPage from "@/pages/storefront/StorefrontPage";
+import { StorefrontBlogIndex, StorefrontBlogPost } from "@/pages/storefront/StorefrontBlog";
 import Subscribe from "@/pages/Subscribe";
 import DeliveryZones from "@/pages/DeliveryZones";
 import OnlineStore from "@/pages/OnlineStore";
@@ -50,6 +52,7 @@ import Loyalty from "@/pages/marketing/Loyalty";
 import GiftCards from "@/pages/marketing/GiftCards";
 import Campaigns from "@/pages/marketing/Campaigns";
 import Collections from "@/pages/Collections";
+import StorefrontContent from "@/pages/StorefrontContent";
 import Customers from "@/pages/Customers";
 import Boosts from "@/pages/marketing/Boosts";
 import Upsells from "@/pages/marketing/Upsells";
@@ -123,6 +126,7 @@ function AuthenticatedRouter() {
       <Route path="/delivery-zones" component={DeliveryZones} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/online-store" component={OnlineStore} />
+      <Route path="/online-store/content" component={StorefrontContent} />
       <Route path="/settings" component={Settings} />
       <Route path="/pos" component={POS} />
       <Route path="/marketing" component={Marketing} />
@@ -215,8 +219,14 @@ function StorefrontRouter() {
     <Switch>
       <Route path="/store/:slug/account" component={CustomerAccount} />
       <Route path="/store/:slug/track" component={OrderTracking} />
+      <Route path="/store/:slug/blog/:handle" component={StorefrontBlogPost} />
+      <Route path="/store/:slug/blog" component={StorefrontBlogIndex} />
+      <Route path="/store/:slug/pages/:handle" component={StorefrontPage} />
       <Route path="/account" component={CustomerAccount} />
       <Route path="/track" component={OrderTracking} />
+      <Route path="/blog/:handle" component={StorefrontBlogPost} />
+      <Route path="/blog" component={StorefrontBlogIndex} />
+      <Route path="/pages/:handle" component={StorefrontPage} />
       <Route path="/" component={Storefront} />
       <Route path="/store/:slug" component={Storefront} />
       <Route component={Storefront} />

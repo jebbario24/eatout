@@ -364,3 +364,20 @@
 }
 
 /* No global overflow restriction - let each layout handle its own scrolling */
+/* Storefront CMS content (Tier 7) — Markdown-rendered pages & blog posts */
+.sf-prose { line-height: 1.7; color: hsl(var(--foreground)); }
+.sf-prose > * + * { margin-top: 1rem; }
+.sf-prose h1 { font-size: 1.875rem; font-weight: 700; margin-top: 2rem; }
+.sf-prose h2 { font-size: 1.5rem; font-weight: 700; margin-top: 1.75rem; }
+.sf-prose h3 { font-size: 1.25rem; font-weight: 600; margin-top: 1.5rem; }
+.sf-prose h4 { font-size: 1.05rem; font-weight: 600; margin-top: 1.25rem; }
+.sf-prose p { color: hsl(var(--muted-foreground)); }
+.sf-prose a { color: hsl(var(--primary)); text-decoration: underline; }
+.sf-prose ul, .sf-prose ol { padding-left: 1.5rem; color: hsl(var(--muted-foreground)); }
+.sf-prose ul { list-style: disc; }
+.sf-prose ol { list-style: decimal; }
+.sf-prose li + li { margin-top: 0.35rem; }
+.sf-prose blockquote { border-left: 3px solid hsl(var(--primary)); padding-left: 1rem; font-style: italic; color: hsl(var(--muted-foreground)); }
+.sf-prose code { background: hsl(var(--muted)); padding: 0.1rem 0.35rem; border-radius: 0.25rem; font-size: 0.9em; }
+.sf-prose hr { border: none; border-top: 1px solid hsl(var(--border)); }
+.sf-prose img { border-radius: 0.5rem; margin: 1.25rem 0; }

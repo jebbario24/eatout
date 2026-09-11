@@ -15,6 +15,8 @@ import {
   promoRedemptions,
   collections,
   collectionItems,
+  storefrontPages,
+  blogPosts,
   customerSegments,
   segmentMembers,
   campaigns,
@@ -68,6 +70,8 @@ import {
   type GiftCardTransaction,
   type Collection,
   type CollectionItem,
+  type StorefrontPage,
+  type BlogPost,
   type CustomerSegment,
   type Campaign,
   type CampaignRun,
@@ -2456,6 +2460,124 @@ export class DatabaseStorage implements IStorage {
       result.push({ ...c, items });
     }
     return result;
+  }
+
+  // ---- Storefront CMS: pages, blog, nav (Tier 7) ----
+
+  private async uniquePageHandle(restaurantId: string, base: string, ignoreId?: string): Promise<string> {
+    const root = slugify(base) || "page";
+    for (let i = 0; i < 50; i++) {
+      const candidate = i === 0 ? root : `${root}-${i + 1}`;
+      const [clash] = await db.select().from(storefrontPages)
+        .where(and(eq(storefrontPages.restaurantId, restaurantId), eq(storefrontPages.handle, candidate))).limit(1);
+      if (!clash || clash.id === ignoreId) return candidate;
+    }
+    return `${root}-${Date.now().toString(36)}`;
+  }
+  private async uniquePostHandle(restaurantId: string, base: string, ignoreId?: string): Promise<string> {
+    const root = slugify(base) || "post";
+    for (let i = 0; i < 50; i++) {
+      const candidate = i === 0 ? root : `${root}-${i + 1}`;
+      const [clash] = await db.select().from(blogPosts)
+        .where(and(eq(blogPosts.restaurantId, restaurantId), eq(blogPosts.handle, candidate))).limit(1);
+      if (!clash || clash.id === ignoreId) return candidate;
+    }
+    return `${root}-${Date.now().toString(36)}`;
+  }
+
+  async listPages(restaurantId: string): Promise<StorefrontPage[]> {
+    return db.select().from(storefrontPages).where(eq(storefrontPages.restaurantId, restaurantId))
+      .orderBy(asc(storefrontPages.sortOrder), asc(storefrontPages.title));
+  }
+  async getPage(id: string): Promise<StorefrontPage | undefined> {
+    const [p] = await db.select().from(storefrontPages).where(eq(storefrontPages.id, id)).limit(1);
+    return p;
+  }
+  async getPageByHandle(restaurantId: string, handle: string): Promise<StorefrontPage | undefined> {
+    const [p] = await db.select().from(storefrontPages)
+      .where(and(eq(storefrontPages.restaurantId, restaurantId), eq(storefrontPages.handle, handle))).limit(1);
+    return p;
+  }
+  async createPage(restaurantId: string, data: any): Promise<StorefrontPage> {
+    const handle = await this.uniquePageHandle(restaurantId, data.handle || data.title || "page");
+    const [created] = await db.insert(storefrontPages).values({
+      restaurantId,
+      title: String(data.title || "Untitled page").slice(0, 255),
+      handle,
+      body: data.body ?? null,
+      isPublished: data.isPublished ?? false,
+      showInFooter: data.showInFooter ?? false,
+      sortOrder: data.sortOrder ?? 0,
+      seoTitle: data.seoTitle ?? null,
+      seoDescription: data.seoDescription ?? null,
+    }).returning();
+    return created;
+  }
+  async updatePage(id: string, restaurantId: string, data: any): Promise<StorefrontPage | undefined> {
+    const patch: any = { updatedAt: new Date() };
+    for (const k of ["title", "body", "isPublished", "showInFooter", "sortOrder", "seoTitle", "seoDescription"] as const) {
+      if (data[k] !== undefined) patch[k] = data[k];
+    }
+    if (data.handle !== undefined) patch.handle = await this.uniquePageHandle(restaurantId, data.handle, id);
+    const [updated] = await db.update(storefrontPages).set(patch)
+      .where(and(eq(storefrontPages.id, id), eq(storefrontPages.restaurantId, restaurantId))).returning();
+    return updated;
+  }
+  async deletePage(id: string, restaurantId: string): Promise<void> {
+    await db.delete(storefrontPages).where(and(eq(storefrontPages.id, id), eq(storefrontPages.restaurantId, restaurantId)));
+  }
+
+  async listPosts(restaurantId: string): Promise<BlogPost[]> {
+    return db.select().from(blogPosts).where(eq(blogPosts.restaurantId, restaurantId))
+      .orderBy(desc(blogPosts.publishedAt), desc(blogPosts.createdAt));
+  }
+  async getPost(id: string): Promise<BlogPost | undefined> {
+    const [p] = await db.select().from(blogPosts).where(eq(blogPosts.id, id)).limit(1);
+    return p;
+  }
+  async getPostByHandle(restaurantId: string, handle: string): Promise<BlogPost | undefined> {
+    const [p] = await db.select().from(blogPosts)
+      .where(and(eq(blogPosts.restaurantId, restaurantId), eq(blogPosts.handle, handle))).limit(1);
+    return p;
+  }
+  async createPost(restaurantId: string, data: any): Promise<BlogPost> {
+    const handle = await this.uniquePostHandle(restaurantId, data.handle || data.title || "post");
+    const publishedAt = data.isPublished ? (data.publishedAt ? new Date(data.publishedAt) : new Date()) : null;
+    const [created] = await db.insert(blogPosts).values({
+      restaurantId,
+      title: String(data.title || "Untitled post").slice(0, 255),
+      handle,
+      excerpt: data.excerpt ?? null,
+      body: data.body ?? null,
+      coverImageUrl: data.coverImageUrl ?? null,
+      author: data.author ?? null,
+      tags: Array.isArray(data.tags) ? data.tags : null,
+      isPublished: data.isPublished ?? false,
+      publishedAt,
+      seoTitle: data.seoTitle ?? null,
+      seoDescription: data.seoDescription ?? null,
+    }).returning();
+    return created;
+  }
+  async updatePost(id: string, restaurantId: string, data: any): Promise<BlogPost | undefined> {
+    const existing = await this.getPost(id);
+    const patch: any = { updatedAt: new Date() };
+    for (const k of ["title", "excerpt", "body", "coverImageUrl", "author", "seoTitle", "seoDescription"] as const) {
+      if (data[k] !== undefined) patch[k] = data[k];
+    }
+    if (data.tags !== undefined) patch.tags = Array.isArray(data.tags) ? data.tags : null;
+    if (data.handle !== undefined) patch.handle = await this.uniquePostHandle(restaurantId, data.handle, id);
+    if (data.isPublished !== undefined) {
+      patch.isPublished = !!data.isPublished;
+      if (data.isPublished && !existing?.publishedAt) patch.publishedAt = new Date();
+    }
+    if (data.publishedAt !== undefined) patch.publishedAt = data.publishedAt ? new Date(data.publishedAt) : null;
+    const [updated] = await db.update(blogPosts).set(patch)
+      .where(and(eq(blogPosts.id, id), eq(blogPosts.restaurantId, restaurantId))).returning();
+    return updated;
+  }
+  async deletePost(id: string, restaurantId: string): Promise<void> {
+    await db.delete(blogPosts).where(and(eq(blogPosts.id, id), eq(blogPosts.restaurantId, restaurantId)));
   }
 
   // ---- Marketing: segments, campaigns, abandoned carts, boosts (Tier 6) ----

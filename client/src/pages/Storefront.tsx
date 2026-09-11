@@ -502,6 +502,18 @@ export default function Storefront() {
     },
   });
 
+  // Storefront CMS pages for the footer (Tier 7)
+  const { data: storefrontPages = [] } = useQuery<any[]>({
+    queryKey: ["/api/storefront/pages", restaurant?.slug],
+    enabled: !!restaurant,
+    queryFn: async () => {
+      const s = slug || restaurant?.slug;
+      const r = await fetch(`/api/storefront/${s}/pages`);
+      return r.ok ? r.json() : [];
+    },
+  });
+  const footerPages = storefrontPages.filter((p: any) => p.showInFooter);
+
   // Helper function to check if an item is currently boosted
   const isItemBoosted = (itemName: string) => {
     return activeBoosts.some((boost: any) => boost.itemName === itemName);
@@ -1376,6 +1388,18 @@ export default function Storefront() {
         />
       )}
       
+      {/* Announcement bar (Tier 7 CMS) */}
+      {(restaurant as any)?.announcement?.enabled && (restaurant as any).announcement.text && (
+        <div className="bg-primary text-primary-foreground text-center text-sm py-2 px-4" data-testid="announcement-bar">
+          {(restaurant as any).announcement.text}
+          {(restaurant as any).announcement.linkUrl && (
+            <a href={(restaurant as any).announcement.linkUrl} className="ml-2 underline font-medium">
+              {(restaurant as any).announcement.linkLabel || "Learn more"}
+            </a>
+          )}
+        </div>
+      )}
+
       {/* Sticky Header with Cart */}
       <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -2050,6 +2074,30 @@ export default function Storefront() {
           </Sheet>
           </div>
         </div>
+        {/* CMS navigation (Tier 7) */}
+        {Array.isArray((restaurant as any)?.storefrontNav?.items) && (restaurant as any).storefrontNav.items.length > 0 && (
+          <div className="border-t">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-10 flex items-center gap-1 overflow-x-auto text-sm">
+              {(restaurant as any).storefrontNav.items.map((item: any, idx: number) => {
+                const href =
+                  item.type === "home" || item.type === "menu" ? (sfSlug ? `/store/${sfSlug}` : "/")
+                  : item.type === "blog" ? (sfSlug ? `/store/${sfSlug}/blog` : "/blog")
+                  : item.type === "page" ? (sfSlug ? `/store/${sfSlug}/pages/${item.value || ""}` : `/pages/${item.value || ""}`)
+                  : item.type === "collection" ? (sfSlug ? `/store/${sfSlug}/c/${item.value || ""}` : `/c/${item.value || ""}`)
+                  : item.value || "#";
+                return (
+                  <a key={item.id || idx} href={href}
+                    target={item.type === "url" && item.external ? "_blank" : undefined}
+                    rel={item.type === "url" && item.external ? "noopener noreferrer" : undefined}
+                    className="whitespace-nowrap rounded-md px-2.5 py-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                    data-testid={`storefront-nav-${idx}`}>
+                    {item.label}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Hero Section with Cover Photo */}
@@ -2780,6 +2828,19 @@ export default function Storefront() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* CMS footer links (Tier 7) */}
+      {footerPages.length > 0 && (
+        <div className="border-t">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+            {footerPages.map((p: any) => (
+              <a key={p.id} href={sfSlug ? `/store/${sfSlug}/pages/${p.handle}` : `/pages/${p.handle}`} className="hover:text-foreground">
+                {p.title}
+              </a>
+            ))}
           </div>
         </div>
       )}

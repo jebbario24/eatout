@@ -141,6 +141,11 @@ export const restaurants = pgTable("restaurants", {
   seoTitle: varchar("seo_title", { length: 255 }),
   seoDescription: varchar("seo_description", { length: 500 }),
   seoImageUrl: text("seo_image_url"),
+  // Storefront CMS (Tier 7)
+  // storefrontNav: { items: [{ id, label, type: 'home'|'menu'|'collection'|'page'|'blog'|'url', value?, external? }] }
+  storefrontNav: jsonb("storefront_nav"),
+  // announcement: { enabled, text, linkLabel?, linkUrl? }
+  announcement: jsonb("announcement"),
   // Manual Access Override (Platform Admin)
   manuallyGrantedAccess: boolean("manually_granted_access").default(false),
   accessGrantedBy: varchar("access_granted_by"), // Admin user ID who granted access
@@ -313,6 +318,48 @@ export const collectionItems = pgTable("collection_items", {
 }, (table) => [
   index("idx_collection_items_collection").on(table.collectionId),
   unique("collection_items_unique").on(table.collectionId, table.menuItemId),
+]);
+
+// Storefront CMS (Tier 7) — custom content pages: About, FAQ, Terms, Privacy…
+// body is Markdown. Reachable at /store/:slug/pages/:handle.
+export const storefrontPages = pgTable("storefront_pages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  title: varchar("title", { length: 255 }).notNull(),
+  handle: varchar("handle", { length: 255 }).notNull(),
+  body: text("body"),
+  isPublished: boolean("is_published").notNull().default(false),
+  showInFooter: boolean("show_in_footer").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+  seoTitle: varchar("seo_title", { length: 255 }),
+  seoDescription: varchar("seo_description", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_storefront_pages_restaurant").on(table.restaurantId),
+  unique("storefront_pages_restaurant_handle_unique").on(table.restaurantId, table.handle),
+]);
+
+// Storefront CMS — blog posts. Reachable at /store/:slug/blog and /blog/:handle.
+export const blogPosts = pgTable("blog_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  title: varchar("title", { length: 255 }).notNull(),
+  handle: varchar("handle", { length: 255 }).notNull(),
+  excerpt: varchar("excerpt", { length: 500 }),
+  body: text("body"),
+  coverImageUrl: text("cover_image_url"),
+  author: varchar("author", { length: 255 }),
+  tags: text("tags").array(),
+  isPublished: boolean("is_published").notNull().default(false),
+  publishedAt: timestamp("published_at"),
+  seoTitle: varchar("seo_title", { length: 255 }),
+  seoDescription: varchar("seo_description", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_blog_posts_restaurant").on(table.restaurantId),
+  unique("blog_posts_restaurant_handle_unique").on(table.restaurantId, table.handle),
 ]);
 
 // Tables
@@ -1772,6 +1819,22 @@ export const insertCollectionItemSchema = createInsertSchema(collectionItems).om
 });
 export type InsertCollectionItem = z.infer<typeof insertCollectionItemSchema>;
 export type CollectionItem = typeof collectionItems.$inferSelect;
+
+export const insertStorefrontPageSchema = createInsertSchema(storefrontPages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertStorefrontPage = z.infer<typeof insertStorefrontPageSchema>;
+export type StorefrontPage = typeof storefrontPages.$inferSelect;
+
+export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
+export type BlogPost = typeof blogPosts.$inferSelect;
 
 export const insertTableSchema = createInsertSchema(tables).omit({
   id: true,

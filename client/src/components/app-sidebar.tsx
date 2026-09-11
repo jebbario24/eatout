@@ -159,6 +159,11 @@ const storeItems = [
     icon: Palette,
   },
   {
+    titleKey: "Pages & Blog",
+    url: "/online-store/content",
+    icon: FileText,
+  },
+  {
     titleKey: "Pixels & Tracking",
     url: "/marketing/pixels",
     icon: BarChart3,

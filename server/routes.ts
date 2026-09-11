@@ -2779,6 +2779,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==========================================
+  // STOREFRONT CMS — pages, blog (Tier 7)
+  // ==========================================
+
+  app.get('/api/pages', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.json([]);
+    res.json(await storage.listPages(restaurant.id));
+  });
+  app.post('/api/pages', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      if (!req.body?.title?.trim()) return res.status(400).json({ message: "Title is required" });
+      res.json(await storage.createPage(restaurant.id, req.body));
+    } catch (e: any) { logError("Create page failed", e); res.status(400).json({ message: e?.message || "Failed to create page" }); }
+  });
+  app.get('/api/pages/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const page = await storage.getPage(req.params.id);
+    if (!page || page.restaurantId !== restaurant.id) return res.status(404).json({ message: "Page not found" });
+    res.json(page);
+  });
+  app.patch('/api/pages/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const updated = await storage.updatePage(req.params.id, restaurant.id, req.body);
+    if (!updated) return res.status(404).json({ message: "Page not found" });
+    res.json(updated);
+  });
+  app.delete('/api/pages/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    await storage.deletePage(req.params.id, restaurant.id);
+    res.json({ ok: true });
+  });
+
+  app.get('/api/blog-posts', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.json([]);
+    res.json(await storage.listPosts(restaurant.id));
+  });
+  app.post('/api/blog-posts', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      if (!req.body?.title?.trim()) return res.status(400).json({ message: "Title is required" });
+      res.json(await storage.createPost(restaurant.id, req.body));
+    } catch (e: any) { logError("Create post failed", e); res.status(400).json({ message: e?.message || "Failed to create post" }); }
+  });
+  app.get('/api/blog-posts/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const post = await storage.getPost(req.params.id);
+    if (!post || post.restaurantId !== restaurant.id) return res.status(404).json({ message: "Post not found" });
+    res.json(post);
+  });
+  app.patch('/api/blog-posts/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const updated = await storage.updatePost(req.params.id, restaurant.id, req.body);
+    if (!updated) return res.status(404).json({ message: "Post not found" });
+    res.json(updated);
+  });
+  app.delete('/api/blog-posts/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    await storage.deletePost(req.params.id, restaurant.id);
+    res.json({ ok: true });
+  });
+
+  // ==========================================
   // MARKETING — segments, campaigns, abandoned carts, boosts (Tier 6)
   // ==========================================
 
@@ -4319,6 +4391,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       logError("Storefront collection detail failed", error);
       res.status(500).json({ message: "Failed to load collection" });
     }
+  });
+
+  // Storefront CMS reads (Tier 7)
+  app.get('/api/storefront/:slug/pages', async (req, res) => {
+    const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+    if (!restaurant) return res.status(404).json({ message: "Store not found" });
+    const pages = (await storage.listPages(restaurant.id)).filter((p) => p.isPublished);
+    res.json(pages.map((p) => ({ id: p.id, title: p.title, handle: p.handle, showInFooter: p.showInFooter, sortOrder: p.sortOrder })));
+  });
+  app.get('/api/storefront/:slug/pages/:handle', async (req, res) => {
+    const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+    if (!restaurant) return res.status(404).json({ message: "Store not found" });
+    const page = await storage.getPageByHandle(restaurant.id, req.params.handle);
+    if (!page || !page.isPublished) return res.status(404).json({ message: "Page not found" });
+    res.json(page);
+  });
+  app.get('/api/storefront/:slug/blog', async (req, res) => {
+    const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+    if (!restaurant) return res.status(404).json({ message: "Store not found" });
+    const posts = (await storage.listPosts(restaurant.id))
+      .filter((p) => p.isPublished)
+      .map((p) => ({ id: p.id, title: p.title, handle: p.handle, excerpt: p.excerpt, coverImageUrl: p.coverImageUrl, author: p.author, tags: p.tags, publishedAt: p.publishedAt }));
+    res.json(posts);
+  });
+  app.get('/api/storefront/:slug/blog/:handle', async (req, res) => {
+    const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+    if (!restaurant) return res.status(404).json({ message: "Store not found" });
+    const post = await storage.getPostByHandle(restaurant.id, req.params.handle);
+    if (!post || !post.isPublished) return res.status(404).json({ message: "Post not found" });
+    res.json(post);
   });
 
   // Storefront: abandoned-cart snapshot (Tier 6). The client debounces this while
