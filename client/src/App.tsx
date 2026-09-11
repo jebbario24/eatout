@@ -32,7 +32,6 @@ import OrderTracking from "@/pages/storefront/OrderTracking";
 import StorefrontPage from "@/pages/storefront/StorefrontPage";
 import { StorefrontBlogIndex, StorefrontBlogPost } from "@/pages/storefront/StorefrontBlog";
 import Subscribe from "@/pages/Subscribe";
-import DeliveryZones from "@/pages/DeliveryZones";
 import OnlineStore from "@/pages/OnlineStore";
 import Billing from "@/pages/Billing";
 import AdminDashboard from "@/pages/AdminDashboard";
@@ -61,11 +60,9 @@ import Social from "@/pages/marketing/Social";
 import Bundles from "@/pages/marketing/Bundles";
 import Pixels from "@/pages/marketing/Pixels";
 import DomainVerification from "@/pages/marketing/DomainVerification";
-import Drivers from "@/pages/Drivers";
 import Reports from "@/pages/Reports";
 import Inbox from "@/pages/Inbox";
 import Payouts from "@/pages/Payouts";
-import DeliveryLink from "@/pages/DeliveryLink";
 import Contact from "@/pages/Contact";
 
 function PublicRouter() {
@@ -75,7 +72,7 @@ function PublicRouter() {
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/subscribe" component={Subscribe} />
-      <Route path="/contact" component={() => <Contact userType="merchant" />} />
+      <Route path="/contact" component={Contact} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -123,7 +120,6 @@ function AuthenticatedRouter() {
       </Route>
       <Route path="/staff" component={Staff} />
       <Route path="/inventory" component={Inventory} />
-      <Route path="/delivery-zones" component={DeliveryZones} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/online-store" component={OnlineStore} />
       <Route path="/online-store/content" component={StorefrontContent} />
@@ -142,7 +138,6 @@ function AuthenticatedRouter() {
       <Route path="/marketing/bundles" component={Bundles} />
       <Route path="/marketing/pixels" component={Pixels} />
       <Route path="/marketing/domain-verification" component={DomainVerification} />
-      <Route path="/drivers" component={Drivers} />
       <Route path="/reports" component={Reports} />
       <Route path="/inbox" component={Inbox} />
       <Route path="/payouts" component={Payouts} />
@@ -237,7 +232,6 @@ function StorefrontRouter() {
 function App() {
   const currentPath = window.location.pathname;
   const isStorefrontPath = currentPath.startsWith('/store/');
-  const isDeliveryLinkPath = currentPath.startsWith('/deliver/');
 
   const hostname = window.location.hostname;
   const parts = hostname.split('.');
@@ -246,22 +240,6 @@ function App() {
     (hostname.includes('replit.app') && parts.length > 3) ||
     (hostname.includes('replit.dev') && parts.length > 4)
   );
-
-  // Drivers have no account — their delivery link works with no auth gate at all,
-  // the same way the public storefront does.
-  if (isDeliveryLinkPath) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Switch>
-            <Route path="/deliver/:token" component={DeliveryLink} />
-            <Route component={NotFound} />
-          </Switch>
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
-    );
-  }
 
   if (isStorefrontPath || isStorefrontDomain) {
     return (

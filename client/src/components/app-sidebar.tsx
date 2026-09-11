@@ -8,12 +8,10 @@ import {
   Settings,
   Store,
   ChefHat,
-  MapPin,
   Palette,
   CreditCard,
   Building2,
   Megaphone,
-  Truck,
   FileText,
   MessageSquare,
   DollarSign,
@@ -105,16 +103,6 @@ const baseOperationsItems = [
     titleKey: "navigation.staff",
     url: "/staff",
     icon: Users,
-  },
-  {
-    titleKey: "Drivers",
-    url: "/drivers",
-    icon: Truck,
-  },
-  {
-    titleKey: "navigation.deliveryZones",
-    url: "/delivery-zones",
-    icon: MapPin,
   },
 ];
 

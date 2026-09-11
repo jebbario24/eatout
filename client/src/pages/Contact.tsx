@@ -4,15 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { UtensilsCrossed, Mail, Phone, MapPin, ArrowLeft, Truck } from "lucide-react";
+import { UtensilsCrossed, Mail, Phone, MapPin, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
-interface ContactProps {
-  userType?: "merchant" | "driver";
-}
-
-export default function Contact({ userType = "merchant" }: ContactProps) {
+export default function Contact() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -23,11 +19,9 @@ export default function Contact({ userType = "merchant" }: ContactProps) {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const contactEmail = "driver@eatout.cloud";
-  const title = userType === "driver" ? "Driver Support" : "Merchant Support";
-  const description = userType === "driver"
-    ? "Have questions about driving with EatOut? We're here to help!"
-    : "Have questions about our platform? We're here to help!";
+  const contactEmail = "support@eatout.cloud";
+  const title = "Merchant Support";
+  const description = "Have questions about our platform? We're here to help!";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,11 +61,7 @@ export default function Contact({ userType = "merchant" }: ContactProps) {
               <span className="font-medium">Back to Home</span>
             </button>
             <div className="flex items-center gap-2">
-              {userType === "driver" ? (
-                <Truck className="h-6 w-6 text-primary" />
-              ) : (
-                <UtensilsCrossed className="h-6 w-6 text-primary" />
-              )}
+              <UtensilsCrossed className="h-6 w-6 text-primary" />
               <span className="text-xl font-display font-bold">EatOut</span>
             </div>
           </div>

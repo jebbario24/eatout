@@ -9,7 +9,6 @@ import { format } from "date-fns";
 
 const categoryColors: Record<string, string> = {
   restaurant: "bg-blue-500",
-  driver: "bg-green-500",
   subscription: "bg-purple-500",
   user: "bg-yellow-500",
   payout: "bg-orange-500",
@@ -67,7 +66,7 @@ export default function AdminActivityLogs() {
     );
   });
 
-  const categories = ['all', 'restaurant', 'driver', 'subscription', 'user', 'payout', 'review', 'settings'];
+  const categories = ['all', 'restaurant', 'subscription', 'user', 'payout', 'review', 'settings'];
   const dateRanges = [
     { value: 'all', label: 'All Time' },
     { value: 'today', label: 'Today' },
