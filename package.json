@@ -117,7 +117,7 @@
   },
   "devDependencies": {
     "@cloudflare/containers": "^0.3.7",
-    "@cloudflare/workers-types": "^4.20250901.0",
+    "@cloudflare/workers-types": "^5.20260911.1",
     "@tailwindcss/typography": "^0.5.20",
     "@types/bcrypt": "^6.0.0",
     "@types/connect-pg-simple": "^7.0.3",
@@ -135,7 +135,8 @@
     "@types/ws": "^8.5.13",
     "cross-env": "^10.1.0",
     "drizzle-kit": "^0.31.4",
-    "tsx": "^4.20.5"
+    "tsx": "^4.20.5",
+    "wrangler": "^4.131.0"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
