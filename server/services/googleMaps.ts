@@ -322,7 +322,7 @@ class GoogleMapsService {
 
   /**
    * Snap GPS points to nearest roads (Roads API)
-   * Improves accuracy of driver location tracking
+   * Improves accuracy of GPS location tracking
    */
   async snapToRoads(
     points: LatLng[],

@@ -29,8 +29,6 @@ import {
   staff,
   inventory,
   deliveryZones,
-  driverProfiles,
-  driverDeliveryStatus,
   restaurantPayoutAccounts,
   earningsLedger,
   payoutRuns,
@@ -85,10 +83,6 @@ import {
   type InsertStaff,
   type Inventory,
   type InsertInventory,
-  type DeliveryZone,
-  type InsertDeliveryZone,
-  type DriverProfile,
-  type DriverDeliveryStatus,
   type RestaurantPayoutAccount,
   type InsertRestaurantPayoutAccount,
   type CustomerReview,
@@ -113,7 +107,6 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, or, desc, asc, like, sql, inArray } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
 
 /** URL handle from a title: lowercase, hyphen-separated, ascii-ish. */
 export function slugify(input: string): string {
@@ -125,12 +118,6 @@ export function slugify(input: string): string {
     .replace(/(^-|-$)+/g, "")
     .slice(0, 200);
 }
-
-// A driver can be attached to an order two ways: the merchant assigns one directly
-// (orders.assignedDriverId), or a self-serve driver accepts via the delivery link
-// (driverDeliveryStatus). List/detail queries must resolve a name from either path.
-const assignedDriverProfile = alias(driverProfiles, "assigned_driver_profile");
-const assignedDriverUser = alias(users, "assigned_driver_user");
 
 export interface IStorage {
   // User operations
@@ -203,12 +190,6 @@ export interface IStorage {
   updateInventory(id: string, inventory: Partial<InsertInventory>): Promise<Inventory>;
   deleteInventory(id: string): Promise<void>;
   
-  // Delivery zone operations
-  getDeliveryZones(restaurantId: string): Promise<DeliveryZone[]>;
-  createDeliveryZone(zone: InsertDeliveryZone): Promise<DeliveryZone>;
-  updateDeliveryZone(id: string, zone: Partial<InsertDeliveryZone>): Promise<DeliveryZone>;
-  deleteDeliveryZone(id: string): Promise<void>;
-  
   // Payout account operations
   getPayoutAccount(restaurantId: string): Promise<RestaurantPayoutAccount | undefined>;
   createOrUpdatePayoutAccount(restaurantId: string, account: Partial<InsertRestaurantPayoutAccount>): Promise<RestaurantPayoutAccount>;
@@ -222,39 +203,8 @@ export interface IStorage {
   markLedgerEntriesAsPaid(payoutRunId: string, ledgerEntryIds: string[]): Promise<void>;
   completePayoutTransaction(payoutRunId: string, ledgerEntryIds: string[], payoutTransactionId: string): Promise<void>;
   
-  // Driver operations
-  getAllDrivers(): Promise<DriverProfile[]>;
-  getDriver(id: string): Promise<DriverProfile | undefined>;
-  getDriverByUserId(userId: string): Promise<DriverProfile | undefined>;
-  getDriverByAccessToken(token: string): Promise<DriverProfile | undefined>;
-  getDriverByEmail(email: string): Promise<DriverProfile | undefined>;
-  createDriverApplication(application: Partial<DriverProfile>): Promise<DriverProfile>;
-  updateDriverProfile(id: string, data: Partial<DriverProfile>): Promise<DriverProfile>;
-  getPendingDriverApplications(): Promise<DriverProfile[]>;
-  approveDriverApplication(driverId: string, approvedBy: string): Promise<DriverProfile>;
-  rejectDriverApplication(driverId: string, reason: string): Promise<DriverProfile>;
-  getDriverOrders(driverId: string): Promise<Order[]>;
-  updateOrderDeliveryTracking(orderId: string, data: { pickupTime?: Date; deliveryTime?: Date; driverLocation?: any }): Promise<Order>;
-  assignDriverToOrder(orderId: string, driverId: string): Promise<Order>;
-  updateDriverAvailability(id: string, isAvailable: boolean): Promise<DriverProfile>;
-  getDriverAssignments(): Promise<(Order & { driver?: DriverProfile })[]>;
-  getDriverPerformance(): Promise<{ driverId: string; driver: DriverProfile; deliveries: number; earnings: string; rating: string }[]>;
-  
-  // Driver Delivery operations
-  getAvailableDeliveryOrders(driverId?: string): Promise<(Order & { restaurant?: Restaurant; deliveryZone?: any })[]>;
-  createDriverDeliveryStatus(data: { orderId: string; driverId: string; restaurantId: string }): Promise<DriverDeliveryStatus>;
-  updateDriverDeliveryStatus(orderId: string, data: Partial<DriverDeliveryStatus>): Promise<DriverDeliveryStatus>;
-  getDriverDeliveryStatus(orderId: string): Promise<DriverDeliveryStatus | undefined>;
-  getDriverActiveDelivery(driverId: string): Promise<(DriverDeliveryStatus & { order: Order; restaurant: Restaurant }) | null>;
-  getDriverStats(driverId: string): Promise<{ totalDeliveries: number; totalEarnings: string; weeklyEarnings: string; isAvailable: boolean }>;
-  getDriverEarnings(driverId: string): Promise<{ today: string; week: string; month: string; allTime: string; pendingPayouts: string; completedPayouts: string }>;
   updateOrder(orderId: string, data: Partial<Order>): Promise<Order>;
-  
-  // Admin Driver Monitoring operations
-  getActiveDeliveries(): Promise<any[]>;
-  getDriverActivityStats(): Promise<{ totalDrivers: number; onlineDrivers: number; approvedDrivers: number; pendingDrivers: number; todaysDeliveries: number; todaysEarnings: string }>;
 
-  
   // Upsell operations
   getActiveUpsellRules(restaurantId: string): Promise<any[]>;
   getUpsellRules(restaurantId: string): Promise<any[]>;
@@ -625,66 +575,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrders(restaurantId: string): Promise<Order[]> {
-    const results = await db
-      .select({
-        order: orders,
-        deliveryStatus: driverDeliveryStatus,
-        driverProfile: driverProfiles,
-        driverUser: users,
-        assignedProfile: assignedDriverProfile,
-        assignedUser: assignedDriverUser,
-      })
+    return await db
+      .select()
       .from(orders)
-      .leftJoin(driverDeliveryStatus, eq(orders.id, driverDeliveryStatus.orderId))
-      .leftJoin(driverProfiles, eq(driverDeliveryStatus.driverId, driverProfiles.id))
-      .leftJoin(users, eq(driverProfiles.userId, users.id))
-      .leftJoin(assignedDriverProfile, eq(orders.assignedDriverId, assignedDriverProfile.id))
-      .leftJoin(assignedDriverUser, eq(assignedDriverProfile.userId, assignedDriverUser.id))
       .where(eq(orders.restaurantId, restaurantId))
       .orderBy(desc(orders.createdAt));
-
-    return results.map(result => {
-      const profile = result.driverProfile || result.assignedProfile;
-      const user = result.driverUser || result.assignedUser;
-      return {
-        ...result.order,
-        driverId: profile?.id || null,
-        driverName: user
-          ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || null
-          : null,
-        driverPhone: profile?.phone || null,
-        deliveryStatus: result.deliveryStatus?.status || null,
-        deliveryUpdatedAt: result.deliveryStatus?.updatedAt || null,
-      } as any;
-    });
   }
 
   async getRecentOrders(restaurantId: string, limit: number): Promise<Order[]> {
-    const results = await db
-      .select({
-        order: orders,
-        deliveryStatus: driverDeliveryStatus,
-        driverProfile: driverProfiles,
-        driverUser: users,
-      })
+    return await db
+      .select()
       .from(orders)
-      .leftJoin(driverDeliveryStatus, eq(orders.id, driverDeliveryStatus.orderId))
-      .leftJoin(driverProfiles, eq(driverDeliveryStatus.driverId, driverProfiles.id))
-      .leftJoin(users, eq(driverProfiles.userId, users.id))
       .where(eq(orders.restaurantId, restaurantId))
       .orderBy(desc(orders.createdAt))
       .limit(limit);
-
-    return results.map(result => ({
-      ...result.order,
-      driverId: result.driverProfile?.id || null,
-      driverName: result.driverUser
-        ? `${result.driverUser.firstName || ''} ${result.driverUser.lastName || ''}`.trim()
-        : null,
-      driverPhone: result.driverProfile?.phone || null,
-      deliveryStatus: result.deliveryStatus?.status || null,
-      deliveryUpdatedAt: result.deliveryStatus?.updatedAt || null,
-    } as any));
   }
 
   async getAllOrders(): Promise<Order[]> {
@@ -692,27 +596,14 @@ export class DatabaseStorage implements IStorage {
       .select({
         order: orders,
         restaurant: restaurants,
-        deliveryStatus: driverDeliveryStatus,
-        driverProfile: driverProfiles,
-        driverUser: users,
       })
       .from(orders)
       .leftJoin(restaurants, eq(orders.restaurantId, restaurants.id))
-      .leftJoin(driverDeliveryStatus, eq(orders.id, driverDeliveryStatus.orderId))
-      .leftJoin(driverProfiles, eq(driverDeliveryStatus.driverId, driverProfiles.id))
-      .leftJoin(users, eq(driverProfiles.userId, users.id))
       .orderBy(desc(orders.createdAt));
 
     return results.map(result => ({
       ...result.order,
       restaurantName: result.restaurant?.name || null,
-      driverId: result.driverProfile?.id || null,
-      driverName: result.driverUser
-        ? `${result.driverUser.firstName || ''} ${result.driverUser.lastName || ''}`.trim()
-        : null,
-      driverPhone: result.driverProfile?.phone || null,
-      deliveryStatus: result.deliveryStatus?.status || null,
-      deliveryUpdatedAt: result.deliveryStatus?.updatedAt || null,
     } as any));
   }
 
@@ -738,49 +629,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrderWithItems(orderId: string): Promise<{ order: Order; items: (OrderItem & { menuItem?: MenuItem; bundle?: Bundle })[] } | undefined> {
-    const orderResults = await db
-      .select({
-        order: orders,
-        deliveryStatus: driverDeliveryStatus,
-        driverProfile: driverProfiles,
-        driverUser: users,
-        assignedProfile: assignedDriverProfile,
-        assignedUser: assignedDriverUser,
-      })
+    const [order] = await db
+      .select()
       .from(orders)
-      .leftJoin(driverDeliveryStatus, eq(orders.id, driverDeliveryStatus.orderId))
-      .leftJoin(driverProfiles, eq(driverDeliveryStatus.driverId, driverProfiles.id))
-      .leftJoin(users, eq(driverProfiles.userId, users.id))
-      .leftJoin(assignedDriverProfile, eq(orders.assignedDriverId, assignedDriverProfile.id))
-      .leftJoin(assignedDriverUser, eq(assignedDriverProfile.userId, assignedDriverUser.id))
       .where(eq(orders.id, orderId))
       .limit(1);
 
-    if (orderResults.length === 0) return undefined;
+    if (!order) return undefined;
 
-    const result = orderResults[0];
-    const dProfile = result.driverProfile || result.assignedProfile;
-    const dUser = result.driverUser || result.assignedUser;
-    const orderWithDriver = {
-      ...result.order,
-      driverId: dProfile?.id || null,
-      driverName: dUser
-        ? `${dUser.firstName || ''} ${dUser.lastName || ''}`.trim() || null
-        : null,
-      driverPhone: dProfile?.phone || null,
-      deliveryStatus: result.deliveryStatus?.status || null,
-      deliveryUpdatedAt: result.deliveryStatus?.updatedAt || null,
-    };
-    
     const items = await db
       .select()
       .from(orderItems)
       .leftJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
       .leftJoin(bundlesTable, eq(orderItems.bundleId, bundlesTable.id))
       .where(eq(orderItems.orderId, orderId));
-    
+
     return {
-      order: orderWithDriver as any,
+      order,
       items: items.map(item => ({
         ...item.order_items,
         menuItem: item.menu_items || undefined,
@@ -822,16 +687,14 @@ export class DatabaseStorage implements IStorage {
     
     const order = currentOrder[0];
     
-    // Calculate amounts correctly to avoid double-counting delivery fees
+    // Calculate amounts correctly to avoid double-counting shipping fees
     // totalAmount = subtotal + tax + deliveryFee (what customer pays)
     const platformFeeRate = 0.02; // 2% platform fee
     const platformFee = Math.round(totalAmount * platformFeeRate * 100) / 100;
-    
-    // Driver gets 100% of delivery fee (if delivery order)
-    const driverShare = order.orderType === 'delivery' ? deliveryFee : 0;
-    
-    // Restaurant gets: totalAmount - platformFee - driverShare
-    const restaurantShare = Math.round((totalAmount - platformFee - driverShare) * 100) / 100;
+    const driverShare = 0;
+
+    // Restaurant gets: totalAmount - platformFee (no driver share — fulfillment is shipping/pickup only)
+    const restaurantShare = Math.round((totalAmount - platformFee) * 100) / 100;
     
     // Update order with payment tracking data
     const [updated] = await db
@@ -916,104 +779,6 @@ export class DatabaseStorage implements IStorage {
 
   async deleteInventory(id: string): Promise<void> {
     await db.delete(inventory).where(eq(inventory.id, id));
-  }
-
-  async getDeliveryZone(zoneId: string): Promise<DeliveryZone | undefined> {
-    const [zone] = await db
-      .select()
-      .from(deliveryZones)
-      .where(eq(deliveryZones.id, zoneId));
-    return zone;
-  }
-
-  async getDeliveryZones(restaurantId: string): Promise<DeliveryZone[]> {
-    return await db.select().from(deliveryZones).where(eq(deliveryZones.restaurantId, restaurantId));
-  }
-
-  async createDeliveryZone(zone: InsertDeliveryZone): Promise<DeliveryZone> {
-    const [newZone] = await db.insert(deliveryZones).values(zone).returning();
-    return newZone;
-  }
-
-  async updateDeliveryZone(id: string, zone: Partial<InsertDeliveryZone>): Promise<DeliveryZone> {
-    const [updated] = await db
-      .update(deliveryZones)
-      .set({ ...zone, updatedAt: new Date() })
-      .where(eq(deliveryZones.id, id))
-      .returning();
-    return updated;
-  }
-
-  async deleteDeliveryZone(id: string): Promise<void> {
-    await db.delete(deliveryZones).where(eq(deliveryZones.id, id));
-  }
-
-  // Find matching delivery zone based on delivery address (city/neighborhood)
-  async findMatchingDeliveryZone(restaurantId: string, deliveryCity: string | null, deliveryAddress: string | null): Promise<DeliveryZone | null> {
-    if (!deliveryCity && !deliveryAddress) {
-      return null;
-    }
-
-    const zones = await db
-      .select()
-      .from(deliveryZones)
-      .where(and(
-        eq(deliveryZones.restaurantId, restaurantId),
-        eq(deliveryZones.isActive, true)
-      ));
-
-    if (zones.length === 0) {
-      return null;
-    }
-
-    // Try to match by city first (case-insensitive)
-    if (deliveryCity) {
-      const cityMatch = zones.find(zone => 
-        zone.city?.toLowerCase() === deliveryCity.toLowerCase()
-      );
-      if (cityMatch) {
-        return cityMatch;
-      }
-    }
-
-    // Try to match by neighborhood if address contains it
-    if (deliveryAddress) {
-      const addressLower = deliveryAddress.toLowerCase();
-      const neighborhoodMatch = zones.find(zone => 
-        zone.neighborhood && addressLower.includes(zone.neighborhood.toLowerCase())
-      );
-      if (neighborhoodMatch) {
-        return neighborhoodMatch;
-      }
-    }
-
-    // Return first active zone as fallback (if restaurant has zones configured)
-    return zones[0] || null;
-  }
-
-  // Get all active delivery zones across all restaurants
-  async getAllActiveDeliveryZones(): Promise<(DeliveryZone & { restaurantName: string })[]> {
-    const result = await db
-      .select({
-        zone: deliveryZones,
-        restaurantName: restaurants.name,
-      })
-      .from(deliveryZones)
-      .innerJoin(restaurants, eq(deliveryZones.restaurantId, restaurants.id))
-      .where(eq(deliveryZones.isActive, true));
-
-    return result.map(row => ({
-      ...row.zone,
-      restaurantName: row.restaurantName,
-    }));
-  }
-
-  // Update driver's service zones
-  async updateDriverServiceZones(driverId: string, zoneIds: string[]): Promise<void> {
-    await db
-      .update(driverProfiles)
-      .set({ serviceZones: zoneIds })
-      .where(eq(driverProfiles.id, driverId));
   }
 
   async getPayoutAccount(restaurantId: string): Promise<RestaurantPayoutAccount | undefined> {
@@ -1256,474 +1021,6 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  // Driver operations
-  async getAllDrivers(): Promise<DriverProfile[]> {
-    const drivers = await db.select().from(driverProfiles).orderBy(driverProfiles.createdAt);
-    return drivers;
-  }
-
-  // Merchant-scoped: only the drivers that belong to this restaurant
-  async getDriversByRestaurantId(restaurantId: string): Promise<DriverProfile[]> {
-    const drivers = await db
-      .select()
-      .from(driverProfiles)
-      .where(eq(driverProfiles.restaurantId, restaurantId))
-      .orderBy(driverProfiles.createdAt);
-    return drivers;
-  }
-
-  async getDriver(id: string): Promise<DriverProfile | undefined> {
-    const [driver] = await db.select().from(driverProfiles).where(eq(driverProfiles.id, id));
-    return driver;
-  }
-
-  async updateDriverAvailability(id: string, isAvailable: boolean): Promise<DriverProfile> {
-    const [updated] = await db
-      .update(driverProfiles)
-      .set({ isAvailable, updatedAt: new Date() })
-      .where(eq(driverProfiles.id, id))
-      .returning();
-    return updated;
-  }
-
-  async getDriverAssignments(): Promise<(Order & { driver?: DriverProfile })[]> {
-    const assignments = await db
-      .select()
-      .from(orders)
-      .leftJoin(driverProfiles, eq(orders.assignedDriverId, driverProfiles.id))
-      .where(and(
-        eq(orders.orderType, 'delivery'),
-        eq(orders.status, 'confirmed')
-      ))
-      .orderBy(orders.createdAt);
-
-    return assignments.map(row => ({
-      ...row.orders,
-      driver: row.driver_profiles || undefined
-    }));
-  }
-
-  // Merchant-scoped: only this restaurant's own delivery assignments
-  async getDriverAssignmentsByRestaurantId(restaurantId: string): Promise<(Order & { driver?: DriverProfile })[]> {
-    const assignments = await db
-      .select()
-      .from(orders)
-      .leftJoin(driverProfiles, eq(orders.assignedDriverId, driverProfiles.id))
-      .where(and(
-        eq(orders.orderType, 'delivery'),
-        eq(orders.status, 'confirmed'),
-        eq(orders.restaurantId, restaurantId)
-      ))
-      .orderBy(orders.createdAt);
-
-    return assignments.map(row => ({
-      ...row.orders,
-      driver: row.driver_profiles || undefined
-    }));
-  }
-
-  async getDriverPerformance(): Promise<{ driverId: string; driver: DriverProfile; deliveries: number; earnings: string; rating: string }[]> {
-    const performance = await db
-      .select({
-        driverId: driverProfiles.id,
-        driver: driverProfiles,
-        deliveries: sql<number>`COUNT(DISTINCT ${orders.id})`.as('deliveries'),
-        earnings: sql<string>`COALESCE(SUM(${orders.driverShare}), 0)`.as('earnings'),
-      })
-      .from(driverProfiles)
-      .leftJoin(orders, eq(driverProfiles.id, orders.assignedDriverId))
-      .groupBy(driverProfiles.id)
-      .orderBy(sql`COUNT(DISTINCT ${orders.id}) DESC`);
-    
-    return performance.map(p => ({
-      driverId: p.driverId,
-      driver: p.driver,
-      deliveries: p.deliveries,
-      earnings: p.earnings,
-      rating: '4.8' // Placeholder - would need a ratings table
-    }));
-  }
-
-  // Merchant-scoped: only this restaurant's own drivers' performance
-  async getDriverPerformanceByRestaurantId(restaurantId: string): Promise<{ driverId: string; driver: DriverProfile; deliveries: number; earnings: string; rating: string }[]> {
-    const performance = await db
-      .select({
-        driverId: driverProfiles.id,
-        driver: driverProfiles,
-        deliveries: sql<number>`COUNT(DISTINCT ${orders.id})`.as('deliveries'),
-        earnings: sql<string>`COALESCE(SUM(${orders.driverShare}), 0)`.as('earnings'),
-      })
-      .from(driverProfiles)
-      .leftJoin(orders, eq(driverProfiles.id, orders.assignedDriverId))
-      .where(eq(driverProfiles.restaurantId, restaurantId))
-      .groupBy(driverProfiles.id)
-      .orderBy(sql`COUNT(DISTINCT ${orders.id}) DESC`);
-
-    return performance.map(p => ({
-      driverId: p.driverId,
-      driver: p.driver,
-      deliveries: p.deliveries,
-      earnings: p.earnings,
-      rating: '4.8' // Placeholder - would need a ratings table
-    }));
-  }
-
-  async getDriverByUserId(userId: string): Promise<DriverProfile | undefined> {
-    const [driver] = await db.select().from(driverProfiles).where(eq(driverProfiles.userId, userId));
-    return driver;
-  }
-
-  async getDriverByAccessToken(token: string): Promise<DriverProfile | undefined> {
-    const [driver] = await db.select().from(driverProfiles).where(eq(driverProfiles.accessToken, token));
-    return driver;
-  }
-
-  async getDriverByEmail(email: string): Promise<DriverProfile | undefined> {
-    const [driver] = await db.select().from(driverProfiles).where(eq(driverProfiles.email, email));
-    return driver;
-  }
-
-  async createDriverApplication(application: Partial<DriverProfile>): Promise<DriverProfile> {
-    const [created] = await db
-      .insert(driverProfiles)
-      .values({
-        // Defaults for a not-yet-approved driver; callers (e.g. an owner adding a
-        // driver directly) can override any of these by passing them explicitly.
-        applicationStatus: 'pending',
-        isActive: false,
-        isAvailable: false,
-        ...application,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as any)
-      .returning();
-    return created;
-  }
-
-  async updateDriverProfile(id: string, data: Partial<DriverProfile>): Promise<DriverProfile> {
-    const [updated] = await db
-      .update(driverProfiles)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(driverProfiles.id, id))
-      .returning();
-    return updated;
-  }
-
-  async getPendingDriverApplications(): Promise<DriverProfile[]> {
-    const pending = await db
-      .select()
-      .from(driverProfiles)
-      .where(eq(driverProfiles.applicationStatus, 'pending'))
-      .orderBy(driverProfiles.createdAt);
-    return pending;
-  }
-
-  async approveDriverApplication(driverId: string, approvedBy: string): Promise<DriverProfile> {
-    const [approved] = await db
-      .update(driverProfiles)
-      .set({
-        applicationStatus: 'approved',
-        approvedAt: new Date(),
-        approvedBy,
-        isActive: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(driverProfiles.id, driverId))
-      .returning();
-    return approved;
-  }
-
-  async rejectDriverApplication(driverId: string, reason: string): Promise<DriverProfile> {
-    const [rejected] = await db
-      .update(driverProfiles)
-      .set({
-        applicationStatus: 'rejected',
-        rejectionReason: reason,
-        isActive: false,
-        updatedAt: new Date(),
-      })
-      .where(eq(driverProfiles.id, driverId))
-      .returning();
-    return rejected;
-  }
-
-  async getDriverOrders(driverId: string): Promise<Order[]> {
-    const driverOrders = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.assignedDriverId, driverId))
-      .orderBy(desc(orders.createdAt));
-    return driverOrders;
-  }
-
-  async updateOrderDeliveryTracking(
-    orderId: string,
-    data: { pickupTime?: Date; deliveryTime?: Date; driverLocation?: any; status?: string }
-  ): Promise<Order> {
-    const updateData: any = { updatedAt: new Date() };
-
-    // 'picked_up' / 'delivered' are the statuses the rest of the app (location
-    // tracking, earnings/performance analytics) actually filters on — an explicit
-    // status always wins; these are just sensible defaults for older callers.
-    if (data.pickupTime) {
-      updateData.pickupTime = data.pickupTime;
-      updateData.status = 'picked_up';
-    }
-
-    if (data.deliveryTime) {
-      updateData.deliveryTime = data.deliveryTime;
-      updateData.status = 'delivered';
-    }
-
-    if (data.status) {
-      updateData.status = data.status;
-    }
-
-    if (data.driverLocation) {
-      // Append to location history
-      updateData.driverLocationHistory = sql`
-        COALESCE(${orders.driverLocationHistory}, '[]'::jsonb) || ${JSON.stringify([data.driverLocation])}::jsonb
-      `;
-    }
-
-    const [updated] = await db
-      .update(orders)
-      .set(updateData)
-      .where(eq(orders.id, orderId))
-      .returning();
-    return updated;
-  }
-
-  async assignDriverToOrder(orderId: string, driverId: string): Promise<Order> {
-    const [updated] = await db
-      .update(orders)
-      .set({
-        assignedDriverId: driverId,
-        driverAcceptedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(orders.id, orderId))
-      .returning();
-    return updated;
-  }
-
-  // Driver Delivery operations
-  // Each driver belongs to exactly one merchant (driverProfiles.restaurantId) and only ever
-  // sees that merchant's own delivery orders — optionally narrowed further by service zone
-  // if the merchant has configured delivery zones and the driver has picked zones within them.
-  async getAvailableDeliveryOrders(driverId?: string): Promise<(Order & { restaurant?: Restaurant; deliveryZone?: any })[]> {
-    const baseConditions = and(
-      eq(orders.status, 'confirmed'),
-      eq(orders.orderType, 'delivery'),
-      sql`${orders.assignedDriverId} IS NULL`,
-      eq(orders.paymentStatus, 'paid')
-    );
-
-    // If no driver ID provided, return all available orders (for admin view)
-    if (!driverId) {
-      const availableOrders = await db
-        .select()
-        .from(orders)
-        .leftJoin(restaurants, eq(orders.restaurantId, restaurants.id))
-        .leftJoin(deliveryZones, eq(orders.deliveryZoneId, deliveryZones.id))
-        .where(baseConditions)
-        .orderBy(desc(orders.createdAt));
-
-      return availableOrders.map(row => ({
-        ...row.orders,
-        restaurant: row.restaurants || undefined,
-        deliveryZone: row.delivery_zones || undefined
-      }));
-    }
-
-    // Get the driver's merchant and service zones
-    const [driver] = await db
-      .select()
-      .from(driverProfiles)
-      .where(eq(driverProfiles.id, driverId));
-
-    // A driver not yet linked to a merchant has no orders to see
-    if (!driver?.restaurantId) {
-      return [];
-    }
-
-    const serviceZones = driver.serviceZones || [];
-    const restaurantMatch = eq(orders.restaurantId, driver.restaurantId);
-    const matchCondition = serviceZones.length > 0
-      ? and(restaurantMatch, inArray(orders.deliveryZoneId, serviceZones))
-      : restaurantMatch;
-
-    const availableOrders = await db
-      .select()
-      .from(orders)
-      .leftJoin(restaurants, eq(orders.restaurantId, restaurants.id))
-      .leftJoin(deliveryZones, eq(orders.deliveryZoneId, deliveryZones.id))
-      .where(and(baseConditions, matchCondition))
-      .orderBy(desc(orders.createdAt));
-
-    return availableOrders.map(row => ({
-      ...row.orders,
-      restaurant: row.restaurants || undefined,
-      deliveryZone: row.delivery_zones || undefined
-    }));
-  }
-
-  async createDriverDeliveryStatus(data: { orderId: string; driverId: string; restaurantId?: string | null }): Promise<DriverDeliveryStatus> {
-    const [created] = await db
-      .insert(driverDeliveryStatus)
-      .values({
-        orderId: data.orderId,
-        driverId: data.driverId,
-        restaurantId: data.restaurantId,
-        status: 'assigned',
-        assignedAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as any)
-      .returning();
-    return created;
-  }
-
-  async updateDriverDeliveryStatus(orderId: string, data: Partial<DriverDeliveryStatus>): Promise<DriverDeliveryStatus> {
-    const [updated] = await db
-      .update(driverDeliveryStatus)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(driverDeliveryStatus.orderId, orderId))
-      .returning();
-    return updated;
-  }
-
-  async getDriverDeliveryStatus(orderId: string): Promise<DriverDeliveryStatus | undefined> {
-    const [status] = await db
-      .select()
-      .from(driverDeliveryStatus)
-      .where(eq(driverDeliveryStatus.orderId, orderId));
-    return status;
-  }
-
-  async getDriverActiveDelivery(driverId: string): Promise<(DriverDeliveryStatus & { order: Order; restaurant: Restaurant }) | null> {
-    const activeDelivery = await db
-      .select()
-      .from(driverDeliveryStatus)
-      .innerJoin(orders, eq(driverDeliveryStatus.orderId, orders.id))
-      .innerJoin(restaurants, eq(driverDeliveryStatus.restaurantId, restaurants.id))
-      .where(and(
-        eq(driverDeliveryStatus.driverId, driverId),
-        sql`${driverDeliveryStatus.status} NOT IN ('delivered', 'cancelled')`
-      ))
-      .limit(1);
-    
-    if (activeDelivery.length === 0) {
-      return null;
-    }
-    
-    return {
-      ...activeDelivery[0].driver_delivery_status,
-      order: activeDelivery[0].orders,
-      restaurant: activeDelivery[0].restaurants
-    };
-  }
-
-  async getDriverStats(driverId: string): Promise<{ totalDeliveries: number; totalEarnings: string; weeklyEarnings: string; isAvailable: boolean }> {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    // Get driver availability status
-    const [driver] = await db
-      .select({ isAvailable: driverProfiles.isAvailable })
-      .from(driverProfiles)
-      .where(eq(driverProfiles.id, driverId));
-    
-    const allTimeStats = await db
-      .select({
-        totalDeliveries: sql<number>`COUNT(*)`.as('totalDeliveries'),
-        totalEarnings: sql<string>`COALESCE(SUM(${orders.driverShare}), 0)`.as('totalEarnings'),
-      })
-      .from(orders)
-      .where(and(
-        eq(orders.assignedDriverId, driverId),
-        eq(orders.status, 'delivered')
-      ));
-    
-    const weeklyStats = await db
-      .select({
-        weeklyEarnings: sql<string>`COALESCE(SUM(${orders.driverShare}), 0)`.as('weeklyEarnings'),
-      })
-      .from(orders)
-      .where(and(
-        eq(orders.assignedDriverId, driverId),
-        eq(orders.status, 'delivered'),
-        sql`${orders.deliveryTime} >= ${sevenDaysAgo}`
-      ));
-    
-    return {
-      totalDeliveries: allTimeStats[0]?.totalDeliveries || 0,
-      totalEarnings: allTimeStats[0]?.totalEarnings || '0',
-      weeklyEarnings: weeklyStats[0]?.weeklyEarnings || '0',
-      isAvailable: driver?.isAvailable || false,
-    };
-  }
-
-  async getDriverEarnings(driverId: string): Promise<{ today: string; week: string; month: string; allTime: string; pendingPayouts: string; completedPayouts: string }> {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - 7);
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    
-    const todayEarnings = await db
-      .select({
-        total: sql<string>`COALESCE(SUM(${orders.driverShare}), 0)`.as('total'),
-      })
-      .from(orders)
-      .where(and(
-        eq(orders.assignedDriverId, driverId),
-        eq(orders.status, 'delivered'),
-        sql`${orders.deliveryTime} >= ${startOfToday}`
-      ));
-    
-    const weekEarnings = await db
-      .select({
-        total: sql<string>`COALESCE(SUM(${orders.driverShare}), 0)`.as('total'),
-      })
-      .from(orders)
-      .where(and(
-        eq(orders.assignedDriverId, driverId),
-        eq(orders.status, 'delivered'),
-        sql`${orders.deliveryTime} >= ${startOfWeek}`
-      ));
-    
-    const monthEarnings = await db
-      .select({
-        total: sql<string>`COALESCE(SUM(${orders.driverShare}), 0)`.as('total'),
-      })
-      .from(orders)
-      .where(and(
-        eq(orders.assignedDriverId, driverId),
-        eq(orders.status, 'delivered'),
-        sql`${orders.deliveryTime} >= ${startOfMonth}`
-      ));
-    
-    const allTimeEarnings = await db
-      .select({
-        total: sql<string>`COALESCE(SUM(${orders.driverShare}), 0)`.as('total'),
-      })
-      .from(orders)
-      .where(and(
-        eq(orders.assignedDriverId, driverId),
-        eq(orders.status, 'delivered')
-      ));
-    
-    return {
-      today: todayEarnings[0]?.total || '0',
-      week: weekEarnings[0]?.total || '0',
-      month: monthEarnings[0]?.total || '0',
-      allTime: allTimeEarnings[0]?.total || '0',
-      pendingPayouts: '0',
-      completedPayouts: '0',
-    };
-  }
-
   async updateOrder(orderId: string, data: Partial<Order>): Promise<Order> {
     const [updated] = await db
       .update(orders)
@@ -1731,92 +1028,6 @@ export class DatabaseStorage implements IStorage {
       .where(eq(orders.id, orderId))
       .returning();
     return updated;
-  }
-
-  // Admin Driver Monitoring
-  async getActiveDeliveries(): Promise<any[]> {
-    const activeDeliveries = await db
-      .select({
-        orderId: orders.id,
-        orderNumber: orders.orderNumber,
-        restaurantId: restaurants.id,
-        restaurantName: restaurants.name,
-        driverId: driverProfiles.id,
-        driverName: sql<string>`${driverProfiles.firstName} || ' ' || ${driverProfiles.lastName}`.as('driver_name'),
-        driverPhone: driverProfiles.phone,
-        customerName: orders.customerName,
-        customerAddress: orders.deliveryAddress,
-        deliveryStatus: driverDeliveryStatus.status,
-        orderTotal: orders.total,
-        deliveryFee: orders.deliveryFee,
-        assignedAt: driverDeliveryStatus.assignedAt,
-        lastUpdatedAt: driverDeliveryStatus.updatedAt,
-      })
-      .from(driverDeliveryStatus)
-      .innerJoin(orders, eq(driverDeliveryStatus.orderId, orders.id))
-      .innerJoin(restaurants, eq(driverDeliveryStatus.restaurantId, restaurants.id))
-      .innerJoin(driverProfiles, eq(driverDeliveryStatus.driverId, driverProfiles.id))
-      .where(sql`${driverDeliveryStatus.status} NOT IN ('delivered', 'cancelled')`)
-      .orderBy(desc(driverDeliveryStatus.assignedAt));
-
-    return activeDeliveries;
-  }
-
-  async getDriverActivityStats(): Promise<{ totalDrivers: number; onlineDrivers: number; approvedDrivers: number; pendingDrivers: number; todaysDeliveries: number; todaysEarnings: string }> {
-    // Total drivers
-    const totalDriversResult = await db
-      .select({ count: sql<number>`COUNT(*)::int`.as('count') })
-      .from(driverProfiles);
-    
-    // Online drivers (available)
-    const onlineDriversResult = await db
-      .select({ count: sql<number>`COUNT(*)::int`.as('count') })
-      .from(driverProfiles)
-      .where(eq(driverProfiles.isAvailable, true));
-    
-    // Approved drivers
-    const approvedDriversResult = await db
-      .select({ count: sql<number>`COUNT(*)::int`.as('count') })
-      .from(driverProfiles)
-      .where(eq(driverProfiles.applicationStatus, 'approved'));
-    
-    // Pending drivers
-    const pendingDriversResult = await db
-      .select({ count: sql<number>`COUNT(*)::int`.as('count') })
-      .from(driverProfiles)
-      .where(eq(driverProfiles.applicationStatus, 'pending'));
-    
-    // Today's deliveries
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    
-    const todaysDeliveriesResult = await db
-      .select({ count: sql<number>`COUNT(*)::int`.as('count') })
-      .from(driverDeliveryStatus)
-      .where(and(
-        eq(driverDeliveryStatus.status, 'delivered'),
-        sql`${driverDeliveryStatus.deliveredAt} >= ${startOfToday}`
-      ));
-    
-    // Today's earnings for all drivers
-    const todaysEarningsResult = await db
-      .select({
-        total: sql<string>`COALESCE(SUM(${orders.driverShare}), 0)`.as('total'),
-      })
-      .from(orders)
-      .where(and(
-        eq(orders.status, 'delivered'),
-        sql`${orders.deliveryTime} >= ${startOfToday}`
-      ));
-    
-    return {
-      totalDrivers: totalDriversResult[0]?.count || 0,
-      onlineDrivers: onlineDriversResult[0]?.count || 0,
-      approvedDrivers: approvedDriversResult[0]?.count || 0,
-      pendingDrivers: pendingDriversResult[0]?.count || 0,
-      todaysDeliveries: todaysDeliveriesResult[0]?.count || 0,
-      todaysEarnings: todaysEarningsResult[0]?.total || '0',
-    };
   }
 
   // Customer Reviews
@@ -3871,237 +3082,6 @@ export class DatabaseStorage implements IStorage {
       );
   }
 
-  // ==========================================
-  // PHASE 3: AUTOMATED DISPATCHING METHODS
-  // ==========================================
-
-  async getDispatchPreferences(driverId: string) {
-    const { dispatchPreferences } = await import('../shared/schema');
-    const prefs = await db
-      .select()
-      .from(dispatchPreferences)
-      .where(eq(dispatchPreferences.driverId, driverId))
-      .limit(1);
-    return prefs[0] || null;
-  }
-
-  async upsertDispatchPreferences(driverId: string, data: any) {
-    const { dispatchPreferences } = await import('../shared/schema');
-    const existing = await this.getDispatchPreferences(driverId);
-    
-    if (existing) {
-      const [updated] = await db
-        .update(dispatchPreferences)
-        .set({ ...data, updatedAt: new Date() })
-        .where(eq(dispatchPreferences.driverId, driverId))
-        .returning();
-      return updated;
-    } else {
-      const [created] = await db
-        .insert(dispatchPreferences)
-        .values({ ...data, driverId })
-        .returning();
-      return created;
-    }
-  }
-
-  async getDispatchAssignment(assignmentId: string) {
-    const { dispatchAssignments } = await import('../shared/schema');
-    const assignments = await db
-      .select()
-      .from(dispatchAssignments)
-      .where(eq(dispatchAssignments.id, assignmentId))
-      .limit(1);
-    return assignments[0] || null;
-  }
-
-  async createDispatchAssignment(data: any) {
-    const { dispatchAssignments } = await import('../shared/schema');
-    const [assignment] = await db
-      .insert(dispatchAssignments)
-      .values(data)
-      .returning();
-    return assignment;
-  }
-
-  async getDriverScore(driverId: string) {
-    const { driverScores } = await import('../shared/schema');
-    const scores = await db
-      .select()
-      .from(driverScores)
-      .where(eq(driverScores.driverId, driverId))
-      .limit(1);
-    return scores[0] || null;
-  }
-
-  async getAllDriverScores() {
-    const { driverScores } = await import('../shared/schema');
-    return await db.select().from(driverScores);
-  }
-
-  async getDispatchQueue(status?: string) {
-    const { dispatchQueue } = await import('../shared/schema');
-    let query = db.select().from(dispatchQueue).$dynamic();
-
-    if (status) {
-      query = query.where(eq(dispatchQueue.status, status));
-    }
-    
-    return await query.orderBy(desc(dispatchQueue.priority), dispatchQueue.createdAt);
-  }
-
-  async getDriverAssignmentHistory(driverId: string, limit: number = 20, offset: number = 0) {
-    const { dispatchAssignments } = await import('../shared/schema');
-    return await db
-      .select()
-      .from(dispatchAssignments)
-      .where(eq(dispatchAssignments.driverId, driverId))
-      .orderBy(desc(dispatchAssignments.assignedAt))
-      .limit(limit)
-      .offset(offset);
-  }
-
-  async getDriverPenalties(driverId: string) {
-    const { rejectionPenalties } = await import('../shared/schema');
-    return await db
-      .select()
-      .from(rejectionPenalties)
-      .where(eq(rejectionPenalties.driverId, driverId))
-      .orderBy(desc(rejectionPenalties.createdAt));
-  }
-
-  async getDriverLocation(driverId: string) {
-    const { driverLocationHistory } = await import('../shared/schema');
-    const locations = await db
-      .select()
-      .from(driverLocationHistory)
-      .where(eq(driverLocationHistory.driverId, driverId))
-      .orderBy(desc(driverLocationHistory.timestamp))
-      .limit(1);
-    return locations[0] || null;
-  }
-
-  async getRouteOptimizationHistory(driverId: string, limit: number = 50) {
-    const { routeOptimizationHistory } = await import('../shared/schema');
-    return await db
-      .select()
-      .from(routeOptimizationHistory)
-      .where(eq(routeOptimizationHistory.driverId, driverId))
-      .orderBy(desc(routeOptimizationHistory.createdAt))
-      .limit(limit);
-  }
-
-  async getDriverCapabilities(driverId: string) {
-    const { driverCapabilities } = await import('../shared/schema');
-    const [capabilities] = await db
-      .select()
-      .from(driverCapabilities)
-      .where(eq(driverCapabilities.driverId, driverId))
-      .limit(1);
-    return capabilities || null;
-  }
-
-  async upsertDriverCapabilities(driverId: string, data: Partial<typeof import('../shared/schema').driverCapabilities.$inferInsert>) {
-    const { driverCapabilities } = await import('../shared/schema');
-    const [capabilities] = await db
-      .insert(driverCapabilities)
-      .values({ ...data, driverId })
-      .onConflictDoUpdate({
-        target: driverCapabilities.driverId,
-        set: { ...data, updatedAt: new Date() },
-      })
-      .returning();
-    return capabilities;
-  }
-
-  // ==========================================
-  // PHASE 4: BATCH DELIVERY METHODS
-  // ==========================================
-
-  async getBatchById(batchId: string) {
-    const { deliveryBatches } = await import('../shared/schema');
-    const batches = await db
-      .select()
-      .from(deliveryBatches)
-      .where(eq(deliveryBatches.id, batchId))
-      .limit(1);
-    return batches[0] || null;
-  }
-
-  async getBatchStops(batchId: string) {
-    const { batchStops } = await import('../shared/schema');
-    return await db
-      .select()
-      .from(batchStops)
-      .where(eq(batchStops.batchId, batchId))
-      .orderBy(batchStops.stopNumber);
-  }
-
-  async getBatchModifications(batchId: string) {
-    const { batchModifications } = await import('../shared/schema');
-    return await db
-      .select()
-      .from(batchModifications)
-      .where(eq(batchModifications.batchId, batchId))
-      .orderBy(desc(batchModifications.createdAt));
-  }
-
-  async getBatchPerformance(batchId: string) {
-    const { batchPerformance } = await import('../shared/schema');
-    const performance = await db
-      .select()
-      .from(batchPerformance)
-      .where(eq(batchPerformance.batchId, batchId))
-      .limit(1);
-    return performance[0] || null;
-  }
-
-  async getBatchPerformanceList(driverId?: string, limit: number = 50) {
-    const { batchPerformance } = await import('../shared/schema');
-    let query = db.select().from(batchPerformance).$dynamic();
-
-    if (driverId) {
-      query = query.where(eq(batchPerformance.driverId, driverId));
-    }
-    
-    return await query.orderBy(desc(batchPerformance.completedAt)).limit(limit);
-  }
-
-  // ==========================================
-  // PHASE 5: ANALYTICS & GOALS METHODS
-  // ==========================================
-
-  async getDriverGoals(driverId: string) {
-    const { driverGoals } = await import('../shared/schema');
-    return await db
-      .select()
-      .from(driverGoals)
-      .where(eq(driverGoals.driverId, driverId))
-      .orderBy(desc(driverGoals.createdAt));
-  }
-
-  async createDriverGoal(data: any) {
-    const { driverGoals } = await import('../shared/schema');
-    const [goal] = await db.insert(driverGoals).values(data).returning();
-    return goal;
-  }
-
-  async updateDriverGoal(goalId: string, driverId: string, updates: any) {
-    const { driverGoals } = await import('../shared/schema');
-    const [goal] = await db
-      .update(driverGoals)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(and(eq(driverGoals.id, goalId), eq(driverGoals.driverId, driverId)))
-      .returning();
-    return goal;
-  }
-
-  async deleteDriverGoal(goalId: string, driverId: string) {
-    const { driverGoals } = await import('../shared/schema');
-    await db
-      .delete(driverGoals)
-      .where(and(eq(driverGoals.id, goalId), eq(driverGoals.driverId, driverId)));
-  }
 }
 
 export const storage = new DatabaseStorage();

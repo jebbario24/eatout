@@ -10,7 +10,6 @@ interface WebSocketClient extends WebSocket {
   userId?: string;
   role?: string;
   restaurantId?: string;
-  driverId?: string;
   isAlive?: boolean;
 }
 
@@ -60,52 +59,6 @@ class WebSocketManager {
       log('[WebSocket] New connection attempt');
 
       try {
-        // Drivers have no platform account/session — they connect with the same
-        // access token as their delivery link (?token=<accessToken>).
-        const deliveryToken = new URL(req.url || '', 'http://localhost').searchParams.get('token');
-        if (deliveryToken) {
-          const driverProfile = await storage.getDriverByAccessToken(deliveryToken);
-          if (!driverProfile || !driverProfile.isActive) {
-            log('[WebSocket] Unauthorized - Invalid delivery token');
-            ws.send(JSON.stringify({ type: 'auth_error', data: { message: 'Invalid delivery link' } }));
-            ws.close(1008, 'Unauthorized');
-            return;
-          }
-
-          ws.role = 'driver';
-          ws.driverId = driverProfile.id;
-          if (driverProfile.restaurantId) {
-            ws.restaurantId = driverProfile.restaurantId;
-          }
-
-          this.addClient(`driver:${ws.driverId}`, ws);
-          this.addClient('driver:all', ws);
-
-          log(`[WebSocket] Driver authenticated via delivery link: driverId=${ws.driverId}, restaurantId=${ws.restaurantId || 'N/A'}`);
-
-          this.sendToClient(ws, {
-            type: 'auth_success',
-            data: { role: ws.role, restaurantId: ws.restaurantId, driverId: ws.driverId },
-          });
-
-          ws.isAlive = true;
-          ws.on('pong', () => { ws.isAlive = true; });
-          ws.on('message', (message: string) => {
-            try {
-              const data = JSON.parse(message.toString());
-              this.handleMessage(ws, data);
-            } catch (error) {
-              log(`[WebSocket] Error parsing message: ${error}`);
-            }
-          });
-          ws.on('close', () => {
-            log(`[WebSocket] Connection closed: driverId=${ws.driverId}`);
-            this.removeClient(ws);
-          });
-          ws.on('error', (error) => { log(`[WebSocket] Error: ${error}`); });
-          return;
-        }
-
         // Parse session from request
         const sessionData = await this.parseSession(req);
 
@@ -162,11 +115,10 @@ class WebSocketManager {
         // Send authentication success confirmation
         this.sendToClient(ws, {
           type: 'auth_success',
-          data: { 
+          data: {
             userId: ws.userId,
             role: ws.role,
-            restaurantId: ws.restaurantId,
-            driverId: ws.driverId
+            restaurantId: ws.restaurantId
           }
         });
 
@@ -263,59 +215,6 @@ class WebSocketManager {
       return;
     }
 
-    // Handle location updates from drivers
-    if (message.type === 'location_update' && ws.role === 'driver' && ws.driverId) {
-      try {
-        const { locationTrackingService } = await import('./services/locationTracking');
-        const { lat, lng, accuracy, speed, heading, altitude, orderId } = message.data;
-
-        if (lat && lng) {
-          await locationTrackingService.updateLocation({
-            driverId: ws.driverId,
-            orderId: orderId || undefined,
-            lat: parseFloat(lat),
-            lng: parseFloat(lng),
-            accuracy: accuracy ? parseFloat(accuracy) : undefined,
-            speed: speed ? parseFloat(speed) : undefined,
-            heading: heading ? parseFloat(heading) : undefined,
-            altitude: altitude ? parseFloat(altitude) : undefined,
-            timestamp: new Date(),
-          });
-
-          // Broadcast location to admins/dispatchers
-          this.broadcastToAdmins({
-            type: 'driver_location_update',
-            data: {
-              driverId: ws.driverId,
-              lat,
-              lng,
-              orderId,
-              timestamp: new Date().toISOString(),
-            },
-          });
-
-          // If driver has active order, broadcast ETA updates to restaurant/admins for the order
-          if (orderId) {
-            const order = await storage.getOrder(orderId);
-            if (order && order.restaurantId) {
-              this.broadcastToRestaurant(order.restaurantId, {
-                type: 'delivery_location_update',
-                data: {
-                  orderId,
-                  lat,
-                  lng,
-                  timestamp: new Date().toISOString(),
-                },
-              });
-            }
-          }
-        }
-      } catch (error) {
-        log(`[WebSocket] Error handling location update: ${error}`);
-      }
-      return;
-    }
-
     // Handle other message types as needed
     // Example: ping/pong, status updates, etc.
   }
@@ -350,54 +249,11 @@ class WebSocketManager {
     }
   }
 
-  // Broadcast to a specific driver
-  broadcastToDriver(driverId: string, message: WebSocketMessage) {
-    const clients = this.clients.get(`driver:${driverId}`);
-    if (clients) {
-      clients.forEach(client => this.sendToClient(client, message));
-    }
-  }
-
   // Broadcast to all admins
   broadcastToAdmins(message: WebSocketMessage) {
     const clients = this.clients.get('admin:all');
     if (clients) {
       clients.forEach(client => this.sendToClient(client, message));
-    }
-  }
-
-  // Broadcast to all drivers
-  broadcastToAllDrivers(message: WebSocketMessage) {
-    const clients = this.clients.get('driver:all');
-    if (clients) {
-      clients.forEach(client => this.sendToClient(client, message));
-    }
-  }
-
-  // Broadcast to drivers serving a specific delivery zone
-  async broadcastToDriversInZone(zoneId: string, message: WebSocketMessage) {
-    const clients = this.clients.get('driver:all');
-    if (!clients) return;
-
-    // Convert Set to Array for iteration
-    const clientsArray = Array.from(clients);
-
-    // For each connected driver, check if they serve this zone
-    for (const client of clientsArray) {
-      if (!client.driverId) continue;
-
-      try {
-        // Get driver's service zones
-        const driver = await storage.getDriver(client.driverId);
-        if (!driver || !driver.serviceZones) continue;
-
-        // Check if driver serves this zone
-        if (driver.serviceZones.includes(zoneId)) {
-          this.sendToClient(client, message);
-        }
-      } catch (error) {
-        log(`[WebSocket] Error checking driver zones for broadcast: ${error}`);
-      }
     }
   }
 
@@ -455,44 +311,10 @@ class WebSocketManager {
       if (order.restaurantId) {
         this.broadcastToRestaurant(order.restaurantId, message);
       }
-
-      // Notify driver
-      if (order.assignedDriverId) {
-        this.broadcastToDriver(order.assignedDriverId, message);
-      }
     } catch (error) {
       log(`[WebSocket] Error broadcasting ETA update for order ${orderId}: ${error}`);
     }
   }
-
-  // Broadcast batch delivery opportunity to driver
-  broadcastBatchOpportunity(driverId: string, opportunity: {
-    orderIds: number[];
-    estimatedEarnings: number;
-    savingsPercentage: number;
-  }) {
-    this.broadcastToDriver(driverId, {
-      type: 'batch_opportunity',
-      data: opportunity,
-    });
-  }
-
-  // Phase 3: Broadcast new order to specific drivers (for auto-dispatch)
-  broadcastNewOrderToDrivers(driverIds: string[], orderData: any) {
-    driverIds.forEach(driverId => {
-      this.broadcastToDriver(driverId, {
-        type: 'new_order_assignment',
-        data: orderData,
-      });
-    });
-    
-    log(`[WebSocket] Broadcast new order to ${driverIds.length} driver(s)`);
-  }
 }
 
 export const wsManager = new WebSocketManager();
-
-// Export convenience function for use in services
-export function broadcastNewOrderToDrivers(driverIds: string[], orderData: any) {
-  wsManager.broadcastNewOrderToDrivers(driverIds, orderData);
-}
