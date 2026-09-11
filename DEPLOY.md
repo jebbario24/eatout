@@ -93,22 +93,27 @@ If you add or rename a secret, also add it to `CONTAINER_ENV_KEYS` in
 
 ## 3. Deploy
 
-**Option A — from your machine** (needs Docker running, for the image build):
+**Option A — from your machine** (needs Docker Desktop installed and running, for
+the image build):
 ```bash
 npm run deploy          # = wrangler deploy: builds ./Dockerfile, pushes image, deploys Worker + container
 ```
+(`wrangler` is a pinned devDependency — run `npm install` once if this errors
+with "wrangler is not recognized".)
 
-**Option B — from GitHub** (no local Docker). Your Cloudflare project is already
-wired to `jebbario24/aquaaman` with deploy command `npx wrangler deploy`. Push this
-code to that repo's `main` branch and Cloudflare Workers Builds runs the same
-deploy, building the container image for you.
+**Option B — from GitHub** (no local Docker needed; this is what we actually used
+to launch). The Cloudflare Worker **`eatout`** is wired to `jebbario24/eatout`,
+branch `main`, deploy command `npx wrangler deploy` — set up under
+**Workers & Pages → eatout → Settings → Builds**. Every push to `main` triggers a
+remote build (Cloudflare's build runners have Docker; your machine doesn't need
+it):
 ```bash
-git add -A && git commit -m "Cloudflare Containers deploy setup"
+git add -A && git commit -m "some change"
 git push origin main
 ```
 
 First deploy takes a few minutes (image build). Watch it in Dash → Workers & Pages
-→ eatout → Deployments, or `wrangler tail` for live logs.
+→ eatout → Builds, or `wrangler tail` for live logs once it's running.
 
 ---
 
