@@ -251,6 +251,62 @@
   }
 }
 
+/* Merchant/admin dashboard shell — Shopify's actual admin look (light canvas,
+   white cards, dark sidebar, Shopify green accents), scoped to the
+   authenticated app shell only. Public marketing/storefront pages keep the
+   dark/mint theme above untouched. */
+.dashboard-shell {
+  --background: 0 0% 96%;
+  --foreground: 0 0% 13%;
+  --border: 0 0% 88%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 13%;
+  --card-border: 0 0% 88%;
+  --sidebar: 150 8% 12%;
+  --sidebar-foreground: 0 0% 96%;
+  --sidebar-border: 150 8% 20%;
+  --sidebar-primary: 160 100% 25%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 150 8% 20%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-ring: 160 100% 25%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 13%;
+  --popover-border: 0 0% 88%;
+  --primary: 160 100% 25%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 94%;
+  --secondary-foreground: 0 0% 13%;
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 0 0% 92%;
+  --accent-foreground: 0 0% 13%;
+  --destructive: 0 65% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 0 0% 85%;
+  --ring: 160 100% 25%;
+  --chart-1: 160 100% 25%;
+  --chart-2: 210 80% 55%;
+  --chart-3: 38 92% 55%;
+  --chart-4: 280 60% 55%;
+  --chart-5: 0 0% 40%;
+
+  --elevate-1: rgba(0, 0, 0, 0.04);
+  --elevate-2: rgba(0, 0, 0, 0.08);
+
+  --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.04);
+  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.06);
+  --shadow-sm: 0px 2px 4px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.04);
+  --shadow: 0px 4px 6px 0px hsl(0 0% 0% / 0.06), 0px 2px 4px -1px hsl(0 0% 0% / 0.05);
+  --shadow-md: 0px 6px 12px 0px hsl(0 0% 0% / 0.07), 0px 4px 8px -2px hsl(0 0% 0% / 0.06);
+  --shadow-lg: 0px 10px 20px 0px hsl(0 0% 0% / 0.08), 0px 6px 12px -2px hsl(0 0% 0% / 0.07);
+  --shadow-xl: 0px 20px 30px 0px hsl(0 0% 0% / 0.10), 0px 10px 20px -4px hsl(0 0% 0% / 0.08);
+  --shadow-2xl: 0px 30px 50px 0px hsl(0 0% 0% / 0.12);
+
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
 /**
  * Using the elevate system.
  * Automatic contrast adjustment.
