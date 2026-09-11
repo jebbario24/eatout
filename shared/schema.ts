@@ -137,6 +137,10 @@ export const restaurants = pgTable("restaurants", {
   googleAdsId: varchar("google_ads_id", { length: 100 }),
   // Domain Verification
   metaVerificationCode: text("meta_verification_code"),
+  // Storefront SEO (Tier 5) — drives <title> / <meta description> / social preview
+  seoTitle: varchar("seo_title", { length: 255 }),
+  seoDescription: varchar("seo_description", { length: 500 }),
+  seoImageUrl: text("seo_image_url"),
   // Manual Access Override (Platform Admin)
   manuallyGrantedAccess: boolean("manually_granted_access").default(false),
   accessGrantedBy: varchar("access_granted_by"), // Admin user ID who granted access
@@ -256,11 +260,17 @@ export const menuItems = pgTable("menu_items", {
   marketingTactics: jsonb("marketing_tactics"),
   // Modifiers/Options configuration (legacy JSONB - migrating to itemOptions table)
   options: jsonb("options"),
+  // Merchandising / SEO (Tier 5) — URL handle + search-result metadata for the
+  // storefront product page. handle is unique per restaurant when set.
+  handle: varchar("handle", { length: 255 }),
+  seoTitle: varchar("seo_title", { length: 255 }),
+  seoDescription: varchar("seo_description", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   // Unique constraints
   uniqueSku: unique().on(table.restaurantId, table.sku),
+  uniqueHandle: unique("menu_items_restaurant_handle_unique").on(table.restaurantId, table.handle),
   uniqueExternalId: unique().on(table.restaurantId, table.externalId),
   // Performance indexes
   restaurantIdx: index("menu_items_restaurant_idx").on(table.restaurantId),
@@ -270,6 +280,40 @@ export const menuItems = pgTable("menu_items", {
   restaurantCategoryIdx: index("menu_items_restaurant_category_idx").on(table.restaurantId, table.categoryId),
   availabilityIdx: index("menu_items_availability_idx").on(table.restaurantId, table.isAvailable),
 }));
+
+// Collections (Tier 5) — curated, cross-category groupings of products, shown as
+// sections on the storefront and reachable at /store/:slug/c/:handle. Independent
+// of menu categories (a product can belong to any number of collections).
+export const collections = pgTable("collections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  title: varchar("title", { length: 255 }).notNull(),
+  handle: varchar("handle", { length: 255 }).notNull(),
+  description: text("description"),
+  imageUrl: text("image_url"),
+  isActive: boolean("is_active").notNull().default(true),
+  showOnStorefront: boolean("show_on_storefront").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  // SEO
+  seoTitle: varchar("seo_title", { length: 255 }),
+  seoDescription: varchar("seo_description", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_collections_restaurant").on(table.restaurantId),
+  unique("collections_restaurant_handle_unique").on(table.restaurantId, table.handle),
+]);
+
+export const collectionItems = pgTable("collection_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  collectionId: varchar("collection_id").notNull().references(() => collections.id, { onDelete: 'cascade' }),
+  menuItemId: varchar("menu_item_id").notNull().references(() => menuItems.id, { onDelete: 'cascade' }),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_collection_items_collection").on(table.collectionId),
+  unique("collection_items_unique").on(table.collectionId, table.menuItemId),
+]);
 
 // Tables
 export const tables = pgTable("tables", {
@@ -1669,6 +1713,21 @@ export const insertItemOptionSchema = createInsertSchema(itemOptions, {
 });
 export type InsertItemOption = z.infer<typeof insertItemOptionSchema>;
 export type ItemOption = typeof itemOptions.$inferSelect;
+
+export const insertCollectionSchema = createInsertSchema(collections).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCollection = z.infer<typeof insertCollectionSchema>;
+export type Collection = typeof collections.$inferSelect;
+
+export const insertCollectionItemSchema = createInsertSchema(collectionItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCollectionItem = z.infer<typeof insertCollectionItemSchema>;
+export type CollectionItem = typeof collectionItems.$inferSelect;
 
 export const insertTableSchema = createInsertSchema(tables).omit({
   id: true,

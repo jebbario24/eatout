@@ -107,6 +107,10 @@ const itemSchema = z.object({
     requiresRefrigeration: z.boolean().optional(),
     brand: z.string().optional(),
   }).optional(),
+  // Merchandising / SEO
+  handle: z.string().optional(),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
 });
 
 export default function Menu() {
@@ -222,6 +226,9 @@ export default function Menu() {
         },
         options: (editingMenuItem.options as any) || [],
         attributes: (editingMenuItem.attributes as any) || {},
+        handle: (editingMenuItem as any).handle || "",
+        seoTitle: (editingMenuItem as any).seoTitle || "",
+        seoDescription: (editingMenuItem as any).seoDescription || "",
       });
       setItemDialogOpen(true);
 
@@ -1715,10 +1722,54 @@ export default function Menu() {
                     }
                   </Tabs>
 
+                  {/* Merchandising / SEO */}
+                  <div className="rounded-lg border p-4 space-y-4">
+                    <p className="text-sm font-semibold">Search engine listing</p>
+                    <FormField
+                      control={itemForm.control}
+                      name="handle"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>URL handle</FormLabel>
+                          <FormControl>
+                            <Input {...field} value={field.value || ""} placeholder="auto-generated from the name" className="font-mono text-sm" data-testid="input-item-handle" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={itemForm.control}
+                      name="seoTitle"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>SEO title</FormLabel>
+                          <FormControl>
+                            <Input {...field} value={field.value || ""} maxLength={70} placeholder={itemForm.watch("name") || "Page title"} data-testid="input-item-seo-title" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={itemForm.control}
+                      name="seoDescription"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Meta description</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} value={field.value || ""} maxLength={320} className="min-h-[70px]" data-testid="input-item-seo-description" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <DialogFooter className="gap-2 sm:gap-0">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => setItemDialogOpen(false)}
                       disabled={createItemMutation.isPending || updateItemMutation.isPending}
                     >

@@ -13,6 +13,8 @@ import {
   giftCards,
   giftCardTransactions,
   promoRedemptions,
+  collections,
+  collectionItems,
   staff,
   inventory,
   deliveryZones,
@@ -56,6 +58,8 @@ import {
   type OrderEvent,
   type GiftCard,
   type GiftCardTransaction,
+  type Collection,
+  type CollectionItem,
   type Staff,
   type InsertStaff,
   type Inventory,
@@ -89,6 +93,17 @@ import {
 import { db } from "./db";
 import { eq, and, or, desc, asc, like, sql, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+
+/** URL handle from a title: lowercase, hyphen-separated, ascii-ish. */
+export function slugify(input: string): string {
+  return (input || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "")
+    .slice(0, 200);
+}
 
 // A driver can be attached to an order two ways: the merchant assigns one directly
 // (orders.assignedDriverId), or a self-serve driver accepts via the delivery link
@@ -432,6 +447,15 @@ export class DatabaseStorage implements IStorage {
 
   async getMenuItem(id: string): Promise<MenuItem | undefined> {
     const [item] = await db.select().from(menuItems).where(eq(menuItems.id, id));
+    return item;
+  }
+
+  async getMenuItemByHandle(restaurantId: string, handle: string): Promise<MenuItem | undefined> {
+    const [item] = await db
+      .select()
+      .from(menuItems)
+      .where(and(eq(menuItems.restaurantId, restaurantId), eq(menuItems.handle, handle)))
+      .limit(1);
     return item;
   }
 
@@ -2298,6 +2322,125 @@ export class DatabaseStorage implements IStorage {
 
   async deleteOrder(orderId: string): Promise<void> {
     await db.delete(orders).where(eq(orders.id, orderId));
+  }
+
+  // ---- Collections (Tier 5 merchandising) ----
+
+  async listCollections(restaurantId: string): Promise<(Collection & { itemCount: number })[]> {
+    const rows = await db
+      .select({
+        collection: collections,
+        itemCount: sql<number>`count(${collectionItems.id})::int`,
+      })
+      .from(collections)
+      .leftJoin(collectionItems, eq(collectionItems.collectionId, collections.id))
+      .where(eq(collections.restaurantId, restaurantId))
+      .groupBy(collections.id)
+      .orderBy(asc(collections.sortOrder), asc(collections.title));
+    return rows.map((r) => ({ ...r.collection, itemCount: r.itemCount }));
+  }
+
+  async getCollection(id: string): Promise<Collection | undefined> {
+    const [c] = await db.select().from(collections).where(eq(collections.id, id)).limit(1);
+    return c;
+  }
+
+  async getCollectionByHandle(restaurantId: string, handle: string): Promise<Collection | undefined> {
+    const [c] = await db
+      .select()
+      .from(collections)
+      .where(and(eq(collections.restaurantId, restaurantId), eq(collections.handle, handle.toLowerCase())))
+      .limit(1);
+    return c;
+  }
+
+  private async uniqueCollectionHandle(restaurantId: string, base: string, ignoreId?: string): Promise<string> {
+    let handle = slugify(base) || "collection";
+    for (let i = 0; i < 50; i++) {
+      const candidate = i === 0 ? handle : `${handle}-${i + 1}`;
+      const existing = await this.getCollectionByHandle(restaurantId, candidate);
+      if (!existing || existing.id === ignoreId) return candidate;
+    }
+    return `${handle}-${Date.now().toString(36)}`;
+  }
+
+  async createCollection(restaurantId: string, data: Partial<Collection>): Promise<Collection> {
+    const handle = await this.uniqueCollectionHandle(restaurantId, data.handle || data.title || "collection");
+    const [created] = await db
+      .insert(collections)
+      .values({
+        restaurantId,
+        title: (data.title || "Untitled collection").slice(0, 255),
+        handle,
+        description: data.description ?? null,
+        imageUrl: data.imageUrl ?? null,
+        isActive: data.isActive ?? true,
+        showOnStorefront: data.showOnStorefront ?? true,
+        sortOrder: data.sortOrder ?? 0,
+        seoTitle: data.seoTitle ?? null,
+        seoDescription: data.seoDescription ?? null,
+      })
+      .returning();
+    return created;
+  }
+
+  async updateCollection(id: string, restaurantId: string, data: Partial<Collection>): Promise<Collection | undefined> {
+    const patch: any = { updatedAt: new Date() };
+    for (const k of ["title", "description", "imageUrl", "isActive", "showOnStorefront", "sortOrder", "seoTitle", "seoDescription"] as const) {
+      if (data[k] !== undefined) patch[k] = data[k];
+    }
+    if (data.handle !== undefined) {
+      patch.handle = await this.uniqueCollectionHandle(restaurantId, data.handle, id);
+    }
+    const [updated] = await db
+      .update(collections)
+      .set(patch)
+      .where(and(eq(collections.id, id), eq(collections.restaurantId, restaurantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteCollection(id: string, restaurantId: string): Promise<void> {
+    await db.delete(collections).where(and(eq(collections.id, id), eq(collections.restaurantId, restaurantId)));
+  }
+
+  async listCollectionItems(collectionId: string): Promise<any[]> {
+    const rows = await db
+      .select({ ci: collectionItems, item: menuItems })
+      .from(collectionItems)
+      .innerJoin(menuItems, eq(collectionItems.menuItemId, menuItems.id))
+      .where(eq(collectionItems.collectionId, collectionId))
+      .orderBy(asc(collectionItems.position));
+    return rows.map((r) => ({ ...r.item, position: r.ci.position, collectionItemId: r.ci.id }));
+  }
+
+  async setCollectionItems(collectionId: string, menuItemIds: string[]): Promise<void> {
+    await db.delete(collectionItems).where(eq(collectionItems.collectionId, collectionId));
+    if (menuItemIds.length > 0) {
+      await db.insert(collectionItems).values(
+        menuItemIds.map((menuItemId, i) => ({ collectionId, menuItemId, position: i })),
+      );
+    }
+  }
+
+  async listStorefrontCollections(restaurantId: string): Promise<(Collection & { items: any[] })[]> {
+    const cols = await db
+      .select()
+      .from(collections)
+      .where(and(
+        eq(collections.restaurantId, restaurantId),
+        eq(collections.isActive, true),
+        eq(collections.showOnStorefront, true),
+      ))
+      .orderBy(asc(collections.sortOrder), asc(collections.title));
+    const result: (Collection & { items: any[] })[] = [];
+    for (const c of cols) {
+      const items = (await this.listCollectionItems(c.id)).filter(
+        (it) => it.isAvailable && it.visibleOnline,
+      );
+      result.push({ ...c, items });
+    }
+    return result;
   }
 
   // ---- Gift cards (Tier 4) ----

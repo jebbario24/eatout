@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ObjectUploader } from "@/components/ObjectUploader";
@@ -227,6 +228,23 @@ export default function OnlineStore() {
     onError: () => {
       toast({ title: "Failed to update brand colors", variant: "destructive" });
     },
+  });
+
+  const [seo, setSeo] = useState({ seoTitle: "", seoDescription: "", seoImageUrl: "" });
+  useEffect(() => {
+    const r = restaurant as any;
+    if (r) setSeo({ seoTitle: r.seoTitle || "", seoDescription: r.seoDescription || "", seoImageUrl: r.seoImageUrl || "" });
+  }, [restaurant]);
+  const seoMutation = useMutation({
+    mutationFn: async (data: typeof seo) => {
+      if (!(restaurant as any)?.id) throw new Error("Restaurant not found");
+      return apiRequest(`/api/restaurants/${(restaurant as any).id}`, "PUT", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      toast({ title: "SEO settings saved" });
+    },
+    onError: () => toast({ title: "Failed to save SEO settings", variant: "destructive" }),
   });
 
   const openingHoursMutation = useMutation({
@@ -1152,6 +1170,54 @@ export default function OnlineStore() {
       </Card>
 
       {/* Payout Preferences Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Search Engine Listing</CardTitle>
+          <CardDescription>How your store appears in Google results and when shared on social media</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="seo-title">Page title</Label>
+            <Input
+              id="seo-title"
+              value={seo.seoTitle}
+              onChange={(e) => setSeo({ ...seo, seoTitle: e.target.value })}
+              placeholder={(restaurant as any)?.name || "Your store name"}
+              maxLength={70}
+              data-testid="input-seo-title"
+            />
+            <p className="text-xs text-muted-foreground">{seo.seoTitle.length}/70 — keep it under 60 for full display</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="seo-description">Meta description</Label>
+            <Textarea
+              id="seo-description"
+              rows={3}
+              value={seo.seoDescription}
+              onChange={(e) => setSeo({ ...seo, seoDescription: e.target.value })}
+              placeholder={(restaurant as any)?.description || "A short summary customers see in search results"}
+              maxLength={320}
+              data-testid="input-seo-description"
+            />
+            <p className="text-xs text-muted-foreground">{seo.seoDescription.length}/320 — aim for 150–160 characters</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="seo-image">Social preview image URL</Label>
+            <Input
+              id="seo-image"
+              value={seo.seoImageUrl}
+              onChange={(e) => setSeo({ ...seo, seoImageUrl: e.target.value })}
+              placeholder="Falls back to your cover photo"
+              data-testid="input-seo-image"
+            />
+          </div>
+          <Button onClick={() => seoMutation.mutate(seo)} disabled={seoMutation.isPending} data-testid="button-save-seo">
+            <Save className="mr-2 h-4 w-4" />
+            {seoMutation.isPending ? "Saving…" : "Save SEO Settings"}
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Payout Preferences</CardTitle>

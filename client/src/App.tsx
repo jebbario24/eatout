@@ -48,6 +48,7 @@ import Marketing from "@/pages/marketing/Marketing";
 import Promos from "@/pages/marketing/Promos";
 import Loyalty from "@/pages/marketing/Loyalty";
 import GiftCards from "@/pages/marketing/GiftCards";
+import Collections from "@/pages/Collections";
 import Customers from "@/pages/Customers";
 import Boosts from "@/pages/marketing/Boosts";
 import Upsells from "@/pages/marketing/Upsells";
@@ -108,6 +109,7 @@ function AuthenticatedRouter() {
       <Route path="/subscribe" component={Subscribe} />
       <Route path="/billing" component={Billing} />
       <Route path="/menu" component={Menu} />
+      <Route path="/collections" component={Collections} />
       <Route path="/orders" component={Orders} />
       <Route path="/reservations">
         <DineInOnlyGuard><Reservations /></DineInOnlyGuard>

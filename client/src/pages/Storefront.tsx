@@ -291,6 +291,31 @@ export default function Storefront() {
     }
   }, [restaurant?.storefrontLanguage, i18n]);
 
+  // SEO: drive <title> and social/meta tags from the merchant's storefront SEO.
+  useEffect(() => {
+    if (!restaurant) return;
+    const r = restaurant as any;
+    const title = r.seoTitle || `${restaurant.name}${r.description ? " — " + r.description : ""}`.slice(0, 70) || restaurant.name;
+    const desc = (r.seoDescription || r.description || `Order online from ${restaurant.name}.`).slice(0, 300);
+    const image = r.seoImageUrl || r.coverImageUrl || r.logoUrl || "";
+    document.title = title;
+    const setMeta = (selector: string, attr: string, key: string, value: string) => {
+      if (!value) return;
+      let el = document.head.querySelector(selector) as HTMLMetaElement | null;
+      if (!el) { el = document.createElement("meta"); el.setAttribute(attr, key); document.head.appendChild(el); }
+      el.setAttribute("content", value);
+    };
+    setMeta('meta[name="description"]', "name", "description", desc);
+    setMeta('meta[property="og:title"]', "property", "og:title", title);
+    setMeta('meta[property="og:description"]', "property", "og:description", desc);
+    setMeta('meta[property="og:type"]', "property", "og:type", "website");
+    setMeta('meta[property="og:image"]', "property", "og:image", image);
+    setMeta('meta[name="twitter:card"]', "name", "twitter:card", image ? "summary_large_image" : "summary");
+    let canonical = document.head.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (!canonical) { canonical = document.createElement("link"); canonical.rel = "canonical"; document.head.appendChild(canonical); }
+    canonical.href = window.location.origin + window.location.pathname;
+  }, [restaurant]);
+
   // Set restaurant slug in i18n backend and reload restaurant namespace
   useEffect(() => {
     if (restaurant?.slug) {
@@ -453,6 +478,17 @@ export default function Storefront() {
       const response = await fetch(endpoint);
       if (!response.ok) return [];
       return response.json();
+    },
+  });
+
+  // Storefront collections (Tier 5 merchandising) — curated product strips
+  const { data: storefrontCollections = [] } = useQuery<any[]>({
+    queryKey: ["/api/storefront/collections", restaurant?.slug],
+    enabled: !!restaurant,
+    queryFn: async () => {
+      const s = slug || restaurant?.slug;
+      const r = await fetch(`/api/storefront/${s}/collections`);
+      return r.ok ? r.json() : [];
     },
   });
 
@@ -2145,6 +2181,44 @@ export default function Storefront() {
 
         {/* Marketing: Active Promos Banner */}
         <ActivePromosBanner promos={activePromos} />
+
+        {/* Merchandising: Collections */}
+        {selectedCategory === null && storefrontCollections.length > 0 && (
+          <div className="mb-12 space-y-10" data-testid="storefront-collections">
+            {storefrontCollections.map((col: any) => (
+              <div key={col.id} data-testid={`collection-${col.handle}`}>
+                <div className="mb-4">
+                  <h2 className="text-2xl font-bold">{col.title}</h2>
+                  {col.description && <p className="text-muted-foreground mt-1">{col.description}</p>}
+                </div>
+                <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {col.items.slice(0, 10).map((it: any) => (
+                    <Card
+                      key={it.id}
+                      className="overflow-hidden hover-elevate cursor-pointer"
+                      onClick={() => it.isAvailable && addToCart(it)}
+                      data-testid={`collection-item-${it.id}`}
+                    >
+                      <div className="relative aspect-square bg-muted">
+                        {it.imageUrl ? (
+                          <img src={it.imageUrl} alt={it.name} className="h-full w-full object-cover" loading="lazy" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Store className="h-10 w-10 text-muted-foreground/40" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3">
+                        <p className="line-clamp-1 text-sm font-medium">{it.name}</p>
+                        <p className="text-sm text-muted-foreground">{formatPrice(it.price)}</p>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {itemsByCategory ? (
           // Showing all items grouped by category

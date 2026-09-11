@@ -4,7 +4,7 @@ import crypto from "crypto";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { env, getBaseUrl } from "./env";
-import { storage } from "./storage";
+import { storage, slugify } from "./storage";
 import { passport, hashPassword, verifyPassword } from "./auth";
 import {
   insertRestaurantSchema,
@@ -1197,7 +1197,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       
       const data = insertMenuItemSchema.parse({ ...requestData, restaurantId: restaurant.id });
-      
+
+      // Merchandising: normalise the SEO handle (unique per restaurant, or clear it).
+      if (data.handle !== undefined) {
+        const wanted = slugify(String(data.handle || ""));
+        if (!wanted) {
+          data.handle = null;
+        } else {
+          let candidate = wanted;
+          for (let i = 2; i < 60; i++) {
+            const clash = await storage.getMenuItemByHandle(restaurant.id, candidate);
+            if (!clash) break;
+            candidate = `${wanted}-${i}`;
+          }
+          data.handle = candidate;
+        }
+      }
+
       // If imageUrl is provided, make it publicly accessible
       if (data.imageUrl) {
         console.log("[MENU ITEM CREATE] Original imageUrl:", data.imageUrl);
@@ -1246,7 +1262,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const data = insertMenuItemSchema.partial().parse(requestData);
-      
+
+      // Merchandising: normalise the SEO handle (unique per restaurant, or clear it).
+      if (data.handle !== undefined) {
+        const wanted = slugify(String(data.handle || ""));
+        if (!wanted) {
+          data.handle = null;
+        } else {
+          let candidate = wanted;
+          for (let i = 2; i < 60; i++) {
+            const clash = await storage.getMenuItemByHandle(restaurant.id, candidate);
+            if (!clash || clash.id === req.params.id) break;
+            candidate = `${wanted}-${i}`;
+          }
+          data.handle = candidate;
+        }
+      }
+
       // If imageUrl is provided, make it publicly accessible
       if (data.imageUrl) {
         console.log("[MENU ITEM UPDATE] Original imageUrl:", data.imageUrl);
@@ -2672,6 +2704,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ---- Collections (merchant merchandising) — Tier 5 ----
+
+  app.get('/api/collections', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.json([]);
+      res.json(await storage.listCollections(restaurant.id));
+    } catch (e) {
+      logError("List collections failed", e);
+      res.status(500).json({ message: "Failed to load collections" });
+    }
+  });
+
+  app.get('/api/collections/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const collection = await storage.getCollection(req.params.id);
+      if (!collection || collection.restaurantId !== restaurant.id) return res.status(404).json({ message: "Collection not found" });
+      const items = await storage.listCollectionItems(collection.id);
+      res.json({ collection, items });
+    } catch (e) {
+      logError("Collection detail failed", e);
+      res.status(500).json({ message: "Failed to load collection" });
+    }
+  });
+
+  app.post('/api/collections', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      if (!req.body?.title || !String(req.body.title).trim()) return res.status(400).json({ message: "Title is required" });
+      const collection = await storage.createCollection(restaurant.id, req.body);
+      if (Array.isArray(req.body.menuItemIds)) {
+        await storage.setCollectionItems(collection.id, req.body.menuItemIds);
+      }
+      res.json(collection);
+    } catch (e: any) {
+      logError("Create collection failed", e);
+      res.status(400).json({ message: e?.message || "Failed to create collection" });
+    }
+  });
+
+  app.patch('/api/collections/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const collection = await storage.getCollection(req.params.id);
+      if (!collection || collection.restaurantId !== restaurant.id) return res.status(404).json({ message: "Collection not found" });
+      const updated = await storage.updateCollection(req.params.id, restaurant.id, req.body);
+      if (Array.isArray(req.body.menuItemIds)) {
+        await storage.setCollectionItems(req.params.id, req.body.menuItemIds);
+      }
+      res.json(updated);
+    } catch (e: any) {
+      logError("Update collection failed", e);
+      res.status(400).json({ message: e?.message || "Failed to update collection" });
+    }
+  });
+
+  app.delete('/api/collections/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      await storage.deleteCollection(req.params.id, restaurant.id);
+      res.json({ ok: true });
+    } catch (e) {
+      logError("Delete collection failed", e);
+      res.status(400).json({ message: "Failed to delete collection" });
+    }
+  });
+
   // Upsell rule routes (owner-facing management; the storefront reads via
   // /api/storefront/:slug/upsell-rules)
   app.get('/api/upsells', isAuthenticated, async (req: any, res) => {
@@ -4030,6 +4134,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching items:", error);
       res.status(500).json({ message: "Failed to fetch items" });
+    }
+  });
+
+  // Storefront collections (Tier 5) — curated product groups
+  app.get('/api/storefront/:slug/collections', async (req, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const cols = await storage.listStorefrontCollections(restaurant.id);
+      res.json(cols.filter((c) => c.items.length > 0));
+    } catch (error) {
+      logError("Storefront collections failed", error);
+      res.status(500).json({ message: "Failed to load collections" });
+    }
+  });
+
+  app.get('/api/storefront/:slug/collections/:handle', async (req, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const collection = await storage.getCollectionByHandle(restaurant.id, req.params.handle);
+      if (!collection || !collection.isActive) return res.status(404).json({ message: "Collection not found" });
+      const items = (await storage.listCollectionItems(collection.id)).filter((it) => it.isAvailable && it.visibleOnline);
+      res.json({ collection, items });
+    } catch (error) {
+      logError("Storefront collection detail failed", error);
+      res.status(500).json({ message: "Failed to load collection" });
+    }
+  });
+
+  // Storefront product-by-handle (Tier 5 SEO deep links)
+  app.get('/api/storefront/:slug/items/handle/:handle', async (req, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const item = await storage.getMenuItemByHandle(restaurant.id, req.params.handle);
+      if (!item || !item.isAvailable) return res.status(404).json({ message: "Product not found" });
+      res.json(item);
+    } catch (error) {
+      logError("Storefront item by handle failed", error);
+      res.status(500).json({ message: "Failed to load product" });
     }
   });
 

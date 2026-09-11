@@ -21,7 +21,8 @@ import {
   Activity,
   Heart,
   UserRound,
-  Gift
+  Gift,
+  Layers
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -237,6 +238,11 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
       titleKey: "navigation.menu",
       url: "/menu",
       icon: businessConfig.icon,
+    },
+    {
+      titleKey: "Collections",
+      url: "/collections",
+      icon: Layers,
     },
     {
       titleKey: "navigation.inventory",
