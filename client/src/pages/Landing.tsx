@@ -14,28 +14,15 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
-  UtensilsCrossed,
-  ShoppingBasket,
-  Pill,
-  Flower2,
   Store,
   ShoppingCart,
   BarChart3,
   Users,
-  CalendarCheck,
   Package,
-  ChefHat,
-  CreditCard,
   Truck,
-  DollarSign,
-  Clock,
-  MapPin,
   Mail,
   Menu,
   ArrowRight,
-  Star,
-  Zap,
-  ShieldCheck,
 } from "lucide-react";
 import heroImage from "@/assets/landing/shopify-hero.webp";
 import courierImage from "@/assets/landing/shopify-courier.webp";
@@ -51,157 +38,46 @@ gsap.registerPlugin(ScrollTrigger);
 // rail — instead of only mount-time fades.
 // ============================================================
 
-type VerticalKey = "restaurant" | "grocery" | "pharmacy" | "flowers" | "retail" | "driver";
-
 interface Feature {
-  icon: typeof UtensilsCrossed;
+  icon: typeof Store;
   title: string;
   description: string;
 }
 
-interface Vertical {
-  key: VerticalKey;
-  navLabel: string;
-  icon: typeof UtensilsCrossed;
-  badge: string;
-  headlineTop: string;
-  headlineHighlight: string;
-  subtitle: string;
-  primaryCta: string;
-  primaryHref: string;
-  secondaryCta: string;
-  secondaryHref: string;
-  features: Feature[];
-}
+const HERO = {
+  badge: "For Online Businesses Worldwide",
+  headlineTop: "Sell online,",
+  headlineHighlight: "anywhere in the world",
+  subtitle:
+    "One platform for your storefront, orders, payments, inventory, and team — built for online shops of every kind, wherever your customers are.",
+  primaryCta: "Get Started Free",
+  secondaryCta: "Login",
+};
 
-const VERTICALS: Vertical[] = [
-  {
-    key: "restaurant",
-    navLabel: "Restaurants",
-    icon: ChefHat,
-    badge: "For Restaurants",
-    headlineTop: "Run your restaurant",
-    headlineHighlight: "like never before",
-    subtitle:
-      "Orders, reservations, menus, inventory, and staff in one place. Accept online orders with integrated payments and your own delivery fleet.",
-    primaryCta: "Get Started Free",
-    primaryHref: "/signup",
-    secondaryCta: "Login",
-    secondaryHref: "/login",
-    features: [
-      { icon: ShoppingCart, title: "POS System", description: "Fast point-of-sale for dine-in, takeout, and delivery orders" },
-      { icon: UtensilsCrossed, title: "Menu Management", description: "Easy menu updates with categories, items, pricing, and availability" },
-      { icon: CalendarCheck, title: "Reservations", description: "Table management and reservation system to maximize seating" },
-      { icon: Package, title: "Inventory", description: "Track stock levels and get low-stock alerts automatically" },
-      { icon: Users, title: "Staff Management", description: "Manage your team with roles, schedules, and permissions" },
-      { icon: BarChart3, title: "Analytics", description: "Real-time insights into sales, popular items, and revenue trends" },
-    ],
-  },
-  {
-    key: "grocery",
-    navLabel: "Grocery",
-    icon: ShoppingBasket,
-    badge: "For Grocery Stores",
-    headlineTop: "Sell groceries online",
-    headlineHighlight: "with delivery built in",
-    subtitle:
-      "A full storefront for your grocery business — catalog, checkout, and your own delivery drivers, without paying a marketplace commission.",
-    primaryCta: "Get Started Free",
-    primaryHref: "/signup",
-    secondaryCta: "Login",
-    secondaryHref: "/login",
-    features: [
-      { icon: ShoppingBasket, title: "Product Catalog", description: "Organize by category, set units and pricing, manage stock in real time" },
-      { icon: Package, title: "Inventory Sync", description: "Automatic out-of-stock handling so customers never order what you don't have" },
-      { icon: Truck, title: "Your Own Drivers", description: "Recruit and manage a delivery fleet just for your store" },
-      { icon: CreditCard, title: "Online Payments", description: "Accept cards and digital wallets at checkout" },
-      { icon: BarChart3, title: "Analytics", description: "See best-selling products and peak ordering hours" },
-      { icon: Zap, title: "Fast Setup", description: "Launch your online store in an afternoon, not weeks" },
-    ],
-  },
-  {
-    key: "pharmacy",
-    navLabel: "Pharmacy",
-    icon: Pill,
-    badge: "For Pharmacies",
-    headlineTop: "Modernize your pharmacy",
-    headlineHighlight: "without the overhead",
-    subtitle:
-      "Prescription-aware product listings, dosage details, and reliable local delivery — built for how pharmacies actually operate.",
-    primaryCta: "Get Started Free",
-    primaryHref: "/signup",
-    secondaryCta: "Login",
-    secondaryHref: "/login",
-    features: [
-      { icon: Pill, title: "Prescription Fields", description: "Flag items that require a prescription, track dosage and pack size" },
-      { icon: ShieldCheck, title: "Trusted Checkout", description: "Secure payments customers feel comfortable using" },
-      { icon: Truck, title: "Reliable Delivery", description: "Your own vetted, approved drivers for time-sensitive orders" },
-      { icon: Package, title: "Inventory Control", description: "Stay on top of stock for essential medications" },
-      { icon: BarChart3, title: "Analytics", description: "Track order volume and delivery performance" },
-      { icon: Users, title: "Staff Access", description: "Role-based access for pharmacists and counter staff" },
-    ],
-  },
-  {
-    key: "flowers",
-    navLabel: "Flowers",
-    icon: Flower2,
-    badge: "For Flower Shops",
-    headlineTop: "Bloom your business",
-    headlineHighlight: "online and on time",
-    subtitle:
-      "Showcase arrangements by occasion, take orders for same-day delivery, and let your own couriers get them there fresh.",
-    primaryCta: "Get Started Free",
-    primaryHref: "/signup",
-    secondaryCta: "Login",
-    secondaryHref: "/login",
-    features: [
-      { icon: Flower2, title: "Occasion Tagging", description: "Birthdays, sympathy, weddings — organize your catalog the way customers browse" },
-      { icon: Clock, title: "Same-Day Delivery", description: "Time-sensitive orders routed to your available drivers" },
-      { icon: CreditCard, title: "Online Payments", description: "Accept payment for custom and pre-made arrangements alike" },
-      { icon: Star, title: "Care Instructions", description: "Attach care notes to every arrangement automatically" },
-      { icon: BarChart3, title: "Analytics", description: "See which arrangements and occasions drive the most sales" },
-      { icon: Package, title: "Inventory", description: "Track stem counts and seasonal availability" },
-    ],
-  },
-  {
-    key: "retail",
-    navLabel: "Shops",
-    icon: Store,
-    badge: "For Local Shops",
-    headlineTop: "Any shop, one platform",
-    headlineHighlight: "with delivery included",
-    subtitle:
-      "Whatever you sell, get a real online storefront and a delivery fleet you own — no per-order commission to a marketplace.",
-    primaryCta: "Get Started Free",
-    primaryHref: "/signup",
-    secondaryCta: "Login",
-    secondaryHref: "/login",
-    features: [
-      { icon: Store, title: "Flexible Catalog", description: "Brand, unit, and SKU fields that adapt to what you sell" },
-      { icon: ShoppingCart, title: "Online Storefront", description: "A branded ordering page customers can find and use in minutes" },
-      { icon: Truck, title: "Your Own Drivers", description: "Recruit, approve, and manage delivery drivers for your shop only" },
-      { icon: CreditCard, title: "Online Payments", description: "Stripe and PayPal built in" },
-      { icon: BarChart3, title: "Analytics", description: "Revenue, order, and customer insights in one dashboard" },
-      { icon: Zap, title: "Fast Setup", description: "No developer needed — configure and launch yourself" },
-    ],
-  },
+const FEATURES: Feature[] = [
+  { icon: Store, title: "Online Storefront", description: "A branded store customers can find and order from in minutes, in any country" },
+  { icon: ShoppingCart, title: "Orders & Payments", description: "Accept orders and payments from customers anywhere, in their currency" },
+  { icon: Package, title: "Inventory", description: "Track stock levels and get low-stock alerts automatically" },
+  { icon: Truck, title: "Flexible Fulfillment", description: "Ship with your preferred carriers or manage your own delivery — your choice" },
+  { icon: Users, title: "Team Management", description: "Manage your team with roles, schedules, and permissions" },
+  { icon: BarChart3, title: "Analytics", description: "Real-time insights into sales, top products, and revenue trends" },
 ];
 
 const STATS = [
-  { label: "Local businesses", value: 500, suffix: "+" },
-  { label: "Orders delivered", value: 50, suffix: "K+" },
-  { label: "Avg. delivery time", value: 28, suffix: " min" },
+  { label: "Online businesses", value: 500, suffix: "+" },
+  { label: "Orders processed", value: 50, suffix: "K+" },
+  { label: "Platform uptime", value: 99.9, suffix: "%", decimals: 1 },
   { label: "Merchant rating", value: 4.9, suffix: "/5", decimals: 1 },
 ];
 
 const HOW_IT_WORKS = [
   {
     title: "Set up your storefront",
-    description: "Pick your business type, add your catalog, and go live in minutes — no developer required.",
+    description: "Add your catalog, connect payments, and go live in minutes — no developer required.",
   },
   {
-    title: "Bring your own drivers",
-    description: "Invite and approve the drivers who deliver for you. You manage your own fleet, not a shared pool.",
+    title: "Fulfill orders your way",
+    description: "Ship with your preferred carriers or manage your own delivery — whatever fits your business, wherever you are.",
   },
   {
     title: "Grow with real data",
@@ -417,14 +293,11 @@ const staggerContainer = {
 };
 
 export default function Landing() {
-  const [activeVertical, setActiveVertical] = useState<VerticalKey>("restaurant");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const heroImageRef = useRef<HTMLDivElement>(null);
   const featuresGridRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const heroSectionRef = useRef<HTMLDivElement>(null);
-
-  const vertical = VERTICALS.find((v) => v.key === activeVertical)!;
 
   // Cursor-tracked spotlight across the hero section.
   const spotX = useMotionValue(400);
@@ -463,7 +336,7 @@ export default function Landing() {
       );
     }, featuresGridRef);
     return () => ctx.revert();
-  }, [activeVertical]);
+  }, []);
 
   return (
     <div
@@ -483,33 +356,8 @@ export default function Landing() {
       <div className="sticky top-0 z-50 px-3 pt-3">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-xl border border-[#e3e3e3] bg-[#ffffff]/90 px-5 py-3 backdrop-blur supports-[backdrop-filter]:bg-[#ffffff]/70">
           <div className="flex shrink-0 items-center gap-2">
-            <UtensilsCrossed className="h-5 w-5 text-[#008060]" />
+            <Store className="h-5 w-5 text-[#008060]" />
             <span className="text-lg font-semibold tracking-tight text-[#1a1a1a]">EatOut</span>
-          </div>
-
-          <div className="hidden lg:flex items-center gap-1">
-            {VERTICALS.map((v) => (
-              <button
-                key={v.key}
-                onClick={() => setActiveVertical(v.key)}
-                data-testid={`tab-${v.key}`}
-                aria-label={v.navLabel}
-                aria-pressed={activeVertical === v.key}
-                className="relative px-3.5 py-2 text-[14px] font-medium tracking-[0.015em] transition-colors"
-              >
-                {activeVertical === v.key && (
-                  <motion.span
-                    layoutId="nav-vertical-pill"
-                    className="absolute inset-0 rounded-full bg-black/[0.04] border border-black/10"
-                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                  />
-                )}
-                <span className={`relative flex items-center gap-1.5 ${activeVertical === v.key ? "text-[#1a1a1a]" : "text-[#6d7175]"}`}>
-                  {v.navLabel}
-                  {activeVertical === v.key && <span className="h-1 w-1 rounded-full bg-[#008060]" />}
-                </span>
-              </button>
-            ))}
           </div>
 
           <div className="hidden md:flex items-center gap-3 shrink-0">
@@ -527,7 +375,7 @@ export default function Landing() {
             >
               Contact
             </button>
-            <PrimaryPill onClick={() => (window.location.href = `${vertical.primaryHref}?type=${vertical.key}`)} className="px-4 py-2 text-[14px]" testId="button-nav-cta">
+            <PrimaryPill onClick={() => (window.location.href = "/signup")} className="px-4 py-2 text-[14px]" testId="button-nav-cta">
               Get Started
             </PrimaryPill>
           </div>
@@ -545,37 +393,13 @@ export default function Landing() {
               <SheetContent side="right" className="w-[300px] sm:w-[400px] bg-[#ffffff] border-[#e3e3e3] text-[#1a1a1a]">
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2 text-[#1a1a1a]">
-                    <UtensilsCrossed className="h-5 w-5 text-[#008060]" />
+                    <Store className="h-5 w-5 text-[#008060]" />
                     EatOut
                   </SheetTitle>
                 </SheetHeader>
 
                 <div className="mt-8 space-y-6">
-                  <div className="space-y-3">
-                    <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#6d7175]">I'm interested in</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {VERTICALS.map((v) => (
-                        <button
-                          key={v.key}
-                          onClick={() => {
-                            setActiveVertical(v.key);
-                            setMobileMenuOpen(false);
-                          }}
-                          data-testid={`mobile-tab-${v.key}`}
-                          className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-[14px] font-medium transition-colors ${
-                            activeVertical === v.key
-                              ? "border-[#008060]/40 bg-[#008060]/10 text-[#1a1a1a]"
-                              : "border-[#e3e3e3] text-[#6d7175]"
-                          }`}
-                        >
-                          <v.icon className="h-4 w-4" />
-                          {v.navLabel}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1 pt-6 border-t border-[#e3e3e3]">
+                  <div className="space-y-1">
                     <button
                       onClick={() => {
                         window.location.href = "/login";
@@ -601,12 +425,12 @@ export default function Landing() {
 
                   <PrimaryPill
                     onClick={() => {
-                      window.location.href = `${vertical.primaryHref}?type=${vertical.key}`;
+                      window.location.href = "/signup";
                       setMobileMenuOpen(false);
                     }}
                     className="w-full"
                   >
-                    {vertical.primaryCta}
+                    {HERO.primaryCta}
                   </PrimaryPill>
                 </div>
               </SheetContent>
@@ -629,55 +453,51 @@ export default function Landing() {
         <motion.div className="pointer-events-none absolute inset-0" style={{ background: spotlight }} />
 
         <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-2 lg:px-8">
-          <AnimatePresence mode="wait">
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="show"
+            className="space-y-8 text-center lg:text-left"
+          >
             <motion.div
-              key={activeVertical}
-              variants={staggerContainer}
-              initial="hidden"
-              animate="show"
-              exit={{ opacity: 0, transition: { duration: 0.15 } }}
-              className="space-y-8 text-center lg:text-left"
+              variants={fadeUp}
+              className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#008060]"
             >
-              <motion.div
-                variants={fadeUp}
-                className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#008060]"
-              >
-                <vertical.icon className="h-3.5 w-3.5" />
-                {vertical.badge}
-              </motion.div>
-
-              <h1
-                className="font-normal text-[#1a1a1a]"
-                style={{
-                  fontFamily: "var(--shopify-display-font)",
-                  fontWeight: 330,
-                  fontSize: "clamp(40px, 6.5vw, 70px)",
-                  lineHeight: 0.98,
-                  letterSpacing: "0.01em",
-                }}
-              >
-                <SplitReveal text={vertical.headlineTop} delayStart={0.1} />
-                <br />
-                <span className="text-[#1a1a1a]">
-                  <SplitReveal text={vertical.headlineHighlight} delayStart={0.1 + vertical.headlineTop.split(" ").length * 0.05} />
-                </span>
-              </h1>
-
-              <motion.p variants={fadeUp} className="max-w-xl mx-auto lg:mx-0 text-[18px] leading-[1.5] text-[#6d7175]">
-                {vertical.subtitle}
-              </motion.p>
-
-              <motion.div variants={fadeUp} className="flex flex-wrap gap-3 justify-center lg:justify-start">
-                <PrimaryPill onClick={() => (window.location.href = `${vertical.primaryHref}?type=${vertical.key}`)} testId="button-get-started">
-                  {vertical.primaryCta}
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </PrimaryPill>
-                <GhostPill onClick={() => (window.location.href = vertical.secondaryHref)} testId="button-login">
-                  {vertical.secondaryCta}
-                </GhostPill>
-              </motion.div>
+              <Store className="h-3.5 w-3.5" />
+              {HERO.badge}
             </motion.div>
-          </AnimatePresence>
+
+            <h1
+              className="font-normal text-[#1a1a1a]"
+              style={{
+                fontFamily: "var(--shopify-display-font)",
+                fontWeight: 330,
+                fontSize: "clamp(40px, 6.5vw, 70px)",
+                lineHeight: 0.98,
+                letterSpacing: "0.01em",
+              }}
+            >
+              <SplitReveal text={HERO.headlineTop} delayStart={0.1} />
+              <br />
+              <span className="text-[#1a1a1a]">
+                <SplitReveal text={HERO.headlineHighlight} delayStart={0.1 + HERO.headlineTop.split(" ").length * 0.05} />
+              </span>
+            </h1>
+
+            <motion.p variants={fadeUp} className="max-w-xl mx-auto lg:mx-0 text-[18px] leading-[1.5] text-[#6d7175]">
+              {HERO.subtitle}
+            </motion.p>
+
+            <motion.div variants={fadeUp} className="flex flex-wrap gap-3 justify-center lg:justify-start">
+              <PrimaryPill onClick={() => (window.location.href = "/signup")} testId="button-get-started">
+                {HERO.primaryCta}
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </PrimaryPill>
+              <GhostPill onClick={() => (window.location.href = "/login")} testId="button-login">
+                {HERO.secondaryCta}
+              </GhostPill>
+            </motion.div>
+          </motion.div>
 
           <motion.div
             ref={heroImageRef}
@@ -732,12 +552,12 @@ export default function Landing() {
             Everything you need
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-[16px] text-[#6d7175]">
-            Comprehensive tools to run your business efficiently and grow with delivery built in
+            Comprehensive tools to run your online business efficiently, wherever your customers are
           </p>
         </motion.div>
 
         <div ref={featuresGridRef} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {vertical.features.map((feature, index) => (
+          {FEATURES.map((feature, index) => (
             <TiltCard key={feature.title} className={index === 0 ? "lg:col-span-2" : ""}>
               <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#008060]/10">
                 <feature.icon className="h-5 w-5 text-[#008060]" />
@@ -767,7 +587,7 @@ export default function Landing() {
               How it works
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-[16px] text-[#6d7175]">
-              From signup to your first delivery, in three steps
+              From signup to your first sale, in three steps
             </p>
           </motion.div>
 
@@ -797,32 +617,29 @@ export default function Landing() {
       <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 items-center gap-10 overflow-hidden rounded-[20px] border border-[#e3e3e3] bg-[#ffffff] lg:grid-cols-2">
           <div className="p-10 sm:p-14">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeVertical}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.5 }}
+              transition={{ duration: 0.4 }}
+            >
+              <h2
+                className="text-[#1a1a1a]"
+                style={{ fontFamily: "var(--shopify-display-font)", fontWeight: 330, fontSize: "clamp(28px, 3.5vw, 40px)", lineHeight: 1.1 }}
               >
-                <h2
-                  className="text-[#1a1a1a]"
-                  style={{ fontFamily: "var(--shopify-display-font)", fontWeight: 330, fontSize: "clamp(28px, 3.5vw, 40px)", lineHeight: 1.1 }}
-                >
-                  Ready to get started?
-                </h2>
-                <p className="mt-4 text-[16px] text-[#6d7175]">
-                  Join hundreds of local businesses already using EatOut.{" "}
-                  <span className="text-[#008060]">No commission. No shared driver pool. Just your business.</span>
-                </p>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <PrimaryPill onClick={() => (window.location.href = `${vertical.primaryHref}?type=${vertical.key}`)} testId="button-start-now">
-                    Start Now — It's Free
-                    <ArrowRight className="h-4 w-4" />
-                  </PrimaryPill>
-                </div>
-              </motion.div>
-            </AnimatePresence>
+                Ready to get started?
+              </h2>
+              <p className="mt-4 text-[16px] text-[#6d7175]">
+                Join thousands of online businesses worldwide already using EatOut.{" "}
+                <span className="text-[#008060]">No commission. No marketplace lock-in. Just your business, your way.</span>
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <PrimaryPill onClick={() => (window.location.href = "/signup")} testId="button-start-now">
+                  Start Now — It's Free
+                  <ArrowRight className="h-4 w-4" />
+                </PrimaryPill>
+              </div>
+            </motion.div>
           </div>
           <div className="relative h-64 lg:h-full">
             <img src={courierImage} alt="A delivery courier at night" className="h-full w-full object-cover" />
@@ -836,7 +653,7 @@ export default function Landing() {
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
             <div className="flex items-center gap-2">
-              <UtensilsCrossed className="h-5 w-5 text-[#008060]" />
+              <Store className="h-5 w-5 text-[#008060]" />
               <span className="text-[16px] font-semibold text-[#1a1a1a]">EatOut</span>
             </div>
             <p className="text-[14px] text-[#6d7175]">© 2027 EatOut. All rights reserved.</p>
