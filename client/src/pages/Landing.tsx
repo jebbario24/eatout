@@ -43,9 +43,9 @@ import courierImage from "@/assets/landing/shopify-courier.webp";
 gsap.registerPlugin(ScrollTrigger);
 
 // ============================================================
-// 2027 pass: same Shopify-dark foundation (canvas #02090a, card
-// #061a1c, panel #072720, border #1e2c31, mint #36f4a4), pushed
-// further with Motion's motion-value primitives — magnetic
+// Shopify-light foundation (canvas #f6f6f7, card #ffffff, border
+// #e3e3e3, Shopify green #008060), built with Motion's
+// motion-value primitives — magnetic
 // buttons, a cursor-tracked spotlight, living aurora blobs,
 // word-reveal headlines, 3D tilt cards, and a scroll-progress
 // rail — instead of only mount-time fades.
@@ -217,7 +217,7 @@ function ScrollProgressRail() {
   const scaleX = useSpring(scrollYProgress, { stiffness: 200, damping: 30, restDelta: 0.001 });
   return (
     <motion.div
-      className="fixed left-0 right-0 top-0 z-[60] h-[2px] origin-left bg-gradient-to-r from-[#36f4a4] via-[#36f4a4] to-transparent"
+      className="fixed left-0 right-0 top-0 z-[60] h-[2px] origin-left bg-gradient-to-r from-[#008060] via-[#008060] to-transparent"
       style={{ scaleX }}
     />
   );
@@ -228,12 +228,12 @@ function AuroraField() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <motion.div
-        className="absolute left-1/4 top-0 h-[420px] w-[420px] rounded-full bg-[#36f4a4]/[0.10] blur-[110px]"
+        className="absolute left-1/4 top-0 h-[420px] w-[420px] rounded-full bg-[#008060]/[0.10] blur-[110px]"
         animate={{ x: [0, 90, -40, 0], y: [0, -60, 40, 0], scale: [1, 1.15, 0.92, 1] }}
         transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute right-1/4 top-20 h-[380px] w-[380px] rounded-full bg-[#133b32]/40 blur-[100px]"
+        className="absolute right-1/4 top-20 h-[380px] w-[380px] rounded-full bg-[#d1f0e2]/40 blur-[100px]"
         animate={{ x: [0, -70, 50, 0], y: [0, 50, -30, 0], scale: [1, 0.9, 1.1, 1] }}
         transition={{ duration: 26, repeat: Infinity, ease: "easeInOut", delay: 2 }}
       />
@@ -295,7 +295,7 @@ function PrimaryPill({
       style={magnetic.style}
       whileTap={{ scale: 0.96 }}
       data-testid={testId}
-      className={`group inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-[16px] font-medium text-[#02090a] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] ${className}`}
+      className={`group inline-flex items-center justify-center gap-2 rounded-full bg-[#008060] px-6 py-3 text-[16px] font-medium text-white shadow-sm hover:bg-[#006e52] transition-colors ${className}`}
     >
       {children}
     </motion.button>
@@ -322,7 +322,7 @@ function GhostPill({
       style={magnetic.style}
       whileTap={{ scale: 0.96 }}
       data-testid={testId}
-      className={`inline-flex items-center justify-center gap-2 rounded-full border border-white/30 bg-transparent px-6 py-3 text-[16px] font-medium text-white transition-colors hover:border-white/60 hover:bg-white/5 ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full border border-black/20 bg-transparent px-6 py-3 text-[16px] font-medium text-[#1a1a1a] transition-colors hover:border-black/40 hover:bg-black/5 ${className}`}
     >
       {children}
     </motion.button>
@@ -373,7 +373,7 @@ function TiltCard({ children, className = "" }: { children: React.ReactNode; cla
         y.set(0);
       }}
       style={{ rotateX, rotateY, transformPerspective: 800 }}
-      className={`feature-card relative overflow-hidden rounded-xl border border-[#1e2c31] bg-[#061a1c] p-6 ${className}`}
+      className={`feature-card relative overflow-hidden rounded-xl border border-[#e3e3e3] bg-[#ffffff] p-6 ${className}`}
     >
       <motion.div className="pointer-events-none absolute inset-0" style={{ background: glowBackground }} />
       <div className="relative">{children}</div>
@@ -468,7 +468,7 @@ export default function Landing() {
   return (
     <div
       ref={rootRef}
-      className="relative min-h-screen overflow-x-hidden bg-[#02090a] text-white"
+      className="relative min-h-screen overflow-x-hidden bg-[#f6f6f7] text-[#1a1a1a]"
       style={
         {
           "--shopify-display-font": "'Inter', ui-sans-serif, system-ui, sans-serif",
@@ -481,10 +481,10 @@ export default function Landing() {
 
       {/* Navigation */}
       <div className="sticky top-0 z-50 px-3 pt-3">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-xl border border-[#1e2c31] bg-[#072720]/90 px-5 py-3 backdrop-blur supports-[backdrop-filter]:bg-[#072720]/70">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 rounded-xl border border-[#e3e3e3] bg-[#ffffff]/90 px-5 py-3 backdrop-blur supports-[backdrop-filter]:bg-[#ffffff]/70">
           <div className="flex shrink-0 items-center gap-2">
-            <UtensilsCrossed className="h-5 w-5 text-[#36f4a4]" />
-            <span className="text-lg font-semibold tracking-tight text-white">EatOut</span>
+            <UtensilsCrossed className="h-5 w-5 text-[#008060]" />
+            <span className="text-lg font-semibold tracking-tight text-[#1a1a1a]">EatOut</span>
           </div>
 
           <div className="hidden lg:flex items-center gap-1">
@@ -500,13 +500,13 @@ export default function Landing() {
                 {activeVertical === v.key && (
                   <motion.span
                     layoutId="nav-vertical-pill"
-                    className="absolute inset-0 rounded-full bg-white/[0.06] border border-white/10"
+                    className="absolute inset-0 rounded-full bg-black/[0.04] border border-black/10"
                     transition={{ type: "spring", stiffness: 400, damping: 32 }}
                   />
                 )}
-                <span className={`relative flex items-center gap-1.5 ${activeVertical === v.key ? "text-white" : "text-[#99b3ad]"}`}>
+                <span className={`relative flex items-center gap-1.5 ${activeVertical === v.key ? "text-[#1a1a1a]" : "text-[#6d7175]"}`}>
                   {v.navLabel}
-                  {activeVertical === v.key && <span className="h-1 w-1 rounded-full bg-[#36f4a4]" />}
+                  {activeVertical === v.key && <span className="h-1 w-1 rounded-full bg-[#008060]" />}
                 </span>
               </button>
             ))}
@@ -515,14 +515,14 @@ export default function Landing() {
           <div className="hidden md:flex items-center gap-3 shrink-0">
             <button
               onClick={() => (window.location.href = "/login")}
-              className="text-[14px] font-medium text-[#99b3ad] hover:text-white transition-colors"
+              className="text-[14px] font-medium text-[#6d7175] hover:text-[#1a1a1a] transition-colors"
               data-testid="button-login-header"
             >
               Login
             </button>
             <button
               onClick={() => (window.location.href = "/contact")}
-              className="text-[14px] font-medium text-[#99b3ad] hover:text-white transition-colors"
+              className="text-[14px] font-medium text-[#6d7175] hover:text-[#1a1a1a] transition-colors"
               data-testid="button-contact-header"
             >
               Contact
@@ -536,23 +536,23 @@ export default function Landing() {
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <button
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/10 text-[#1a1a1a]"
                   data-testid="button-mobile-menu"
                 >
                   <Menu className="h-5 w-5" />
                 </button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[300px] sm:w-[400px] bg-[#061a1c] border-[#1e2c31] text-white">
+              <SheetContent side="right" className="w-[300px] sm:w-[400px] bg-[#ffffff] border-[#e3e3e3] text-[#1a1a1a]">
                 <SheetHeader>
-                  <SheetTitle className="flex items-center gap-2 text-white">
-                    <UtensilsCrossed className="h-5 w-5 text-[#36f4a4]" />
+                  <SheetTitle className="flex items-center gap-2 text-[#1a1a1a]">
+                    <UtensilsCrossed className="h-5 w-5 text-[#008060]" />
                     EatOut
                   </SheetTitle>
                 </SheetHeader>
 
                 <div className="mt-8 space-y-6">
                   <div className="space-y-3">
-                    <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#99b3ad]">I'm interested in</p>
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#6d7175]">I'm interested in</p>
                     <div className="grid grid-cols-2 gap-2">
                       {VERTICALS.map((v) => (
                         <button
@@ -564,8 +564,8 @@ export default function Landing() {
                           data-testid={`mobile-tab-${v.key}`}
                           className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-[14px] font-medium transition-colors ${
                             activeVertical === v.key
-                              ? "border-[#36f4a4]/40 bg-[#36f4a4]/10 text-white"
-                              : "border-[#1e2c31] text-[#99b3ad]"
+                              ? "border-[#008060]/40 bg-[#008060]/10 text-[#1a1a1a]"
+                              : "border-[#e3e3e3] text-[#6d7175]"
                           }`}
                         >
                           <v.icon className="h-4 w-4" />
@@ -575,13 +575,13 @@ export default function Landing() {
                     </div>
                   </div>
 
-                  <div className="space-y-1 pt-6 border-t border-[#1e2c31]">
+                  <div className="space-y-1 pt-6 border-t border-[#e3e3e3]">
                     <button
                       onClick={() => {
                         window.location.href = "/login";
                         setMobileMenuOpen(false);
                       }}
-                      className="w-full text-left py-2 text-[14px] font-medium text-[#99b3ad] hover:text-white"
+                      className="w-full text-left py-2 text-[14px] font-medium text-[#6d7175] hover:text-[#1a1a1a]"
                       data-testid="mobile-button-login"
                     >
                       Login
@@ -591,7 +591,7 @@ export default function Landing() {
                         window.location.href = "/contact";
                         setMobileMenuOpen(false);
                       }}
-                      className="w-full text-left py-2 text-[14px] font-medium text-[#99b3ad] hover:text-white flex items-center gap-2"
+                      className="w-full text-left py-2 text-[14px] font-medium text-[#6d7175] hover:text-[#1a1a1a] flex items-center gap-2"
                       data-testid="mobile-button-contact"
                     >
                       <Mail className="h-4 w-4" />
@@ -640,14 +640,14 @@ export default function Landing() {
             >
               <motion.div
                 variants={fadeUp}
-                className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#36f4a4]"
+                className="inline-flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#008060]"
               >
                 <vertical.icon className="h-3.5 w-3.5" />
                 {vertical.badge}
               </motion.div>
 
               <h1
-                className="font-normal text-white"
+                className="font-normal text-[#1a1a1a]"
                 style={{
                   fontFamily: "var(--shopify-display-font)",
                   fontWeight: 330,
@@ -658,12 +658,12 @@ export default function Landing() {
               >
                 <SplitReveal text={vertical.headlineTop} delayStart={0.1} />
                 <br />
-                <span className="text-white">
+                <span className="text-[#1a1a1a]">
                   <SplitReveal text={vertical.headlineHighlight} delayStart={0.1 + vertical.headlineTop.split(" ").length * 0.05} />
                 </span>
               </h1>
 
-              <motion.p variants={fadeUp} className="max-w-xl mx-auto lg:mx-0 text-[18px] leading-[1.5] text-[#99b3ad]">
+              <motion.p variants={fadeUp} className="max-w-xl mx-auto lg:mx-0 text-[18px] leading-[1.5] text-[#6d7175]">
                 {vertical.subtitle}
               </motion.p>
 
@@ -686,8 +686,8 @@ export default function Landing() {
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
             className="relative"
           >
-            <div className="absolute -inset-10 -z-10 rounded-full bg-[#36f4a4]/10 blur-[100px]" />
-            <div className="overflow-hidden rounded-xl border border-[#1e2c31]">
+            <div className="absolute -inset-10 -z-10 rounded-full bg-[#008060]/10 blur-[100px]" />
+            <div className="overflow-hidden rounded-xl border border-[#e3e3e3]">
               <img
                 src={heroImage}
                 alt="A confident local business owner"
@@ -698,17 +698,17 @@ export default function Landing() {
         </div>
 
         {/* Stats bar */}
-        <div className="relative border-t border-[#1e2c31]">
+        <div className="relative border-t border-[#e3e3e3]">
           <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 py-10 sm:px-6 md:grid-cols-4 lg:px-8">
             {STATS.map((stat) => (
               <div key={stat.label} className="text-center lg:text-left">
                 <div
-                  className="text-[#36f4a4]"
+                  className="text-[#008060]"
                   style={{ fontFamily: "var(--shopify-display-font)", fontWeight: 400, fontSize: "32px", letterSpacing: "0.02em" }}
                 >
                   <StatCounter value={stat.value} suffix={stat.suffix} decimals={stat.decimals} />
                 </div>
-                <div className="mt-1 text-[14px] text-[#99b3ad]">{stat.label}</div>
+                <div className="mt-1 text-[14px] text-[#6d7175]">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -724,14 +724,14 @@ export default function Landing() {
           transition={{ duration: 0.5 }}
           className="mb-16 text-center"
         >
-          <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#36f4a4]">Everything included</p>
+          <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#008060]">Everything included</p>
           <h2
-            className="text-white"
+            className="text-[#1a1a1a]"
             style={{ fontFamily: "var(--shopify-display-font)", fontWeight: 330, fontSize: "clamp(32px, 4vw, 48px)", lineHeight: 1.1 }}
           >
             Everything you need
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-[16px] text-[#99b3ad]">
+          <p className="mx-auto mt-4 max-w-2xl text-[16px] text-[#6d7175]">
             Comprehensive tools to run your business efficiently and grow with delivery built in
           </p>
         </motion.div>
@@ -739,18 +739,18 @@ export default function Landing() {
         <div ref={featuresGridRef} className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {vertical.features.map((feature, index) => (
             <TiltCard key={feature.title} className={index === 0 ? "lg:col-span-2" : ""}>
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#36f4a4]/10">
-                <feature.icon className="h-5 w-5 text-[#36f4a4]" />
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-[#008060]/10">
+                <feature.icon className="h-5 w-5 text-[#008060]" />
               </div>
-              <h3 className="mb-1.5 text-[18px] font-medium text-white">{feature.title}</h3>
-              <p className={`text-[14px] leading-[1.5] text-[#99b3ad] ${index === 0 ? "max-w-md" : ""}`}>{feature.description}</p>
+              <h3 className="mb-1.5 text-[18px] font-medium text-[#1a1a1a]">{feature.title}</h3>
+              <p className={`text-[14px] leading-[1.5] text-[#6d7175] ${index === 0 ? "max-w-md" : ""}`}>{feature.description}</p>
             </TiltCard>
           ))}
         </div>
       </div>
 
       {/* How It Works */}
-      <div className="border-y border-[#1e2c31] bg-[#061a1c]/40">
+      <div className="border-y border-[#e3e3e3] bg-[#ffffff]/40">
         <div className="mx-auto max-w-6xl px-4 py-24 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -759,14 +759,14 @@ export default function Landing() {
             transition={{ duration: 0.5 }}
             className="mb-16 text-center"
           >
-            <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#36f4a4]">The process</p>
+            <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-[#008060]">The process</p>
             <h2
-              className="text-white"
+              className="text-[#1a1a1a]"
               style={{ fontFamily: "var(--shopify-display-font)", fontWeight: 330, fontSize: "clamp(32px, 4vw, 48px)", lineHeight: 1.1 }}
             >
               How it works
             </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-[16px] text-[#99b3ad]">
+            <p className="mx-auto mt-4 max-w-2xl text-[16px] text-[#6d7175]">
               From signup to your first delivery, in three steps
             </p>
           </motion.div>
@@ -780,13 +780,13 @@ export default function Landing() {
                 viewport={{ once: true, amount: 0.6 }}
                 transition={{ duration: 0.5, delay: index * 0.15 }}
                 whileHover={{ y: -4 }}
-                className="rounded-[20px] border border-[#133b32] bg-[#072720] p-8 shadow-[0_20px_60px_rgba(5,24,19,0.3)]"
+                className="rounded-[20px] border border-[#d1f0e2] bg-[#ffffff] p-8 shadow-[0_20px_60px_rgba(0,0,0,0.08)]"
               >
-                <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-full bg-[#36f4a4] text-[15px] font-semibold text-[#02090a]">
+                <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-full bg-[#008060] text-[15px] font-semibold text-white">
                   {index + 1}
                 </div>
-                <h3 className="mb-2 text-[20px] font-medium text-white">{step.title}</h3>
-                <p className="text-[15px] leading-[1.5] text-[#99b3ad]">{step.description}</p>
+                <h3 className="mb-2 text-[20px] font-medium text-[#1a1a1a]">{step.title}</h3>
+                <p className="text-[15px] leading-[1.5] text-[#6d7175]">{step.description}</p>
               </motion.div>
             ))}
           </div>
@@ -795,7 +795,7 @@ export default function Landing() {
 
       {/* CTA Section */}
       <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 items-center gap-10 overflow-hidden rounded-[20px] border border-[#1e2c31] bg-[#061a1c] lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-center gap-10 overflow-hidden rounded-[20px] border border-[#e3e3e3] bg-[#ffffff] lg:grid-cols-2">
           <div className="p-10 sm:p-14">
             <AnimatePresence mode="wait">
               <motion.div
@@ -806,14 +806,14 @@ export default function Landing() {
                 transition={{ duration: 0.4 }}
               >
                 <h2
-                  className="text-white"
+                  className="text-[#1a1a1a]"
                   style={{ fontFamily: "var(--shopify-display-font)", fontWeight: 330, fontSize: "clamp(28px, 3.5vw, 40px)", lineHeight: 1.1 }}
                 >
                   Ready to get started?
                 </h2>
-                <p className="mt-4 text-[16px] text-[#99b3ad]">
+                <p className="mt-4 text-[16px] text-[#6d7175]">
                   Join hundreds of local businesses already using EatOut.{" "}
-                  <span className="text-[#36f4a4]">No commission. No shared driver pool. Just your business.</span>
+                  <span className="text-[#008060]">No commission. No shared driver pool. Just your business.</span>
                 </p>
                 <div className="mt-8 flex flex-wrap gap-3">
                   <PrimaryPill onClick={() => (window.location.href = `${vertical.primaryHref}?type=${vertical.key}`)} testId="button-start-now">
@@ -826,20 +826,20 @@ export default function Landing() {
           </div>
           <div className="relative h-64 lg:h-full">
             <img src={courierImage} alt="A delivery courier at night" className="h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-r from-[#061a1c] via-transparent to-transparent lg:bg-gradient-to-l" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#ffffff] via-transparent to-transparent lg:bg-gradient-to-l" />
           </div>
         </div>
       </div>
 
       {/* Footer */}
-      <footer className="border-t border-[#1e2c31]">
+      <footer className="border-t border-[#e3e3e3]">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
             <div className="flex items-center gap-2">
-              <UtensilsCrossed className="h-5 w-5 text-[#36f4a4]" />
-              <span className="text-[16px] font-semibold text-white">EatOut</span>
+              <UtensilsCrossed className="h-5 w-5 text-[#008060]" />
+              <span className="text-[16px] font-semibold text-[#1a1a1a]">EatOut</span>
             </div>
-            <p className="text-[14px] text-[#71717a]">© 2027 EatOut. All rights reserved.</p>
+            <p className="text-[14px] text-[#6d7175]">© 2027 EatOut. All rights reserved.</p>
           </div>
         </div>
       </footer>

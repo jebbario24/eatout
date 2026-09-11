@@ -194,7 +194,7 @@ function AppContent() {
     <SubscriptionGuard>
       <RestaurantSetupGuard>
         <SidebarProvider style={style as React.CSSProperties}>
-          <div className="dashboard-shell flex h-screen w-full">
+          <div className="flex h-screen w-full">
             <AppSidebar side={isRTL ? "right" : "left"} />
             <div className="flex flex-col flex-1 overflow-hidden">
               <header className="flex items-center justify-between p-3 border-b">
