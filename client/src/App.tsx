@@ -48,6 +48,7 @@ import Marketing from "@/pages/marketing/Marketing";
 import Promos from "@/pages/marketing/Promos";
 import Loyalty from "@/pages/marketing/Loyalty";
 import GiftCards from "@/pages/marketing/GiftCards";
+import Campaigns from "@/pages/marketing/Campaigns";
 import Collections from "@/pages/Collections";
 import Customers from "@/pages/Customers";
 import Boosts from "@/pages/marketing/Boosts";
@@ -126,6 +127,7 @@ function AuthenticatedRouter() {
       <Route path="/pos" component={POS} />
       <Route path="/marketing" component={Marketing} />
       <Route path="/marketing/promos" component={Promos} />
+      <Route path="/marketing/campaigns" component={Campaigns} />
       <Route path="/marketing/loyalty" component={Loyalty} />
       <Route path="/marketing/gift-cards" component={GiftCards} />
       <Route path="/customers" component={Customers} />

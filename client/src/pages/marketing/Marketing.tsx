@@ -25,6 +25,14 @@ export default function Marketing() {
       bgColor: "bg-orange-500/10"
     },
     {
+      title: "Campaigns",
+      description: "Email / SMS blasts, customer segments, abandoned-cart win-backs",
+      icon: MessageSquare,
+      url: "/marketing/campaigns",
+      color: "text-sky-500",
+      bgColor: "bg-sky-500/10"
+    },
+    {
       title: "Loyalty & Rewards",
       description: "Points on every order, tiers, and redeem-at-checkout",
       icon: Heart,

@@ -15,6 +15,14 @@ import {
   promoRedemptions,
   collections,
   collectionItems,
+  customerSegments,
+  segmentMembers,
+  campaigns,
+  campaignRuns,
+  campaignDeliveries,
+  abandonedCarts,
+  boostCredits,
+  boostSlots,
   staff,
   inventory,
   deliveryZones,
@@ -60,6 +68,13 @@ import {
   type GiftCardTransaction,
   type Collection,
   type CollectionItem,
+  type CustomerSegment,
+  type Campaign,
+  type CampaignRun,
+  type CampaignDelivery,
+  type AbandonedCart,
+  type BoostSlot,
+  type BoostCredit,
   type Staff,
   type InsertStaff,
   type Inventory,
@@ -2441,6 +2456,343 @@ export class DatabaseStorage implements IStorage {
       result.push({ ...c, items });
     }
     return result;
+  }
+
+  // ---- Marketing: segments, campaigns, abandoned carts, boosts (Tier 6) ----
+
+  async listSegments(restaurantId: string): Promise<(CustomerSegment & { memberCount: number })[]> {
+    const rows = await db
+      .select({ seg: customerSegments, memberCount: sql<number>`count(${segmentMembers.id})::int` })
+      .from(customerSegments)
+      .leftJoin(segmentMembers, eq(segmentMembers.segmentId, customerSegments.id))
+      .where(eq(customerSegments.restaurantId, restaurantId))
+      .groupBy(customerSegments.id)
+      .orderBy(desc(customerSegments.createdAt));
+    return rows.map((r) => ({ ...r.seg, memberCount: r.memberCount }));
+  }
+
+  async getSegment(id: string): Promise<CustomerSegment | undefined> {
+    const [s] = await db.select().from(customerSegments).where(eq(customerSegments.id, id)).limit(1);
+    return s;
+  }
+
+  async createSegment(restaurantId: string, data: any): Promise<CustomerSegment> {
+    const [created] = await db.insert(customerSegments).values({
+      restaurantId,
+      name: String(data.name || "Untitled segment").slice(0, 255),
+      description: data.description ?? null,
+      rules: data.rules ?? {},
+      isActive: data.isActive ?? true,
+    }).returning();
+    return created;
+  }
+
+  async updateSegment(id: string, restaurantId: string, data: any): Promise<CustomerSegment | undefined> {
+    const patch: any = { updatedAt: new Date() };
+    if (data.name !== undefined) patch.name = String(data.name).slice(0, 255);
+    if (data.description !== undefined) patch.description = data.description;
+    if (data.rules !== undefined) patch.rules = data.rules;
+    if (data.isActive !== undefined) patch.isActive = !!data.isActive;
+    const [updated] = await db.update(customerSegments).set(patch)
+      .where(and(eq(customerSegments.id, id), eq(customerSegments.restaurantId, restaurantId))).returning();
+    return updated;
+  }
+
+  async deleteSegment(id: string, restaurantId: string): Promise<void> {
+    await db.delete(customerSegments).where(and(eq(customerSegments.id, id), eq(customerSegments.restaurantId, restaurantId)));
+  }
+
+  /** Evaluate a segment's rules against the merchant's customers, matching purely
+   *  by cached customer fields. Returns the matching customer rows. */
+  async evaluateSegmentCustomers(restaurantId: string, rules: any): Promise<any[]> {
+    const all = await this.listRestaurantCustomers(restaurantId);
+    const now = Date.now();
+    const r = rules || {};
+    return all.filter((c: any) => {
+      if (r.minOrders != null && (c.ordersCount ?? 0) < Number(r.minOrders)) return false;
+      if (r.maxOrders != null && (c.ordersCount ?? 0) > Number(r.maxOrders)) return false;
+      if (r.minLifetimeCents != null && (c.lifetimeValueCents ?? 0) < Number(r.minLifetimeCents)) return false;
+      if (r.hasAccount === true && !c.hasAccount) return false;
+      if (r.hasAccount === false && c.hasAccount) return false;
+      if (r.hasLoyalty === true && !(c.pointsBalance > 0)) return false;
+      const lastOrderMs = c.lastOrderAt ? new Date(c.lastOrderAt).getTime() : null;
+      if (r.lastOrderWithinDays != null) {
+        if (!lastOrderMs || (now - lastOrderMs) > Number(r.lastOrderWithinDays) * 86400000) return false;
+      }
+      if (r.lastOrderBeforeDays != null) {
+        if (lastOrderMs && (now - lastOrderMs) < Number(r.lastOrderBeforeDays) * 86400000) return false;
+      }
+      return true;
+    });
+  }
+
+  async recomputeSegment(segmentId: string): Promise<number> {
+    const seg = await this.getSegment(segmentId);
+    if (!seg) return 0;
+    const matches = await this.evaluateSegmentCustomers(seg.restaurantId, seg.rules);
+    await db.delete(segmentMembers).where(eq(segmentMembers.segmentId, segmentId));
+    if (matches.length > 0) {
+      await db.insert(segmentMembers).values(
+        matches.map((c: any) => ({ restaurantId: seg.restaurantId, segmentId, customerId: c.id })),
+      );
+    }
+    return matches.length;
+  }
+
+  async listSegmentCustomers(segmentId: string): Promise<any[]> {
+    const rows = await db
+      .select({ c: customers })
+      .from(segmentMembers)
+      .innerJoin(customers, eq(segmentMembers.customerId, customers.id))
+      .where(eq(segmentMembers.segmentId, segmentId));
+    return rows.map((x) => x.c);
+  }
+
+  // Campaigns
+  async listCampaigns(restaurantId: string): Promise<any[]> {
+    const rows = await db
+      .select({
+        campaign: campaigns,
+        lastRunAt: sql<string>`max(${campaignRuns.completedAt})`,
+        totalSent: sql<number>`coalesce(sum(${campaignRuns.sentCount}),0)::int`,
+      })
+      .from(campaigns)
+      .leftJoin(campaignRuns, eq(campaignRuns.campaignId, campaigns.id))
+      .where(eq(campaigns.restaurantId, restaurantId))
+      .groupBy(campaigns.id)
+      .orderBy(desc(campaigns.createdAt));
+    return rows.map((r) => ({ ...r.campaign, lastRunAt: r.lastRunAt, totalSent: r.totalSent }));
+  }
+
+  async getCampaign(id: string): Promise<Campaign | undefined> {
+    const [c] = await db.select().from(campaigns).where(eq(campaigns.id, id)).limit(1);
+    return c;
+  }
+
+  async createCampaign(restaurantId: string, data: any): Promise<Campaign> {
+    const [created] = await db.insert(campaigns).values({
+      restaurantId,
+      name: String(data.name || "Untitled campaign").slice(0, 255),
+      type: data.type || "custom",
+      channel: data.channel || "email",
+      subject: data.subject ?? null,
+      message: String(data.message || ""),
+      segmentId: data.segmentId || null,
+      promoRuleId: data.promoRuleId || null,
+      triggerRules: data.triggerRules ?? null,
+      isActive: data.isActive ?? true,
+    }).returning();
+    return created;
+  }
+
+  async updateCampaign(id: string, restaurantId: string, data: any): Promise<Campaign | undefined> {
+    const patch: any = { updatedAt: new Date() };
+    for (const k of ["name", "type", "channel", "subject", "message", "isActive"] as const) {
+      if (data[k] !== undefined) patch[k] = data[k];
+    }
+    if (data.segmentId !== undefined) patch.segmentId = data.segmentId || null;
+    if (data.promoRuleId !== undefined) patch.promoRuleId = data.promoRuleId || null;
+    if (data.triggerRules !== undefined) patch.triggerRules = data.triggerRules;
+    const [updated] = await db.update(campaigns).set(patch)
+      .where(and(eq(campaigns.id, id), eq(campaigns.restaurantId, restaurantId))).returning();
+    return updated;
+  }
+
+  async deleteCampaign(id: string, restaurantId: string): Promise<void> {
+    await db.delete(campaigns).where(and(eq(campaigns.id, id), eq(campaigns.restaurantId, restaurantId)));
+  }
+
+  async listCampaignRuns(campaignId: string): Promise<CampaignRun[]> {
+    return db.select().from(campaignRuns).where(eq(campaignRuns.campaignId, campaignId)).orderBy(desc(campaignRuns.createdAt));
+  }
+
+  async listCampaignDeliveries(campaignId: string, limit = 100): Promise<CampaignDelivery[]> {
+    return db.select().from(campaignDeliveries).where(eq(campaignDeliveries.campaignId, campaignId))
+      .orderBy(desc(campaignDeliveries.createdAt)).limit(limit);
+  }
+
+  /** Render {{token}} placeholders from a customer + store context. */
+  private renderTemplate(tpl: string, ctx: Record<string, string>): string {
+    return (tpl || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, k) => ctx[k] ?? "");
+  }
+
+  /**
+   * Send a campaign to its audience now. Resolves recipients (segment members, or
+   * every customer with a contact on the chosen channel), renders the message per
+   * recipient and writes a delivery row. Returns the run.
+   */
+  async sendCampaignNow(campaignId: string, opts: { audienceOverride?: any[]; runType?: string } = {}): Promise<CampaignRun> {
+    const campaign = await this.getCampaign(campaignId);
+    if (!campaign) throw new Error("Campaign not found");
+    const restaurant = await this.getRestaurant(campaign.restaurantId);
+    const storeName = restaurant?.name || "our store";
+
+    let audience: any[];
+    if (opts.audienceOverride) {
+      audience = opts.audienceOverride;
+    } else if (campaign.segmentId) {
+      const seg = await this.getSegment(campaign.segmentId);
+      audience = seg ? await this.evaluateSegmentCustomers(seg.restaurantId, seg.rules) : [];
+    } else {
+      audience = await this.listRestaurantCustomers(campaign.restaurantId);
+    }
+
+    // Only recipients we can actually reach on this channel.
+    const contactable = audience.filter((c: any) =>
+      campaign.channel === "sms" ? !!c.phone : !!c.email,
+    );
+
+    const [run] = await db.insert(campaignRuns).values({
+      restaurantId: campaign.restaurantId,
+      campaignId: campaign.id,
+      scheduledFor: new Date(),
+      startedAt: new Date(),
+      status: "running",
+      recipientsCount: contactable.length,
+    }).returning();
+
+    let sent = 0;
+    for (const c of contactable) {
+      const ctx = {
+        firstName: (c.name || "").split(" ")[0] || "there",
+        name: c.name || "there",
+        storeName,
+        email: c.email || "",
+      };
+      try {
+        await db.insert(campaignDeliveries).values({
+          restaurantId: campaign.restaurantId,
+          campaignId: campaign.id,
+          campaignRunId: run.id,
+          customerId: c.id,
+          channel: campaign.channel,
+          toAddress: campaign.channel === "sms" ? c.phone : c.email,
+          subject: campaign.subject ? this.renderTemplate(campaign.subject, ctx) : null,
+          body: this.renderTemplate(campaign.message, ctx),
+          status: "sent",
+        });
+        sent++;
+      } catch (e: any) {
+        await db.insert(campaignDeliveries).values({
+          restaurantId: campaign.restaurantId, campaignId: campaign.id, campaignRunId: run.id,
+          customerId: c.id, channel: campaign.channel, body: campaign.message,
+          status: "failed", error: String(e?.message || e),
+        });
+      }
+    }
+
+    const [updated] = await db.update(campaignRuns).set({
+      completedAt: new Date(), sentCount: sent, deliveredCount: sent, status: "completed",
+    }).where(eq(campaignRuns.id, run.id)).returning();
+    return updated;
+  }
+
+  // Abandoned carts
+  async upsertAbandonedCart(input: {
+    restaurantId: string; sessionId: string; customerId?: string | null;
+    customerEmail?: string | null; customerName?: string | null;
+    items: any[]; subtotal: number;
+  }): Promise<void> {
+    const itemCount = input.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0);
+    const existing = await db.select().from(abandonedCarts)
+      .where(and(eq(abandonedCarts.restaurantId, input.restaurantId), eq(abandonedCarts.sessionId, input.sessionId))).limit(1);
+    if (existing[0]) {
+      if (existing[0].status === "recovered") return;
+      await db.update(abandonedCarts).set({
+        items: input.items, itemCount, subtotal: input.subtotal.toFixed(2),
+        customerId: input.customerId ?? existing[0].customerId,
+        customerEmail: input.customerEmail ?? existing[0].customerEmail,
+        customerName: input.customerName ?? existing[0].customerName,
+        status: "open", lastSeenAt: new Date(),
+      }).where(eq(abandonedCarts.id, existing[0].id));
+    } else {
+      await db.insert(abandonedCarts).values({
+        restaurantId: input.restaurantId, sessionId: input.sessionId,
+        customerId: input.customerId ?? null, customerEmail: input.customerEmail ?? null,
+        customerName: input.customerName ?? null, items: input.items, itemCount,
+        subtotal: input.subtotal.toFixed(2), status: "open", lastSeenAt: new Date(),
+      });
+    }
+  }
+
+  async markCartRecovered(restaurantId: string, opts: { sessionId?: string | null; customerEmail?: string | null; orderId: string }): Promise<void> {
+    const conds = [eq(abandonedCarts.restaurantId, restaurantId), eq(abandonedCarts.status, "open") as any];
+    const or1: any[] = [];
+    if (opts.sessionId) or1.push(eq(abandonedCarts.sessionId, opts.sessionId));
+    if (opts.customerEmail) or1.push(sql`lower(${abandonedCarts.customerEmail}) = ${opts.customerEmail.toLowerCase()}`);
+    if (or1.length === 0) return;
+    await db.update(abandonedCarts)
+      .set({ status: "recovered", recoveredOrderId: opts.orderId })
+      .where(and(...conds, or(...or1)!));
+  }
+
+  async listAbandonedCarts(restaurantId: string): Promise<AbandonedCart[]> {
+    return db.select().from(abandonedCarts)
+      .where(eq(abandonedCarts.restaurantId, restaurantId))
+      .orderBy(desc(abandonedCarts.lastSeenAt)).limit(200);
+  }
+
+  /** Carts idle long enough to remind, not yet reminded, with an email. */
+  async findCartsToRemind(minIdleMinutes = 30, maxIdleHours = 24): Promise<AbandonedCart[]> {
+    const now = Date.now();
+    return db.select().from(abandonedCarts).where(and(
+      eq(abandonedCarts.status, "open"),
+      sql`${abandonedCarts.remindedAt} IS NULL`,
+      sql`${abandonedCarts.customerEmail} IS NOT NULL`,
+      sql`${abandonedCarts.lastSeenAt} < ${new Date(now - minIdleMinutes * 60000)}`,
+      sql`${abandonedCarts.lastSeenAt} > ${new Date(now - maxIdleHours * 3600000)}`,
+    ));
+  }
+
+  async markCartReminded(id: string): Promise<void> {
+    await db.update(abandonedCarts).set({ status: "reminded", remindedAt: new Date() }).where(eq(abandonedCarts.id, id));
+  }
+
+  async getActiveCampaignByType(restaurantId: string, type: string): Promise<Campaign | undefined> {
+    const [c] = await db.select().from(campaigns).where(and(
+      eq(campaigns.restaurantId, restaurantId), eq(campaigns.type, type), eq(campaigns.isActive, true),
+    )).limit(1);
+    return c;
+  }
+
+  // Boosts
+  async getBoostState(restaurantId: string): Promise<{ credits: BoostCredit; slots: BoostSlot[] }> {
+    let [credit] = await db.select().from(boostCredits).where(eq(boostCredits.restaurantId, restaurantId)).limit(1);
+    if (!credit) {
+      [credit] = await db.insert(boostCredits).values({ restaurantId, creditsBalance: 1, dailyAllowance: 1, lastResetDate: new Date() }).returning();
+    } else {
+      // Daily top-up to the allowance.
+      const last = credit.lastResetDate ? new Date(credit.lastResetDate) : new Date(0);
+      const sameDay = last.toDateString() === new Date().toDateString();
+      if (!sameDay) {
+        [credit] = await db.update(boostCredits).set({
+          creditsBalance: Math.max(credit.creditsBalance, credit.dailyAllowance),
+          lastResetDate: new Date(), updatedAt: new Date(),
+        }).where(eq(boostCredits.id, credit.id)).returning();
+      }
+    }
+    const slots = await db.select().from(boostSlots)
+      .where(eq(boostSlots.restaurantId, restaurantId)).orderBy(desc(boostSlots.startedAt)).limit(50);
+    return { credits: credit, slots };
+  }
+
+  async createBoostSlot(restaurantId: string, input: { slotType: string; hours: number }): Promise<BoostSlot> {
+    const { credits } = await this.getBoostState(restaurantId);
+    if (credits.creditsBalance < 1) throw new Error("No boost credits left today");
+    const now = new Date();
+    const endsAt = new Date(now.getTime() + Math.min(Math.max(input.hours, 1), 24) * 3600000);
+    const [slot] = await db.insert(boostSlots).values({
+      restaurantId, slotType: input.slotType || "home_featured",
+      startedAt: now, endsAt, status: "active", creditsUsed: 1,
+    }).returning();
+    await db.update(boostCredits).set({ creditsBalance: credits.creditsBalance - 1, updatedAt: new Date() })
+      .where(eq(boostCredits.id, credits.id));
+    return slot;
+  }
+
+  async cancelBoostSlot(id: string, restaurantId: string): Promise<void> {
+    await db.update(boostSlots).set({ status: "cancelled" })
+      .where(and(eq(boostSlots.id, id), eq(boostSlots.restaurantId, restaurantId)));
   }
 
   // ---- Gift cards (Tier 4) ----

@@ -22,7 +22,8 @@ import {
   Heart,
   UserRound,
   Gift,
-  Layers
+  Layers,
+  Send
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -66,6 +67,11 @@ const marketingItems = [
     titleKey: "Marketing",
     url: "/marketing",
     icon: Megaphone,
+  },
+  {
+    titleKey: "Campaigns",
+    url: "/marketing/campaigns",
+    icon: Send,
   },
   {
     titleKey: "Loyalty & Rewards",

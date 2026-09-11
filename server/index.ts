@@ -116,5 +116,34 @@ app.use((req, res, next) => {
     });
     
     log('Automated payout scheduler initialized (runs daily at 2 AM UTC)');
+
+    // Abandoned-cart reminders — every 15 minutes, remind idle carts once via the
+    // merchant's active abandoned_cart campaign (if any).
+    cron.schedule('*/15 * * * *', async () => {
+      try {
+        const carts = await storage.findCartsToRemind(30, 24);
+        if (carts.length === 0) return;
+        let reminded = 0;
+        for (const cart of carts) {
+          const campaign = await storage.getActiveCampaignByType(cart.restaurantId, 'abandoned_cart');
+          if (!campaign) continue;
+          await storage.sendCampaignNow(campaign.id, {
+            audienceOverride: [{
+              id: cart.customerId,
+              name: cart.customerName,
+              email: cart.customerEmail,
+              phone: null,
+            }],
+          });
+          await storage.markCartReminded(cart.id);
+          reminded++;
+        }
+        if (reminded > 0) log(`[Marketing] Sent ${reminded} abandoned-cart reminder(s)`);
+      } catch (error) {
+        log(`[Marketing] Abandoned-cart reminder error: ${error}`);
+      }
+    }, { timezone: "UTC" });
+
+    log('Marketing scheduler initialized (abandoned-cart reminders every 15m)');
   });
 })();

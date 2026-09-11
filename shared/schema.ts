@@ -1190,6 +1190,50 @@ export const campaignRuns = pgTable("campaign_runs", {
   index("idx_campaign_runs_scheduled").on(table.scheduledFor, table.status),
 ]);
 
+// Campaign Deliveries (Tier 6) — one row per recipient per send. Channel-agnostic:
+// the send step records the rendered message here and (when a provider is wired)
+// hands it off; until then this IS the outbox.
+export const campaignDeliveries = pgTable("campaign_deliveries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  campaignId: varchar("campaign_id").notNull().references(() => campaigns.id, { onDelete: 'cascade' }),
+  campaignRunId: varchar("campaign_run_id").references(() => campaignRuns.id, { onDelete: 'set null' }),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: 'set null' }),
+  channel: varchar("channel", { length: 20 }).notNull(),
+  toAddress: varchar("to_address", { length: 255 }),
+  subject: varchar("subject", { length: 255 }),
+  body: text("body").notNull(),
+  status: varchar("status", { length: 20 }).notNull().default('sent'), // 'sent' | 'failed' | 'skipped'
+  error: text("error"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_campaign_deliveries_restaurant").on(table.restaurantId),
+  index("idx_campaign_deliveries_campaign").on(table.campaignId),
+  index("idx_campaign_deliveries_customer").on(table.customerId),
+]);
+
+// Abandoned Carts (Tier 6) — the storefront upserts a snapshot as the shopper
+// builds a cart; checkout marks it recovered; a cron reminds after a delay.
+export const abandonedCarts = pgTable("abandoned_carts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  sessionId: varchar("session_id", { length: 255 }).notNull(),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: 'set null' }),
+  customerEmail: varchar("customer_email", { length: 255 }),
+  customerName: varchar("customer_name", { length: 255 }),
+  items: jsonb("items").notNull(), // [{name, quantity, unitPrice}]
+  itemCount: integer("item_count").notNull().default(0),
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull().default('0'),
+  status: varchar("status", { length: 20 }).notNull().default('open'), // 'open' | 'recovered' | 'reminded' | 'lost'
+  remindedAt: timestamp("reminded_at"),
+  recoveredOrderId: varchar("recovered_order_id").references(() => orders.id, { onDelete: 'set null' }),
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_abandoned_carts_restaurant").on(table.restaurantId),
+  unique("abandoned_carts_session_unique").on(table.restaurantId, table.sessionId),
+]);
+
 // Marketing Events - Event tracking for analytics
 export const marketingEvents = pgTable("marketing_events", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -2843,6 +2887,20 @@ export const insertCampaignRunSchema = createInsertSchema(campaignRuns).omit({
 });
 export type InsertCampaignRun = z.infer<typeof insertCampaignRunSchema>;
 export type CampaignRun = typeof campaignRuns.$inferSelect;
+
+export const insertCampaignDeliverySchema = createInsertSchema(campaignDeliveries).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCampaignDelivery = z.infer<typeof insertCampaignDeliverySchema>;
+export type CampaignDelivery = typeof campaignDeliveries.$inferSelect;
+
+export const insertAbandonedCartSchema = createInsertSchema(abandonedCarts).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAbandonedCart = z.infer<typeof insertAbandonedCartSchema>;
+export type AbandonedCart = typeof abandonedCarts.$inferSelect;
 
 export const insertMarketingEventSchema = createInsertSchema(marketingEvents).omit({
   id: true,

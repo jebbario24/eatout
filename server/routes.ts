@@ -158,6 +158,8 @@ const onlineOrderSchema = z.object({
   useStoreCredit: z.boolean().optional(),
   // gift card applied to the order (bearer instrument — no account needed)
   giftCardCode: z.string().trim().max(40).nullable().optional(),
+  // abandoned-cart session id, so a recovered cart is marked as such
+  cartSessionId: z.string().trim().max(255).nullable().optional(),
 });
 
 // Middleware to check if user is authenticated
@@ -2776,6 +2778,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ==========================================
+  // MARKETING — segments, campaigns, abandoned carts, boosts (Tier 6)
+  // ==========================================
+
+  // ---- Customer segments ----
+  app.get('/api/segments', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.json([]);
+    res.json(await storage.listSegments(restaurant.id));
+  });
+
+  app.post('/api/segments', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const seg = await storage.createSegment(restaurant.id, req.body);
+      const count = await storage.recomputeSegment(seg.id);
+      res.json({ ...seg, memberCount: count });
+    } catch (e: any) {
+      logError("Create segment failed", e);
+      res.status(400).json({ message: e?.message || "Failed to create segment" });
+    }
+  });
+
+  app.get('/api/segments/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const seg = await storage.getSegment(req.params.id);
+    if (!seg || seg.restaurantId !== restaurant.id) return res.status(404).json({ message: "Segment not found" });
+    res.json({ segment: seg, customers: await storage.listSegmentCustomers(seg.id) });
+  });
+
+  app.patch('/api/segments/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const updated = await storage.updateSegment(req.params.id, restaurant.id, req.body);
+    if (!updated) return res.status(404).json({ message: "Segment not found" });
+    const count = await storage.recomputeSegment(updated.id);
+    res.json({ ...updated, memberCount: count });
+  });
+
+  app.post('/api/segments/:id/recompute', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const seg = await storage.getSegment(req.params.id);
+    if (!seg || seg.restaurantId !== restaurant.id) return res.status(404).json({ message: "Segment not found" });
+    res.json({ memberCount: await storage.recomputeSegment(seg.id) });
+  });
+
+  // Preview how many customers a rule set would match, without saving.
+  app.post('/api/segments/preview', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.json({ count: 0 });
+    const matches = await storage.evaluateSegmentCustomers(restaurant.id, req.body?.rules || {});
+    res.json({ count: matches.length, sample: matches.slice(0, 5).map((c: any) => ({ name: c.name, email: c.email })) });
+  });
+
+  app.delete('/api/segments/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    await storage.deleteSegment(req.params.id, restaurant.id);
+    res.json({ ok: true });
+  });
+
+  // ---- Campaigns ----
+  app.get('/api/campaigns', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.json([]);
+    res.json(await storage.listCampaigns(restaurant.id));
+  });
+
+  app.post('/api/campaigns', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      if (!req.body?.message || !String(req.body.message).trim()) return res.status(400).json({ message: "Message is required" });
+      res.json(await storage.createCampaign(restaurant.id, req.body));
+    } catch (e: any) {
+      logError("Create campaign failed", e);
+      res.status(400).json({ message: e?.message || "Failed to create campaign" });
+    }
+  });
+
+  app.get('/api/campaigns/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const c = await storage.getCampaign(req.params.id);
+    if (!c || c.restaurantId !== restaurant.id) return res.status(404).json({ message: "Campaign not found" });
+    res.json({ campaign: c, runs: await storage.listCampaignRuns(c.id), deliveries: await storage.listCampaignDeliveries(c.id, 50) });
+  });
+
+  app.patch('/api/campaigns/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const updated = await storage.updateCampaign(req.params.id, restaurant.id, req.body);
+    if (!updated) return res.status(404).json({ message: "Campaign not found" });
+    res.json(updated);
+  });
+
+  app.delete('/api/campaigns/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    await storage.deleteCampaign(req.params.id, restaurant.id);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/campaigns/:id/send', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const c = await storage.getCampaign(req.params.id);
+      if (!c || c.restaurantId !== restaurant.id) return res.status(404).json({ message: "Campaign not found" });
+      const run = await storage.sendCampaignNow(c.id);
+      res.json(run);
+    } catch (e: any) {
+      logError("Send campaign failed", e);
+      res.status(400).json({ message: e?.message || "Failed to send campaign" });
+    }
+  });
+
+  // ---- Abandoned carts ----
+  app.get('/api/abandoned-carts', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.json([]);
+    res.json(await storage.listAbandonedCarts(restaurant.id));
+  });
+
+  // ---- Boosts ----
+  app.get('/api/boosts', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    res.json(await storage.getBoostState(restaurant.id));
+  });
+
+  app.post('/api/boosts', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const slot = await storage.createBoostSlot(restaurant.id, {
+        slotType: req.body?.slotType || "home_featured",
+        hours: Number(req.body?.hours) || 4,
+      });
+      res.json(slot);
+    } catch (e: any) {
+      res.status(400).json({ message: e?.message || "Failed to start boost" });
+    }
+  });
+
+  app.delete('/api/boosts/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    await storage.cancelBoostSlot(req.params.id, restaurant.id);
+    res.json({ ok: true });
+  });
+
   // Upsell rule routes (owner-facing management; the storefront reads via
   // /api/storefront/:slug/upsell-rules)
   app.get('/api/upsells', isAuthenticated, async (req: any, res) => {
@@ -4164,6 +4321,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Storefront: abandoned-cart snapshot (Tier 6). The client debounces this while
+  // the shopper builds a cart; checkout marks the matching row recovered.
+  app.post('/api/storefront/:slug/cart', storefrontLimiter, async (req: any, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const b = req.body || {};
+      const sessionId = String(b.sessionId || "").slice(0, 255);
+      const items = Array.isArray(b.items) ? b.items.slice(0, 100) : [];
+      if (!sessionId || items.length === 0) return res.json({ ok: true });
+      const sc = await loadSessionCustomer(req, restaurant.id);
+      await storage.upsertAbandonedCart({
+        restaurantId: restaurant.id,
+        sessionId,
+        customerId: sc?.id || null,
+        customerEmail: (sc?.email || b.customerEmail || null),
+        customerName: (sc?.name || b.customerName || null),
+        items: items.map((it: any) => ({
+          name: String(it.name || "Item").slice(0, 200),
+          quantity: Math.max(1, Math.floor(Number(it.quantity) || 1)),
+          unitPrice: Number(it.unitPrice) || 0,
+        })),
+        subtotal: Number(b.subtotal) || 0,
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      logError("Cart snapshot failed", e);
+      res.json({ ok: false });
+    }
+  });
+
   // Storefront product-by-handle (Tier 5 SEO deep links)
   app.get('/api/storefront/:slug/items/handle/:handle', async (req, res) => {
     try {
@@ -4745,6 +4933,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             orderId: order.id,
             customerId: checkoutCustomerId,
             discountAmount: promoCents / 100,
+          });
+        }
+        // Close out an abandoned cart that this order recovered.
+        if (data.cartSessionId || data.customerEmail) {
+          await storage.markCartRecovered(restaurant.id, {
+            sessionId: data.cartSessionId || null,
+            customerEmail: data.customerEmail || null,
+            orderId: order.id,
           });
         }
         if (

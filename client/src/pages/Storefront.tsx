@@ -140,6 +140,16 @@ export default function Storefront() {
   const [authOpen, setAuthOpen] = useState(false);
   const [saveAddress, setSaveAddress] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
+  // Stable per-browser id so abandoned-cart snapshots update one row (Tier 6)
+  const [cartSessionId] = useState(() => {
+    try {
+      const existing = localStorage.getItem("sf_cart_session");
+      if (existing) return existing;
+      const fresh: string = (crypto as any).randomUUID?.() || `s_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem("sf_cart_session", fresh);
+      return fresh;
+    } catch { return `s_${Date.now()}`; }
+  });
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<'pickup' | 'delivery'>('delivery');
   const [customerName, setCustomerName] = useState("");
@@ -787,7 +797,32 @@ export default function Storefront() {
     },
     0
   );
-  
+
+  // Abandoned-cart snapshot — debounced upsert while the shopper builds a cart (Tier 6)
+  useEffect(() => {
+    if (!sfSlug || cart.length === 0) return;
+    const t = setTimeout(() => {
+      const items = cart.map((ci) => ({
+        name: ci.menuItem?.name || ci.bundle?.name || "Item",
+        quantity: ci.quantity,
+        unitPrice: ci.bundle ? ci.bundle.bundlePrice : parseFloat(ci.menuItem?.price || "0"),
+      }));
+      fetch(`/api/storefront/${sfSlug}/cart`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          sessionId: cartSessionId,
+          items,
+          subtotal,
+          customerEmail: customerEmail || sfCustomer?.email || null,
+          customerName: customerName || sfCustomer?.name || null,
+        }),
+      }).catch(() => {});
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [cart, subtotal, sfSlug, cartSessionId, customerEmail, customerName, sfCustomer]);
+
   // Calculate promo discount
   const calculateDiscount = (promo: any, amount: number): number => {
     if (!promo) return 0;
@@ -979,6 +1014,7 @@ export default function Storefront() {
           redeemPoints: canRedeemPoints && redeemPoints ? pointsBalance : undefined,
           useStoreCredit: canUseStoreCredit && useStoreCredit ? true : undefined,
           giftCardCode: giftCard?.code || undefined,
+          cartSessionId,
         }),
       }).then((res) => res.json());
     },
