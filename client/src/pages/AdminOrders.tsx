@@ -37,7 +37,7 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
   confirmed: "default",
   preparing: "default",
   ready: "default",
-  out_for_delivery: "default",
+  shipped: "default",
   completed: "outline",
   cancelled: "destructive",
 };
@@ -47,37 +47,13 @@ const statusLabels: Record<string, string> = {
   confirmed: "Confirmed",
   preparing: "Preparing",
   ready: "Ready",
-  out_for_delivery: "Out for Delivery",
+  shipped: "Shipped",
   completed: "Completed",
   cancelled: "Cancelled",
 };
 
-const deliveryStatusLabels: Record<string, string> = {
-  pending: "Pending",
-  assigned: "Assigned",
-  en_route_to_pickup: "En Route to Pickup",
-  arrived_at_restaurant: "Arrived",
-  picked_up: "Picked Up",
-  en_route_to_customer: "En Route to Customer",
-  delivered: "Delivered",
-};
-
-const deliveryStatusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  pending: "secondary",
-  assigned: "secondary",
-  en_route_to_pickup: "default",
-  arrived_at_restaurant: "default",
-  picked_up: "default",
-  en_route_to_customer: "default",
-  delivered: "outline",
-};
-
 type ExtendedOrder = Order & {
   restaurantName?: string | null;
-  driverName?: string | null;
-  driverPhone?: string | null;
-  deliveryStatus?: string | null;
-  deliveryUpdatedAt?: string | null;
   currency?: string | null;
   deliveryInstructions?: string | null;
   discount?: string | null;
@@ -103,17 +79,7 @@ export default function AdminOrders() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        
-        // Handle driver assignment events
-        if (data.type === 'driver_assigned') {
-          queryClient.invalidateQueries({ queryKey: ['/api/admin/orders'] });
-        }
-        
-        // Handle delivery status updates
-        if (data.type === 'delivery_status_updated') {
-          queryClient.invalidateQueries({ queryKey: ['/api/admin/orders'] });
-        }
-        
+
         // Handle new orders
         if (data.type === 'new_order') {
           queryClient.invalidateQueries({ queryKey: ['/api/admin/orders'] });
@@ -212,7 +178,7 @@ export default function AdminOrders() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="delivery">Delivery</SelectItem>
+                <SelectItem value="shipping">Shipping</SelectItem>
                 <SelectItem value="dine_in">Dine In</SelectItem>
                 <SelectItem value="pickup">Pickup</SelectItem>
               </SelectContent>
@@ -227,7 +193,7 @@ export default function AdminOrders() {
                 <SelectItem value="confirmed">Confirmed</SelectItem>
                 <SelectItem value="preparing">Preparing</SelectItem>
                 <SelectItem value="ready">Ready</SelectItem>
-                <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
+                <SelectItem value="shipped">Shipped</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
@@ -243,8 +209,6 @@ export default function AdminOrders() {
                   <TableHead>Customer</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Delivery Status</TableHead>
-                  <TableHead>Driver</TableHead>
                   <TableHead>Total</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -253,7 +217,7 @@ export default function AdminOrders() {
               <TableBody>
                 {filteredOrders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No orders found
                     </TableCell>
                   </TableRow>
@@ -282,7 +246,7 @@ export default function AdminOrders() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {order.orderType === "delivery" && <Truck className="h-3 w-3 mr-1" />}
+                          {order.orderType === "shipping" && <Truck className="h-3 w-3 mr-1" />}
                           {order.orderType?.replace("_", " ") || "N/A"}
                         </Badge>
                       </TableCell>
@@ -290,30 +254,6 @@ export default function AdminOrders() {
                         <Badge variant={statusColors[order.status] || "outline"}>
                           {statusLabels[order.status] || order.status}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {order.orderType === "delivery" && order.deliveryStatus ? (
-                          <Badge variant={deliveryStatusColors[order.deliveryStatus] || "outline"}>
-                            {deliveryStatusLabels[order.deliveryStatus] || order.deliveryStatus}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">N/A</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {order.driverName ? (
-                          <div className="flex items-center gap-2">
-                            <Truck className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <div className="text-sm">{order.driverName}</div>
-                              {order.driverPhone && (
-                                <div className="text-xs text-muted-foreground">{order.driverPhone}</div>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">Not assigned</span>
-                        )}
                       </TableCell>
                       <TableCell className="font-medium">
                         {formatCurrency(order.total, order.currency || "USD")}
@@ -379,35 +319,17 @@ export default function AdminOrders() {
                 </div>
               </div>
 
-              {selectedOrder.orderType === "delivery" && (
+              {selectedOrder.orderType === "shipping" && (
                 <div>
                   <h3 className="font-semibold mb-2 flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
-                    Delivery Address
+                    Shipping Address
                   </h3>
-                  <p className="text-sm">{selectedOrder.deliveryAddress}</p>
+                  <p className="text-sm">{selectedOrder.shippingAddress}</p>
                   {selectedOrder.deliveryInstructions && (
                     <p className="text-sm text-muted-foreground mt-1">
                       Instructions: {selectedOrder.deliveryInstructions}
                     </p>
-                  )}
-                </div>
-              )}
-
-              {selectedOrder.driverName && (
-                <div>
-                  <h3 className="font-semibold mb-2 flex items-center gap-2">
-                    <Truck className="h-4 w-4" />
-                    Driver
-                  </h3>
-                  <p className="text-sm">{selectedOrder.driverName}</p>
-                  {selectedOrder.driverPhone && (
-                    <p className="text-sm text-muted-foreground">{selectedOrder.driverPhone}</p>
-                  )}
-                  {selectedOrder.deliveryStatus && (
-                    <Badge variant={deliveryStatusColors[selectedOrder.deliveryStatus] || "outline"} className="mt-2">
-                      {deliveryStatusLabels[selectedOrder.deliveryStatus] || selectedOrder.deliveryStatus}
-                    </Badge>
                   )}
                 </div>
               )}
@@ -421,7 +343,7 @@ export default function AdminOrders() {
                   </div>
                   {parseFloat(selectedOrder.deliveryFee || "0") > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span>Delivery Fee:</span>
+                      <span>Shipping Fee:</span>
                       <span>{formatCurrency(selectedOrder.deliveryFee, selectedOrder.currency || "USD")}</span>
                     </div>
                   )}

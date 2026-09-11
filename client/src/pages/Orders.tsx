@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Plus, Eye, Clock, CheckCircle, XCircle, ChefHat, Printer, Trash2, Download, Truck, User, FileText, RotateCcw, Pencil, CheckCheck } from "lucide-react";
+import { Plus, Eye, Clock, CheckCircle, XCircle, ChefHat, Printer, Trash2, Download, FileText, RotateCcw, Pencil, CheckCheck } from "lucide-react";
 import {
   DraftBuilderDialog,
   FinalizeDraftDialog,
@@ -18,7 +18,6 @@ import {
 } from "@/components/orders/OrderOpsDialogs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { RestaurantNotificationHeader } from "@/components/RestaurantNotificationHeader";
 import { useOrderAlert } from "@/hooks/useOrderAlert";
@@ -61,7 +60,7 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
   confirmed: "default",
   preparing: "default",
   ready: "default",
-  out_for_delivery: "default",
+  shipped: "default",
   completed: "outline",
   cancelled: "destructive",
 };
@@ -72,45 +71,10 @@ const statusLabels: Record<string, string> = {
   confirmed: "Confirmed",
   preparing: "Preparing",
   ready: "Ready",
-  out_for_delivery: "Out for Delivery",
+  shipped: "Shipped",
   completed: "Completed",
   cancelled: "Cancelled",
 };
-
-const deliveryStatusLabels: Record<string, string> = {
-  pending: "Pending",
-  assigned: "Assigned",
-  en_route_to_pickup: "En Route to Pickup",
-  arrived_at_restaurant: "Arrived",
-  picked_up: "Picked Up",
-  en_route_to_customer: "En Route to Customer",
-  delivered: "Delivered",
-};
-
-const deliveryStatusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  pending: "secondary",
-  assigned: "secondary",
-  en_route_to_pickup: "default",
-  arrived_at_restaurant: "default",
-  picked_up: "default",
-  en_route_to_customer: "default",
-  delivered: "outline",
-};
-
-type ExtendedOrder = Order & {
-  driverName?: string | null;
-  driverPhone?: string | null;
-  driverId?: string | null;
-  deliveryStatus?: string | null;
-  deliveryUpdatedAt?: string | null;
-};
-
-interface DriverOption {
-  id: string;
-  firstName: string;
-  lastName: string;
-  isAvailable?: boolean;
-}
 
 type OrderWithItems = {
   order: Order;
@@ -148,64 +112,7 @@ export default function Orders() {
     }
   }, [isAuthenticated, authLoading, toast]);
 
-  // WebSocket setup for real-time order and delivery tracking
-  useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-    
-    ws.onopen = () => {
-      console.log('WebSocket connected for order tracking');
-    };
-    
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        
-        // Handle driver assignment events
-        if (data.type === 'driver_assigned') {
-          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-          toast({
-            title: "Driver Assigned",
-            description: `${data.data?.driverName || 'A driver'} has been assigned to your order`,
-          });
-        }
-        
-        // Handle delivery status updates
-        if (data.type === 'delivery_status_updated') {
-          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-          toast({
-            title: "Delivery Update",
-            description: "Order delivery status has been updated",
-          });
-        }
-        
-        // Handle legacy delivery_update event for backwards compatibility
-        if (data.type === 'delivery_update') {
-          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-          toast({
-            title: "Delivery Update",
-            description: "Order delivery status has been updated",
-          });
-        }
-      } catch (error) {
-        console.error('WebSocket message parsing error:', error);
-      }
-    };
-    
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-    
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-    };
-    
-    return () => {
-      ws.close();
-    };
-  }, [toast]);
-
-  const { data: orders, isLoading } = useQuery<ExtendedOrder[]>({
+  const { data: orders, isLoading } = useQuery<Order[]>({
     queryKey: ["/api/orders"],
   });
 
@@ -263,34 +170,6 @@ export default function Orders() {
       });
     },
   });
-
-  const { data: drivers } = useQuery<DriverOption[]>({
-    queryKey: ["/api/drivers"],
-  });
-
-  const assignDriverMutation = useMutation({
-    mutationFn: async ({ orderId, driverId }: { orderId: string; driverId: string }) => {
-      return await apiRequest(`/api/orders/${orderId}/assign-driver`, "POST", { driverId });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
-      toast({
-        title: "Driver Assigned",
-        description: "The order has been assigned to the driver",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to assign driver",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleAssignDriver = (orderId: string, driverId: string) => {
-    assignDriverMutation.mutate({ orderId, driverId });
-  };
 
   const handleStatusChange = (orderId: string, newStatus: string) => {
     updateStatusMutation.mutate({ orderId, status: newStatus });
@@ -471,7 +350,7 @@ export default function Orders() {
 
               ${orderData.order.shippingAddress ? `
               <div class="section">
-                <div class="label">Delivery Address</div>
+                <div class="label">Shipping Address</div>
                 <div class="value">${escapeHtml(orderData.order.shippingAddress)}</div>
               </div>
               ` : ''}
@@ -693,7 +572,7 @@ export default function Orders() {
 
           ${orderData.order.shippingAddress ? `
           <div class="section">
-            <div class="label">Delivery Address</div>
+            <div class="label">Shipping Address</div>
             <div class="value">${escapeHtml(orderData.order.shippingAddress)}</div>
           </div>
           ` : ''}
@@ -899,16 +778,6 @@ export default function Orders() {
     return typeMatch && statusMatch;
   });
 
-  // Helper function to format phone numbers
-  const formatPhone = (phone: string | null | undefined): string => {
-    if (!phone) return '';
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 10) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    }
-    return phone;
-  };
-
   if (authLoading || isLoading) {
     return (
       <div className="p-6 space-y-6">
@@ -959,6 +828,7 @@ export default function Orders() {
                   <SelectItem value="dine-in">Dine-in</SelectItem>
                   <SelectItem value="takeout">Takeout</SelectItem>
                   <SelectItem value="pickup">Pickup</SelectItem>
+                  <SelectItem value="shipping">Shipping</SelectItem>
                   <SelectItem value="online">Online</SelectItem>
                 </SelectContent>
               </Select>
@@ -1100,7 +970,6 @@ export default function Orders() {
                     <TableHead>Order #</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Customer</TableHead>
-                    <TableHead>Driver</TableHead>
                     <TableHead>Total</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Payment</TableHead>
@@ -1123,68 +992,6 @@ export default function Orders() {
                         <TableCell className="font-medium">{order.orderNumber}</TableCell>
                         <TableCell className="capitalize">{order.orderType}</TableCell>
                         <TableCell>{order.customerName || "Guest"}</TableCell>
-                        <TableCell>
-                          <TooltipProvider>
-                            {order.driverName ? (
-                              <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2">
-                                  <Truck className="h-4 w-4 text-primary" data-testid={`icon-driver-${order.id}`} />
-                                  <span className="font-medium text-sm" data-testid={`text-driver-name-${order.id}`}>
-                                    {order.driverName}
-                                  </span>
-                                </div>
-                                {order.driverPhone && (
-                                  <span className="text-xs text-muted-foreground" data-testid={`text-driver-phone-${order.id}`}>
-                                    {formatPhone(order.driverPhone)}
-                                  </span>
-                                )}
-                                {order.deliveryStatus && (
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <Badge 
-                                        variant={deliveryStatusColors[order.deliveryStatus] || "secondary"}
-                                        className="text-xs w-fit"
-                                        data-testid={`badge-delivery-status-${order.id}`}
-                                      >
-                                        {deliveryStatusLabels[order.deliveryStatus] || order.deliveryStatus}
-                                      </Badge>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p className="text-xs">
-                                        {order.deliveryUpdatedAt 
-                                          ? `Last updated: ${new Date(order.deliveryUpdatedAt).toLocaleString()}`
-                                          : 'No update time available'}
-                                      </p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                              </div>
-                            ) : order.orderType === "delivery" && drivers && drivers.length > 0 ? (
-                              <Select
-                                value={order.driverId || undefined}
-                                onValueChange={(driverId) => handleAssignDriver(order.id, driverId)}
-                                disabled={assignDriverMutation.isPending}
-                              >
-                                <SelectTrigger className="h-8 w-[160px]" data-testid={`select-assign-driver-${order.id}`}>
-                                  <SelectValue placeholder="Assign driver" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {drivers.map((driver) => (
-                                    <SelectItem key={driver.id} value={driver.id}>
-                                      {driver.firstName} {driver.lastName}
-                                      {driver.isAvailable === false ? " (offline)" : ""}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <User className="h-4 w-4" data-testid={`icon-no-driver-${order.id}`} />
-                                <span className="text-sm" data-testid={`text-no-driver-${order.id}`}>Not Assigned</span>
-                              </div>
-                            )}
-                          </TooltipProvider>
-                        </TableCell>
                         <TableCell className="font-semibold">
                           ${order.total}
                           {Number((order as any).refundedAmount) > 0 && (
@@ -1218,7 +1025,7 @@ export default function Orders() {
                               <SelectItem value="confirmed">Confirmed</SelectItem>
                               <SelectItem value="preparing">Preparing</SelectItem>
                               <SelectItem value="ready">Ready</SelectItem>
-                              <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
+                              <SelectItem value="shipped">Shipped</SelectItem>
                               <SelectItem value="completed">Completed</SelectItem>
                               <SelectItem value="cancelled">Cancelled</SelectItem>
                             </SelectContent>

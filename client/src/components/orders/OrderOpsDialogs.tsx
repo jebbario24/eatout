@@ -16,7 +16,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Minus, Search, Clock, RotateCcw, StickyNote, Truck, User, CreditCard } from "lucide-react";
+import { Plus, Minus, Search, Clock, RotateCcw, StickyNote, User, CreditCard } from "lucide-react";
 
 export function extractErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) {
@@ -172,7 +172,7 @@ export function DraftBuilderDialog({
                 <SelectTrigger data-testid="select-draft-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pickup">Pickup</SelectItem>
-                  <SelectItem value="delivery">Delivery</SelectItem>
+                  <SelectItem value="shipping">Shipping</SelectItem>
                   <SelectItem value="dine_in">Dine-in</SelectItem>
                 </SelectContent>
               </Select>
@@ -218,7 +218,7 @@ export function DraftBuilderDialog({
 
         <div className="space-y-1.5">
           <Label className="text-sm">Order notes</Label>
-          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Allergies, delivery instructions…" data-testid="input-draft-notes" />
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Allergies, fulfillment instructions…" data-testid="input-draft-notes" />
         </div>
 
         <Separator />
@@ -431,7 +431,7 @@ export function RefundDialog({
 /* ------------------------------------------------------------------ */
 
 const eventIcon: Record<string, any> = {
-  status: Clock, driver: Truck, refund: RotateCcw, note: StickyNote, payment: CreditCard, draft: User, created: User,
+  status: Clock, refund: RotateCcw, note: StickyNote, payment: CreditCard, draft: User, created: User,
 };
 
 export function OrderTimeline({ orderId, open }: { orderId: string; open: boolean }) {
