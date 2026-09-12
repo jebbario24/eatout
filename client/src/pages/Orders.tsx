@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Plus, Eye, Clock, CheckCircle, XCircle, ChefHat, Printer, Trash2, Download, FileText, RotateCcw, Pencil, CheckCheck } from "lucide-react";
+import { Plus, Eye, Clock, CheckCircle, XCircle, ChefHat, Printer, Trash2, Download, FileText, RotateCcw, Pencil, CheckCheck, Truck } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DraftBuilderDialog,
   FinalizeDraftDialog,
@@ -95,6 +97,9 @@ export default function Orders() {
   const [editDraft, setEditDraft] = useState<{ id: string; order: any; items: any[] } | null>(null);
   const [finalizeOrder, setFinalizeOrder] = useState<any | null>(null);
   const [refundOrder, setRefundOrder] = useState<{ order: any; items: any[] } | null>(null);
+  const [trackingOrder, setTrackingOrder] = useState<Order | null>(null);
+  const [trackingCarrier, setTrackingCarrier] = useState("");
+  const [trackingNumberInput, setTrackingNumberInput] = useState("");
   
   // PWA Features
   const { playOrderAlert } = useOrderAlert();
@@ -173,6 +178,39 @@ export default function Orders() {
 
   const handleStatusChange = (orderId: string, newStatus: string) => {
     updateStatusMutation.mutate({ orderId, status: newStatus });
+  };
+
+  const updateTrackingMutation = useMutation({
+    mutationFn: async ({ orderId, trackingNumber, shippingCarrier }: { orderId: string; trackingNumber: string; shippingCarrier: string }) => {
+      return await apiRequest(`/api/orders/${orderId}/status`, "PATCH", {
+        status: "shipped",
+        trackingNumber,
+        shippingCarrier,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      toast({ title: "Tracking saved", description: "The order is now marked as shipped." });
+      setTrackingOrder(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to save tracking info", variant: "destructive" });
+    },
+  });
+
+  const openTrackingDialog = (order: Order) => {
+    setTrackingOrder(order);
+    setTrackingCarrier((order as any).shippingCarrier || "");
+    setTrackingNumberInput((order as any).trackingNumber || "");
+  };
+
+  const handleSaveTracking = () => {
+    if (!trackingOrder || !trackingNumberInput.trim()) return;
+    updateTrackingMutation.mutate({
+      orderId: trackingOrder.id,
+      trackingNumber: trackingNumberInput.trim(),
+      shippingCarrier: trackingCarrier.trim(),
+    });
   };
 
   const getNextStatus = (currentStatus: string): string | null => {
@@ -970,6 +1008,7 @@ export default function Orders() {
                     <TableHead>Order #</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Customer</TableHead>
+                    <TableHead>Tracking</TableHead>
                     <TableHead>Total</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Payment</TableHead>
@@ -992,6 +1031,35 @@ export default function Orders() {
                         <TableCell className="font-medium">{order.orderNumber}</TableCell>
                         <TableCell className="capitalize">{order.orderType}</TableCell>
                         <TableCell>{order.customerName || "Guest"}</TableCell>
+                        <TableCell>
+                          {order.orderType !== "shipping" ? (
+                            <span className="text-sm text-muted-foreground capitalize">{order.orderType}</span>
+                          ) : (order as any).trackingNumber ? (
+                            <button
+                              type="button"
+                              onClick={() => openTrackingDialog(order)}
+                              className="flex items-center gap-1.5 text-left hover-elevate rounded-md px-1.5 py-1 -mx-1.5"
+                              data-testid={`button-edit-tracking-${order.id}`}
+                            >
+                              <Truck className="h-4 w-4 text-primary shrink-0" />
+                              <span className="flex flex-col">
+                                <span className="text-sm font-medium">{(order as any).trackingNumber}</span>
+                                {(order as any).shippingCarrier && (
+                                  <span className="text-xs text-muted-foreground">{(order as any).shippingCarrier}</span>
+                                )}
+                              </span>
+                            </button>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openTrackingDialog(order)}
+                              data-testid={`button-add-tracking-${order.id}`}
+                            >
+                              Add tracking
+                            </Button>
+                          )}
+                        </TableCell>
                         <TableCell className="font-semibold">
                           ${order.total}
                           {Number((order as any).refundedAmount) > 0 && (
@@ -1315,6 +1383,47 @@ export default function Orders() {
           onOpenChange={(v) => !v && setRefundOrder(null)}
         />
       )}
+
+      <Dialog open={!!trackingOrder} onOpenChange={(v) => !v && setTrackingOrder(null)}>
+        <DialogContent data-testid="dialog-tracking">
+          <DialogHeader>
+            <DialogTitle>Shipping tracking</DialogTitle>
+            <DialogDescription>
+              {trackingOrder ? `Order #${trackingOrder.orderNumber}` : ""} — saving marks this order as shipped and shows the tracking info to the customer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="tracking-carrier">Carrier (optional)</Label>
+              <Input
+                id="tracking-carrier"
+                placeholder="e.g. DHL, UPS, FedEx"
+                value={trackingCarrier}
+                onChange={(e) => setTrackingCarrier(e.target.value)}
+                data-testid="input-tracking-carrier"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tracking-number">Tracking number</Label>
+              <Input
+                id="tracking-number"
+                placeholder="e.g. 1Z999AA10123456784"
+                value={trackingNumberInput}
+                onChange={(e) => setTrackingNumberInput(e.target.value)}
+                data-testid="input-tracking-number"
+              />
+            </div>
+            <Button
+              className="w-full"
+              onClick={handleSaveTracking}
+              disabled={!trackingNumberInput.trim() || updateTrackingMutation.isPending}
+              data-testid="button-save-tracking"
+            >
+              Save & mark as shipped
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

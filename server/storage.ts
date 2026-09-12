@@ -173,7 +173,7 @@ export interface IStorage {
   getOrderWithItems(orderId: string): Promise<{ order: Order; items: (OrderItem & { menuItem?: MenuItem; bundle?: Bundle })[] } | undefined>;
   getAllOrderItems(restaurantId: string): Promise<(OrderItem & { menuItem?: MenuItem; bundle?: Bundle })[]>;
   createOrder(order: InsertOrder, items: Omit<InsertOrderItem, 'orderId'>[]): Promise<Order>;
-  updateOrderStatus(orderId: string, status: string): Promise<Order>;
+  updateOrderStatus(orderId: string, status: string, tracking?: { trackingNumber?: string | null; shippingCarrier?: string | null }): Promise<Order>;
   confirmOrderWithPayment(orderId: string, paymentProvider: string, paymentIntentId: string, totalAmount: number, shippingFee?: number): Promise<Order>;
   getLastOrderByPrefix(restaurantId: string, prefix: string): Promise<Order | undefined>;
   
@@ -668,10 +668,15 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async updateOrderStatus(orderId: string, status: string): Promise<Order> {
+  async updateOrderStatus(orderId: string, status: string, tracking?: { trackingNumber?: string | null; shippingCarrier?: string | null }): Promise<Order> {
     const [updated] = await db
       .update(orders)
-      .set({ status, updatedAt: new Date() })
+      .set({
+        status,
+        updatedAt: new Date(),
+        ...(tracking?.trackingNumber !== undefined ? { trackingNumber: tracking.trackingNumber } : {}),
+        ...(tracking?.shippingCarrier !== undefined ? { shippingCarrier: tracking.shippingCarrier } : {}),
+      })
       .where(eq(orders.id, orderId))
       .returning();
     return updated;

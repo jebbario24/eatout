@@ -1994,7 +1994,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/orders/:id/status', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const { status, trackingNumber, shippingCarrier } = req.body;
       const userId = req.user.id;
       const restaurant = await storage.getRestaurantByOwnerId(userId);
       if (!restaurant) {
@@ -2016,7 +2016,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const fromStatus = orderData.order.status;
-      const updated = await storage.updateOrderStatus(id, status);
+      const updated = await storage.updateOrderStatus(id, status, { trackingNumber, shippingCarrier });
       await storage.logOrderEvent({
         orderId: id,
         restaurantId: restaurant.id,

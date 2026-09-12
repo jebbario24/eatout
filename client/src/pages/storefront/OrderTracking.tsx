@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, PackageSearch, CheckCircle2, Circle } from "lucide-react";
+import { ArrowLeft, Loader2, PackageSearch, CheckCircle2, Circle, Truck } from "lucide-react";
 
 function useResolvedSlug() {
   const params = useParams();
@@ -22,14 +22,14 @@ function useResolvedSlug() {
   return paramSlug || data?.slug;
 }
 
-const STEPS = ["pending", "confirmed", "preparing", "ready", "out_for_delivery", "delivered"];
+const STEPS = ["pending", "confirmed", "preparing", "ready", "shipped", "completed"];
 const LABELS: Record<string, string> = {
   pending: "Order placed",
   confirmed: "Confirmed",
   preparing: "Preparing",
   ready: "Ready",
-  out_for_delivery: "On the way",
-  delivered: "Delivered",
+  shipped: "Shipped",
+  completed: "Completed",
 };
 
 export default function OrderTracking() {
@@ -63,8 +63,8 @@ export default function OrderTracking() {
   const order = result?.order;
   const status: string = order?.status || "pending";
   const cancelled = status === "cancelled";
-  const currentIdx = STEPS.indexOf(status === "completed" ? "delivered" : status);
-  const steps = order?.orderType === "pickup" ? STEPS.filter((s) => s !== "out_for_delivery") : STEPS;
+  const currentIdx = STEPS.indexOf(status);
+  const steps = order?.orderType === "pickup" ? STEPS.filter((s) => s !== "shipped") : STEPS;
 
   return (
     <div className="mx-auto max-w-lg px-4 py-10">
@@ -119,6 +119,18 @@ export default function OrderTracking() {
                   );
                 })}
               </ol>
+            )}
+
+            {order.trackingNumber && (
+              <div className="mt-5 flex items-start gap-3 rounded-md border p-3 text-sm">
+                <Truck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <div>
+                  <p className="font-medium">Tracking</p>
+                  <p className="text-muted-foreground">
+                    {order.shippingCarrier ? `${order.shippingCarrier} · ` : ""}{order.trackingNumber}
+                  </p>
+                </div>
+              </div>
             )}
 
             <div className="mt-6 border-t pt-4 text-sm">

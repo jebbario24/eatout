@@ -331,6 +331,17 @@ export default function AdminOrders() {
                       Instructions: {selectedOrder.deliveryInstructions}
                     </p>
                   )}
+                  {(selectedOrder as any).trackingNumber && (
+                    <div className="mt-3 flex items-center gap-2">
+                      <Truck className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">{(selectedOrder as any).trackingNumber}</p>
+                        {(selectedOrder as any).shippingCarrier && (
+                          <p className="text-xs text-muted-foreground">{(selectedOrder as any).shippingCarrier}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
