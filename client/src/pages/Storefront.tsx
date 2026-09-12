@@ -491,6 +491,7 @@ export default function Storefront() {
     queryFn: async () => {
       const endpoint = slug ? `/api/storefront/${slug}/categories` : `/api/storefront/${restaurant?.slug}/categories`;
       const response = await fetch(endpoint);
+      if (!response.ok) return [];
       return response.json();
     },
   });
@@ -502,6 +503,7 @@ export default function Storefront() {
     queryFn: async () => {
       const endpoint = slug ? `/api/storefront/${slug}/items` : `/api/storefront/${restaurant?.slug}/items`;
       const response = await fetch(endpoint);
+      if (!response.ok) return [];
       return response.json();
     },
   });
@@ -536,6 +538,7 @@ export default function Storefront() {
     queryFn: async () => {
       const endpoint = slug ? `/api/storefront/${slug}/items` : `/api/storefront/${restaurant?.slug}/items`;
       const response = await fetch(endpoint);
+      if (!response.ok) return [];
       return response.json();
     },
   });
@@ -546,6 +549,7 @@ export default function Storefront() {
     queryFn: async () => {
       const endpoint = slug ? `/api/storefront/${slug}/reviews` : `/api/storefront/${restaurant?.slug}/reviews`;
       const response = await fetch(endpoint);
+      if (!response.ok) return [];
       return response.json();
     },
   });
@@ -556,6 +560,7 @@ export default function Storefront() {
     queryFn: async () => {
       const endpoint = slug ? `/api/storefront/${slug}/bundles` : `/api/storefront/${restaurant?.slug}/bundles`;
       const response = await fetch(endpoint);
+      if (!response.ok) return [];
       return response.json();
     },
   });
