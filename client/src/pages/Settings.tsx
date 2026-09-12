@@ -142,23 +142,23 @@ export default function Settings() {
   })();
 
   // Pre-select the business type chosen on the landing page (?type=grocery,
-  // stashed by Signup.tsx) so a brand-new merchant isn't dumped back on
-  // "Restaurant" after explicitly picking a different vertical to sign up for.
+  // stashed by Signup.tsx). Otherwise leave it unselected, no vertical is the
+  // "default" one, a brand-new merchant should make an explicit choice.
   const preselectedBusinessType = (() => {
     try {
       const stored = sessionStorage.getItem("eatout_signup_business_type");
       return stored && stored in BUSINESS_TYPE_CONFIG
         ? (stored as keyof typeof BUSINESS_TYPE_CONFIG)
-        : "restaurant";
+        : undefined;
     } catch {
-      return "restaurant" as const;
+      return undefined;
     }
   })();
 
   const form = useForm({
     resolver: zodResolver(restaurantSchema),
     defaultValues: {
-      businessType: preselectedBusinessType,
+      businessType: preselectedBusinessType as any,
       name: "",
       slug: "",
       subdomain: "",
@@ -171,8 +171,10 @@ export default function Settings() {
     },
   });
 
-  const businessType = form.watch("businessType") || "restaurant";
-  const labels = BUSINESS_TYPE_LABELS[businessType] || BUSINESS_TYPE_LABELS.restaurant;
+  const businessType = form.watch("businessType");
+  const labels = businessType
+    ? (BUSINESS_TYPE_LABELS[businessType] || BUSINESS_TYPE_LABELS.restaurant)
+    : { business: "Business", store: "business", catalog: "Products" };
 
   useEffect(() => {
     if (restaurant) {
@@ -263,7 +265,7 @@ export default function Settings() {
           <Store className="h-4 w-4" />
           <AlertTitle>Welcome to EatOut! 🎉</AlertTitle>
           <AlertDescription>
-            Let's set up your restaurant profile. Fill out the form below to get started with your online ordering platform.
+            Let's set up your business profile. Fill out the form below to get started with your online store.
           </AlertDescription>
         </Alert>
       )}
@@ -314,10 +316,10 @@ export default function Settings() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="restaurant">Restaurant</SelectItem>
+                        <SelectItem value="flowers">Flower Shop</SelectItem>
                         <SelectItem value="grocery">Grocery Store</SelectItem>
                         <SelectItem value="pharmacy">Pharmacy</SelectItem>
-                        <SelectItem value="flowers">Flower Shop</SelectItem>
+                        <SelectItem value="restaurant">Restaurant</SelectItem>
                         <SelectItem value="retail">Retail Shop</SelectItem>
                       </SelectContent>
                     </Select>

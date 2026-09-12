@@ -62,22 +62,22 @@ const coreItems = [
 // Marketing section
 const marketingItems = [
   {
-    titleKey: "Marketing",
+    titleKey: "navigation.marketing",
     url: "/marketing",
     icon: Megaphone,
   },
   {
-    titleKey: "Campaigns",
+    titleKey: "navigation.campaigns",
     url: "/marketing/campaigns",
     icon: Send,
   },
   {
-    titleKey: "Loyalty & Rewards",
+    titleKey: "navigation.loyaltyRewards",
     url: "/marketing/loyalty",
     icon: Heart,
   },
   {
-    titleKey: "Gift Cards",
+    titleKey: "navigation.giftCards",
     url: "/marketing/gift-cards",
     icon: Gift,
   },
@@ -114,12 +114,12 @@ const reportsItems = [
     icon: BarChart3,
   },
   {
-    titleKey: "Reports",
+    titleKey: "navigation.reports",
     url: "/reports",
     icon: FileText,
   },
   {
-    titleKey: "Payouts",
+    titleKey: "navigation.payouts",
     url: "/payouts",
     icon: DollarSign,
   },
@@ -128,12 +128,12 @@ const reportsItems = [
 // Customer section
 const customerItems = [
   {
-    titleKey: "Customers",
+    titleKey: "navigation.customers",
     url: "/customers",
     icon: UserRound,
   },
   {
-    titleKey: "Inbox",
+    titleKey: "navigation.inbox",
     url: "/inbox",
     icon: MessageSquare,
   },
@@ -147,17 +147,17 @@ const storeItems = [
     icon: Palette,
   },
   {
-    titleKey: "Pages & Blog",
+    titleKey: "navigation.pagesBlog",
     url: "/online-store/content",
     icon: FileText,
   },
   {
-    titleKey: "Pixels & Tracking",
+    titleKey: "navigation.pixelsTracking",
     url: "/marketing/pixels",
     icon: BarChart3,
   },
   {
-    titleKey: "Domain Verification",
+    titleKey: "navigation.domainVerification",
     url: "/marketing/domain-verification",
     icon: Shield,
   },
@@ -170,7 +170,7 @@ const adminMenuItems = [
     icon: LayoutDashboard,
   },
   {
-    titleKey: "All Orders",
+    titleKey: "navigation.allOrders",
     url: "/admin/orders",
     icon: ShoppingCart,
   },
@@ -180,37 +180,37 @@ const adminMenuItems = [
     icon: Building2,
   },
   {
-    titleKey: "User Management",
+    titleKey: "navigation.userManagement",
     url: "/admin/users",
     icon: Users,
   },
   {
-    titleKey: "Subscriptions",
+    titleKey: "navigation.subscriptions",
     url: "/admin/subscriptions",
     icon: CreditCard,
   },
   {
-    titleKey: "Financials",
+    titleKey: "navigation.financials",
     url: "/admin/financials",
     icon: DollarSign,
   },
   {
-    titleKey: "Payout Management",
+    titleKey: "navigation.payoutManagement",
     url: "/admin/payouts",
     icon: CreditCard,
   },
   {
-    titleKey: "Content Moderation",
+    titleKey: "navigation.contentModeration",
     url: "/admin/moderation",
     icon: Shield,
   },
   {
-    titleKey: "Activity Logs",
+    titleKey: "navigation.activityLogs",
     url: "/admin/activity-logs",
     icon: Activity,
   },
   {
-    titleKey: "Platform Settings",
+    titleKey: "navigation.platformSettings",
     url: "/admin/settings",
     icon: Settings,
   },
@@ -239,7 +239,7 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
       icon: businessConfig.icon,
     },
     {
-      titleKey: "Collections",
+      titleKey: "navigation.collections",
       url: "/collections",
       icon: Layers,
     },
@@ -270,7 +270,7 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
               >
                 <Link href={item.url}>
                   <item.icon className="h-4 w-4" />
-                  <span>{item.titleKey === 'navigation.menu' ? catalogLabel : (item.titleKey.includes('.') ? t(item.titleKey) : item.titleKey)}</span>
+                  <span>{item.titleKey === 'navigation.menu' ? catalogLabel : t(item.titleKey)}</span>
                   {item.url === '/orders' && newOrdersCount > 0 && (
                     <Badge 
                       variant="destructive" 
@@ -308,18 +308,18 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
         ) : (
           <>
             {renderMenuGroup(coreItems)}
-            {renderMenuGroup(menuItems, `${catalogLabel} & Catalog`)}
-            {renderMenuGroup(marketingItems, "Marketing")}
-            {renderMenuGroup(operationsItems, "Operations")}
-            {renderMenuGroup(reportsItems, "Reports & Finance")}
-            {renderMenuGroup(customerItems, "Customer")}
-            {renderMenuGroup(storeItems, "Online Store")}
+            {renderMenuGroup(menuItems, t('navigation.catalogSection', { catalog: catalogLabel }))}
+            {renderMenuGroup(marketingItems, t('navigation.marketing'))}
+            {renderMenuGroup(operationsItems, t('navigation.operations'))}
+            {renderMenuGroup(reportsItems, t('navigation.reportsFinance'))}
+            {renderMenuGroup(customerItems, t('navigation.customer'))}
+            {renderMenuGroup(storeItems, t('navigation.onlineStore'))}
           </>
         )}
 
         {!isAdmin && (
           <SidebarGroup>
-            <SidebarGroupLabel>Account</SidebarGroupLabel>
+            <SidebarGroupLabel>{t('navigation.account')}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
