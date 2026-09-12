@@ -53,6 +53,7 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 import { MarketingTriggersModal } from "@/components/marketing/MarketingTriggersModal";
 import { ThemeSections } from "@/components/storefront/ThemeSections";
 import type { ThemeSection } from "@/lib/themeSections";
+import { MenuItemCard } from "@/components/storefront/MenuItemCard";
 
 interface StorefrontPromo {
   id: string;
@@ -256,6 +257,8 @@ export default function Storefront() {
     () => (draftOverrides && fetchedRestaurant ? { ...fetchedRestaurant, ...draftOverrides } : fetchedRestaurant),
     [fetchedRestaurant, draftOverrides]
   );
+  const cardStyle: "standard" | "bordered" =
+    (restaurant as any)?.themeSettings?.cardStyle === "standard" ? "standard" : "bordered";
 
   const sfSlug = slug || restaurant?.slug || undefined;
   const { customer: sfCustomer } = useStorefrontCustomer(sfSlug);
@@ -2387,139 +2390,42 @@ export default function Storefront() {
                   {group.items.map((item) => {
                     const translatedItem = getTranslatedMenuItem(item, t);
                     return (<div key={item.id} className="space-y-4">
-                      <Card 
-                        className="overflow-hidden hover-elevate transition-all cursor-pointer group" 
-                        onClick={() => item.isAvailable && addToCart(item)}
-                        data-testid={`menu-item-${item.id}`}
-                      >
-                        <div className="relative aspect-square">
-                          {item.imageUrl ? (
-                            <img
-                              src={item.imageUrl}
-                              alt={translatedItem.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-muted flex items-center justify-center">
-                              <Store className="h-16 w-16 text-muted-foreground/50" />
-                            </div>
-                          )}
-                          
-                          {/* Boosted Item Badge */}
-                          <BoostedItemsBadge isBoosted={isItemBoosted(item.name)} />
-                          
-                          {/* Menu Item Badges/Tags */}
-                          {item.tags && item.tags.length > 0 && (
-                            <div className="absolute top-2 left-2 flex flex-wrap gap-1.5">
-                              {item.tags.map((tag, idx) => {
-                                const tagColors: Record<string, string> = {
-                                  'Bestseller': 'bg-[hsl(38,92%,50%)] text-white border-transparent',
-                                  'New': 'bg-[hsl(142,76%,36%)] text-white border-transparent',
-                                  "Chef's Special": 'bg-[hsl(221,83%,53%)] text-white border-transparent',
-                                  'Popular': 'bg-[hsl(346,77%,50%)] text-white border-transparent',
-                                  'Spicy': 'bg-[hsl(0,84%,60%)] text-white border-transparent',
-                                  'Vegetarian': 'bg-[hsl(140,61%,45%)] text-white border-transparent',
-                                  'Vegan': 'bg-[hsl(120,61%,50%)] text-white border-transparent',
-                                  'Gluten-Free': 'bg-[hsl(45,93%,47%)] text-white border-transparent',
-                                  'Limited Time': 'bg-[hsl(280,61%,50%)] text-white border-transparent',
-                                };
-                                const badgeColor = tagColors[tag] || 'bg-muted text-foreground border-border';
-                                return (
-                                  <Badge
-                                    key={idx}
-                                    className={`shadow-md text-xs font-semibold ${badgeColor}`}
-                                    data-testid={`badge-tag-${tag.toLowerCase().replace(/\s+/g, '-')}-${item.id}`}
-                                  >
-                                    {tag}
-                                  </Badge>
-                                );
-                              })}
-                            </div>
-                          )}
-                          
-                          {!item.isAvailable ? (
-                            <>
-                              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                                <Badge variant="destructive" className="text-sm">Out of Stock</Badge>
-                              </div>
-                              <div className="absolute top-2 right-2">
-                                <Badge 
-                                  variant="destructive" 
-                                  className="shadow-md"
-                                  data-testid={`badge-out-of-stock-${item.id}`}
-                                >
-                                  Out of Stock
-                                </Badge>
-                              </div>
-                            </>
-                          ) : item.stockCount !== null && item.stockCount !== undefined && item.stockCount < 10 ? (
-                            <div className="absolute top-2 right-2">
-                              <Badge 
-                                className="shadow-md bg-[hsl(38,92%,50%)] text-white border-transparent hover:bg-[hsl(38,92%,45%)]"
-                                data-testid={`badge-low-stock-${item.id}`}
-                              >
-                                <AlertCircle className="h-3 w-3 mr-1" />
-                                Low Stock
-                              </Badge>
-                            </div>
-                          ) : null}
-                        </div>
-                        
-                        <CardContent className="p-4">
-                          <h3 className="font-bold text-lg mb-1 line-clamp-1">{translatedItem.name}</h3>
-                          {translatedItem.description && (
-                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{translatedItem.description}</p>
-                          )}
-                          <div className="flex items-center justify-between">
-                            <span className="text-lg font-bold text-primary">
-                              {formatPrice(item.price)}
-                            </span>
-                            {item.isAvailable && (
-                              <Button 
-                                size="icon" 
-                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  addToCart(item);
-                                }}
-                                data-testid={`button-add-to-cart-${item.id}`}
-                              >
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-
-                          {/* Marketing Badges: Scarcity & Social Proof */}
-                          <div className="mt-3 space-y-2">
-                            {/* Scarcity Notice Badge */}
-                            {(item.marketingTactics as any)?.enableScarcityNotice && 
-                             item.stockCount !== null && 
-                             item.stockCount !== undefined && 
-                             item.stockCount <= ((item.marketingTactics as any)?.scarcityThreshold || 5) && (
-                              <Badge 
-                                className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800"
-                                data-testid={`badge-scarcity-${item.id}`}
-                              >
-                                <AlertCircle className="h-3 w-3 mr-1" />
-                                {(item.marketingTactics as any)?.scarcityMessage?.replace('X', item.stockCount.toString()) || 
-                                 `Only ${item.stockCount} left in stock!`}
-                              </Badge>
-                            )}
-
-                            {/* Social Proof Badge */}
-                            {(item.marketingTactics as any)?.enableSocialProof && (
-                              <Badge 
-                                className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800"
-                                data-testid={`badge-social-proof-${item.id}`}
-                              >
-                                <Users className="h-3 w-3 mr-1" />
-                                {(item.marketingTactics as any)?.socialProofMessage?.replace('X', ((item.marketingTactics as any)?.socialProofCount || 0).toString()) || 
-                                 `${(item.marketingTactics as any)?.socialProofCount || 0} people ordered this`}
-                              </Badge>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <MenuItemCard
+                        item={item}
+                        displayName={translatedItem.name}
+                        displayDescription={translatedItem.description}
+                        cardStyle={cardStyle}
+                        formattedPrice={formatPrice(item.price)}
+                        isBoosted={isItemBoosted(item.name)}
+                        scarcity={
+                          (item.marketingTactics as any)?.enableScarcityNotice &&
+                          item.stockCount !== null &&
+                          item.stockCount !== undefined &&
+                          item.stockCount <= ((item.marketingTactics as any)?.scarcityThreshold || 5)
+                            ? {
+                                text:
+                                  (item.marketingTactics as any)?.scarcityMessage?.replace("X", item.stockCount.toString()) ||
+                                  `Only ${item.stockCount} left in stock!`,
+                              }
+                            : null
+                        }
+                        socialProof={
+                          (item.marketingTactics as any)?.enableSocialProof
+                            ? {
+                                text:
+                                  (item.marketingTactics as any)?.socialProofMessage?.replace(
+                                    "X",
+                                    ((item.marketingTactics as any)?.socialProofCount || 0).toString()
+                                  ) || `${(item.marketingTactics as any)?.socialProofCount || 0} people ordered this`,
+                              }
+                            : null
+                        }
+                        onSelect={() => item.isAvailable && addToCart(item)}
+                        onAddToCart={(e) => {
+                          e.stopPropagation();
+                          addToCart(item);
+                        }}
+                      />
 
                       {/* Marketing: Frequently Bought Together */}
                       {(restaurant?.marketingSettings as any)?.enableUpsells && item.upsellItemIds && item.upsellItemIds.length > 0 && (
@@ -2543,139 +2449,42 @@ export default function Storefront() {
             {filteredItems.map((item) => {
               const translatedItem = getTranslatedMenuItem(item, t);
               return (<div key={item.id} className="space-y-4">
-                <Card 
-                  className="overflow-hidden hover-elevate transition-all cursor-pointer group" 
-                  onClick={() => item.isAvailable && addToCart(item)}
-                  data-testid={`menu-item-${item.id}`}
-                >
-                  <div className="relative aspect-square">
-                    {item.imageUrl ? (
-                      <img
-                        src={item.imageUrl}
-                        alt={translatedItem.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-muted flex items-center justify-center">
-                        <Store className="h-16 w-16 text-muted-foreground/50" />
-                      </div>
-                    )}
-                    
-                    {/* Boosted Item Badge */}
-                    <BoostedItemsBadge isBoosted={isItemBoosted(item.name)} />
-                    
-                    {/* Menu Item Badges/Tags */}
-                    {item.tags && item.tags.length > 0 && (
-                      <div className="absolute top-2 left-2 flex flex-wrap gap-1.5">
-                        {item.tags.map((tag, idx) => {
-                          const tagColors: Record<string, string> = {
-                            'Bestseller': 'bg-[hsl(38,92%,50%)] text-white border-transparent',
-                            'New': 'bg-[hsl(142,76%,36%)] text-white border-transparent',
-                            "Chef's Special": 'bg-[hsl(221,83%,53%)] text-white border-transparent',
-                            'Popular': 'bg-[hsl(346,77%,50%)] text-white border-transparent',
-                            'Spicy': 'bg-[hsl(0,84%,60%)] text-white border-transparent',
-                            'Vegetarian': 'bg-[hsl(140,61%,45%)] text-white border-transparent',
-                            'Vegan': 'bg-[hsl(120,61%,50%)] text-white border-transparent',
-                            'Gluten-Free': 'bg-[hsl(45,93%,47%)] text-white border-transparent',
-                            'Limited Time': 'bg-[hsl(280,61%,50%)] text-white border-transparent',
-                          };
-                          const badgeColor = tagColors[tag] || 'bg-muted text-foreground border-border';
-                          return (
-                            <Badge
-                              key={idx}
-                              className={`shadow-md text-xs font-semibold ${badgeColor}`}
-                              data-testid={`badge-tag-${tag.toLowerCase().replace(/\s+/g, '-')}-${item.id}`}
-                            >
-                              {tag}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    )}
-                    
-                    {!item.isAvailable ? (
-                      <>
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <Badge variant="destructive" className="text-sm">Out of Stock</Badge>
-                        </div>
-                        <div className="absolute top-2 right-2">
-                          <Badge 
-                            variant="destructive" 
-                            className="shadow-md"
-                            data-testid={`badge-out-of-stock-${item.id}`}
-                          >
-                            Out of Stock
-                          </Badge>
-                        </div>
-                      </>
-                    ) : item.stockCount !== null && item.stockCount !== undefined && item.stockCount < 10 ? (
-                      <div className="absolute top-2 right-2">
-                        <Badge 
-                          className="shadow-md bg-[hsl(38,92%,50%)] text-white border-transparent hover:bg-[hsl(38,92%,45%)]"
-                          data-testid={`badge-low-stock-${item.id}`}
-                        >
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          Low Stock
-                        </Badge>
-                      </div>
-                    ) : null}
-                  </div>
-                  
-                  <CardContent className="p-4">
-                    <h3 className="font-bold text-lg mb-1 line-clamp-1">{translatedItem.name}</h3>
-                    {translatedItem.description && (
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{translatedItem.description}</p>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold text-primary">
-                        {formatPrice(item.price)}
-                      </span>
-                      {item.isAvailable && (
-                        <Button 
-                          size="icon" 
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            addToCart(item);
-                          }}
-                          data-testid={`button-add-to-cart-${item.id}`}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Marketing Badges: Scarcity & Social Proof */}
-                    <div className="mt-3 space-y-2">
-                      {/* Scarcity Notice Badge */}
-                      {(item.marketingTactics as any)?.enableScarcityNotice && 
-                       item.stockCount !== null && 
-                       item.stockCount !== undefined && 
-                       item.stockCount <= ((item.marketingTactics as any)?.scarcityThreshold || 5) && (
-                        <Badge 
-                          className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800"
-                          data-testid={`badge-scarcity-${item.id}`}
-                        >
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          {(item.marketingTactics as any)?.scarcityMessage?.replace('X', item.stockCount.toString()) || 
-                           `Only ${item.stockCount} left in stock!`}
-                        </Badge>
-                      )}
-
-                      {/* Social Proof Badge */}
-                      {(item.marketingTactics as any)?.enableSocialProof && (
-                        <Badge 
-                          className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800"
-                          data-testid={`badge-social-proof-${item.id}`}
-                        >
-                          <Users className="h-3 w-3 mr-1" />
-                          {(item.marketingTactics as any)?.socialProofMessage?.replace('X', ((item.marketingTactics as any)?.socialProofCount || 0).toString()) || 
-                           `${(item.marketingTactics as any)?.socialProofCount || 0} people ordered this`}
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                <MenuItemCard
+                  item={item}
+                  displayName={translatedItem.name}
+                  displayDescription={translatedItem.description}
+                  cardStyle={cardStyle}
+                  formattedPrice={formatPrice(item.price)}
+                  isBoosted={isItemBoosted(item.name)}
+                  scarcity={
+                    (item.marketingTactics as any)?.enableScarcityNotice &&
+                    item.stockCount !== null &&
+                    item.stockCount !== undefined &&
+                    item.stockCount <= ((item.marketingTactics as any)?.scarcityThreshold || 5)
+                      ? {
+                          text:
+                            (item.marketingTactics as any)?.scarcityMessage?.replace("X", item.stockCount.toString()) ||
+                            `Only ${item.stockCount} left in stock!`,
+                        }
+                      : null
+                  }
+                  socialProof={
+                    (item.marketingTactics as any)?.enableSocialProof
+                      ? {
+                          text:
+                            (item.marketingTactics as any)?.socialProofMessage?.replace(
+                              "X",
+                              ((item.marketingTactics as any)?.socialProofCount || 0).toString()
+                            ) || `${(item.marketingTactics as any)?.socialProofCount || 0} people ordered this`,
+                        }
+                      : null
+                  }
+                  onSelect={() => item.isAvailable && addToCart(item)}
+                  onAddToCart={(e) => {
+                    e.stopPropagation();
+                    addToCart(item);
+                  }}
+                />
 
                 {/* Marketing: Frequently Bought Together */}
                 {(restaurant?.marketingSettings as any)?.enableUpsells && item.upsellItemIds && item.upsellItemIds.length > 0 && (

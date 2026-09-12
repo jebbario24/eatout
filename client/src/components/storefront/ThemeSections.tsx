@@ -198,7 +198,7 @@ function TestimonialsSection({ section }: { section: ThemeSection }) {
 export function ThemeSections({ sections }: { sections: ThemeSection[] }) {
   return (
     <>
-      {sections.map((section) => {
+      {sections.filter((section) => section.enabled !== false).map((section) => {
         switch (section.type) {
           case "image-banner":
             return <ImageBannerSection key={section.id} section={section} />;

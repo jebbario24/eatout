@@ -4,13 +4,13 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { TopBar } from "@/components/TopBar";
 import { DineInOnlyGuard } from "@/components/DineInOnlyGuard";
 import { SubscriptionGuard } from "@/components/SubscriptionGuard";
 import { RestaurantSetupGuard } from "@/components/RestaurantSetupGuard";
 import { useAuth } from "@/hooks/useAuth";
-import { UserMenu } from "@/components/UserMenu";
 import { usePlatformLanguage } from "@/hooks/useLanguage";
 import "./i18n";
 import Landing from "@/pages/Landing";
@@ -205,18 +205,15 @@ function AppContent() {
     <SubscriptionGuard>
       <RestaurantSetupGuard>
         <SidebarProvider style={style as React.CSSProperties}>
-          <div className="flex h-screen w-full">
-            <AppSidebar side={isRTL ? "right" : "left"} />
-            <div className="flex flex-col flex-1 overflow-hidden">
-              <header className="flex items-center justify-between p-3 border-b">
-                <SidebarTrigger data-testid="button-sidebar-toggle" />
-                <div className="flex items-center gap-2">
-                  <UserMenu />
-                </div>
-              </header>
-              <main className="flex-1 overflow-auto">
-                <AuthenticatedRouter />
-              </main>
+          <div className="flex flex-col h-screen w-full">
+            <TopBar />
+            <div className="flex flex-1 overflow-hidden">
+              <AppSidebar side={isRTL ? "right" : "left"} />
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <main className="flex-1 overflow-auto">
+                  <AuthenticatedRouter />
+                </main>
+              </div>
             </div>
           </div>
         </SidebarProvider>

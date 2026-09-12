@@ -5,14 +5,17 @@ import { useQuery } from "@tanstack/react-query";
 import type { Restaurant, Order } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { 
-  DollarSign, 
-  ShoppingCart, 
-  TrendingUp, 
+import {
+  DollarSign,
+  ShoppingCart,
+  TrendingUp,
   Users,
   AlertCircle,
   Clock,
-  CreditCard
+  CreditCard,
+  ExternalLink,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -74,6 +77,15 @@ export default function Dashboard() {
     queryKey: ['/api/subscription-status'],
   });
 
+  const { data: menuItems } = useQuery<any[]>({
+    queryKey: ["/api/menu/items"],
+  });
+
+  const { data: stripeStatus } = useQuery<{ connected: boolean; payoutsEnabled: boolean }>({
+    queryKey: ["/api/restaurant/connect/status"],
+    enabled: !!restaurant,
+  });
+
   const trialDaysLeft = subscriptionStatus?.trialEndsAt 
     ? Math.ceil((new Date(subscriptionStatus.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : 0;
@@ -118,12 +130,11 @@ export default function Dashboard() {
 
   const businessConfig = getBusinessTypeConfig(restaurant.businessType);
 
-  const statCards = [
+  const statCards: { title: string; value: string | number; icon: typeof DollarSign; description?: string }[] = [
     {
       title: "Today's Revenue",
       value: stats?.todayRevenue ? `$${stats.todayRevenue}` : "$0",
       icon: DollarSign,
-      description: "+12% from yesterday",
     },
     {
       title: "Orders Today",
@@ -135,7 +146,6 @@ export default function Dashboard() {
       title: "Average Order",
       value: stats?.averageOrder ? `$${stats.averageOrder}` : "$0",
       icon: TrendingUp,
-      description: "+5% from last week",
     },
     {
       title: "Active Staff",
@@ -144,6 +154,31 @@ export default function Dashboard() {
       description: `${stats?.totalStaff || 0} total`,
     },
   ];
+
+  const storefrontUrl = restaurant.slug ? `${window.location.origin}/store/${restaurant.slug}` : "";
+  const hasMenuItems = (menuItems?.length ?? 0) > 0;
+  const hasThemeSections = ((restaurant as any).themeSettings?.sections?.length ?? 0) > 0;
+  const setupTasks = [
+    {
+      key: "add-product",
+      label: `Add your first ${businessConfig.catalog.toLowerCase().replace(/s$/, "")}`,
+      done: hasMenuItems,
+      href: "/menu",
+    },
+    {
+      key: "connect-bank",
+      label: "Connect your bank account",
+      done: !!stripeStatus?.payoutsEnabled,
+      href: "/settings",
+    },
+    {
+      key: "customize-store",
+      label: "Customize your online store",
+      done: hasThemeSections,
+      href: "/online-store/customize",
+    },
+  ];
+  const allSetupDone = setupTasks.every((t) => t.done);
 
   return (
     <div className="p-6 space-y-6">
@@ -193,6 +228,77 @@ export default function Dashboard() {
         </p>
       </div>
 
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          <div className="flex flex-col md:flex-row">
+            <div className="p-6 flex-1 flex flex-col justify-center gap-3">
+              <h2 className="text-2xl font-display font-bold">
+                {restaurant.slug ? `${restaurant.name} is open for business!` : `Finish setting up ${restaurant.name}`}
+              </h2>
+              <p className="text-muted-foreground">
+                {restaurant.slug
+                  ? "Your storefront is live and ready to take orders."
+                  : "Set up your online store slug in Settings to go live."}
+              </p>
+              {storefrontUrl && (
+                <Button
+                  variant="default"
+                  className="w-fit"
+                  onClick={() => window.open(storefrontUrl, "_blank")}
+                  data-testid="button-preview-storefront"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Preview Storefront
+                </Button>
+              )}
+            </div>
+            {storefrontUrl && (
+              <div className="flex-1 bg-muted/30 p-4 min-h-[220px]">
+                <div className="h-full rounded-lg border bg-background shadow-sm overflow-hidden flex flex-col">
+                  <div className="flex items-center gap-1.5 border-b bg-muted/50 px-3 py-2 shrink-0">
+                    <span className="h-2.5 w-2.5 rounded-full bg-destructive/60" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-primary/60" />
+                    <span className="ml-2 text-xs text-muted-foreground truncate rounded bg-background px-2 py-0.5 border">
+                      /store/{restaurant.slug}
+                    </span>
+                  </div>
+                  <iframe
+                    src={storefrontUrl}
+                    className="flex-1 w-full border-0 pointer-events-none"
+                    style={{ minHeight: 180 }}
+                    title="Storefront preview"
+                    data-testid="iframe-storefront-preview"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {!allSetupDone && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Setup guide</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {setupTasks.map((task) => (
+              <Link key={task.key} href={task.href}>
+                <div className="flex items-center gap-3 p-2 rounded-md hover-elevate cursor-pointer" data-testid={`setup-task-${task.key}`}>
+                  {task.done ? (
+                    <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
+                  ) : (
+                    <Circle className="h-5 w-5 text-muted-foreground shrink-0" />
+                  )}
+                  <span className={task.done ? "text-muted-foreground line-through" : ""}>{task.label}</span>
+                </div>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, index) => (
           <Card key={index}>
@@ -206,9 +312,11 @@ export default function Dashboard() {
               <div className="text-2xl font-bold" data-testid={`stat-${stat.title.toLowerCase().replace(/[^a-z]/g, '-')}`}>
                 {statsLoading ? <Skeleton className="h-8 w-20" /> : stat.value}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stat.description}
-              </p>
+              {stat.description && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stat.description}
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}

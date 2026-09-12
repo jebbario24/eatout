@@ -36,6 +36,8 @@ type MenuItem = {
   price: string;
 };
 
+type PromoConditions = { minOrderAmount?: string };
+
 type PromoFromDB = {
   id: string;
   promoCode: string;
@@ -52,6 +54,9 @@ type PromoFromDB = {
   getQuantity?: number;
   name: string;
   description: string | null;
+  conditions?: PromoConditions | null;
+  autoApply?: boolean;
+  perCustomerLimit?: number | null;
 };
 
 type Promo = {
@@ -70,6 +75,9 @@ type Promo = {
   getQuantity?: number;
   name: string;
   description: string | null;
+  minOrderAmount: string;
+  autoApply: boolean;
+  perCustomerLimit: number;
 };
 
 // Transform database promo to frontend format
@@ -90,6 +98,9 @@ function transformPromo(dbPromo: PromoFromDB): Promo {
     getQuantity: dbPromo.getQuantity,
     name: dbPromo.name,
     description: dbPromo.description,
+    minOrderAmount: dbPromo.conditions?.minOrderAmount || '',
+    autoApply: dbPromo.autoApply || false,
+    perCustomerLimit: dbPromo.perCustomerLimit || 1,
   };
 }
 
@@ -114,6 +125,9 @@ export default function Promos() {
     getItemId: null as string | null,
     buyQuantity: 1,
     getQuantity: 1,
+    minOrderAmount: '',
+    autoApply: false,
+    perCustomerLimit: 1,
   });
 
   // Fetch menu items for BOGO selection
@@ -229,6 +243,7 @@ export default function Promos() {
       promoCode: editingPromo.code,
       promoType: editingPromo.type,
       discountValue: editingPromo.value.toString(),
+      conditions: editingPromo.minOrderAmount ? { minOrderAmount: editingPromo.minOrderAmount } : {},
       redemptionLimit: editingPromo.maxUses,
       isActive: editingPromo.isActive,
       startsAt: editingPromo.startsAt ? new Date(editingPromo.startsAt) : new Date(),
@@ -237,6 +252,8 @@ export default function Promos() {
       getItemId: editingPromo.getItemId,
       buyQuantity: editingPromo.buyQuantity,
       getQuantity: editingPromo.getQuantity,
+      autoApply: editingPromo.autoApply,
+      perCustomerLimit: editingPromo.perCustomerLimit || 1,
     };
     
     updatePromoMutation.mutate({ id: editingPromo.id, data: updateData });
@@ -261,6 +278,30 @@ export default function Promos() {
       getItemId: null,
       buyQuantity: 1,
       getQuantity: 1,
+      minOrderAmount: '',
+      autoApply: false,
+      perCustomerLimit: 1,
+    });
+    setCreateDialogOpen(true);
+  };
+
+  const handleDuplicate = (promo: Promo) => {
+    setNewPromo({
+      name: `${promo.name} (Copy)`,
+      code: '',
+      type: promo.type,
+      value: promo.value,
+      maxUses: promo.maxUses,
+      isActive: promo.isActive,
+      startsAt: new Date().toISOString().slice(0, 10),
+      expiresAt: null,
+      buyItemId: promo.buyItemId || null,
+      getItemId: promo.getItemId || null,
+      buyQuantity: promo.buyQuantity || 1,
+      getQuantity: promo.getQuantity || 1,
+      minOrderAmount: promo.minOrderAmount,
+      autoApply: promo.autoApply,
+      perCustomerLimit: promo.perCustomerLimit,
     });
     setCreateDialogOpen(true);
   };
@@ -324,6 +365,7 @@ export default function Promos() {
       promoType: newPromo.type,
       discountValue: (newPromo.type === 'free_delivery' || newPromo.type === 'buy_x_get_y') ? '0' : newPromo.value.toString(),
       scope: 'order',
+      conditions: newPromo.minOrderAmount ? { minOrderAmount: newPromo.minOrderAmount } : {},
       redemptionLimit: newPromo.maxUses,
       isActive: newPromo.isActive,
       startsAt: newPromo.startsAt ? new Date(newPromo.startsAt) : new Date(),
@@ -332,8 +374,8 @@ export default function Promos() {
       getItemId: newPromo.getItemId,
       buyQuantity: newPromo.buyQuantity,
       getQuantity: newPromo.getQuantity,
-      autoApply: false,
-      perCustomerLimit: 1,
+      autoApply: newPromo.autoApply,
+      perCustomerLimit: newPromo.perCustomerLimit || 1,
       priority: 0,
     };
 
@@ -451,13 +493,18 @@ export default function Promos() {
                   <TableRow key={promo.id} data-testid={`row-promo-${promo.id}`}>
                     <TableCell className="font-medium" data-testid={`text-code-${promo.id}`}>{promo.code}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" data-testid={`badge-type-${promo.id}`}>
-                        {promo.type === 'percentage' ? 'Percentage' :
-                         promo.type === 'fixed_amount' ? 'Fixed Amount' :
-                         promo.type === 'free_delivery' ? 'Free Shipping' :
-                         promo.type === 'buy_x_get_y' ? 'Buy X Get Y' :
-                         promo.type}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="outline" data-testid={`badge-type-${promo.id}`}>
+                          {promo.type === 'percentage' ? 'Percentage' :
+                           promo.type === 'fixed_amount' ? 'Fixed Amount' :
+                           promo.type === 'free_delivery' ? 'Free Shipping' :
+                           promo.type === 'buy_x_get_y' ? 'Buy X Get Y' :
+                           promo.type}
+                        </Badge>
+                        {promo.autoApply && (
+                          <Badge variant="secondary" data-testid={`badge-auto-${promo.id}`}>Auto</Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell data-testid={`text-discount-${promo.id}`}>{renderPromoDiscount(promo)}</TableCell>
                     <TableCell data-testid={`text-redemptions-${promo.id}`}>{promo.redemptions}</TableCell>
@@ -471,17 +518,25 @@ export default function Promos() {
                       </Badge>
                     </TableCell>
                     <TableCell className="space-x-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleEditClick(promo)}
                         data-testid={`button-edit-${promo.id}`}
                       >
                         Edit
                       </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDuplicate(promo)}
+                        data-testid={`button-duplicate-${promo.id}`}
+                      >
+                        Duplicate
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => {
                           if (window.confirm(`Are you sure you want to delete promo code "${promo.code}"?`)) {
                             deletePromoMutation.mutate(promo.id);
@@ -655,6 +710,46 @@ export default function Promos() {
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-min-order">Minimum Order Amount (optional)</Label>
+                  <Input
+                    id="edit-min-order"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editingPromo.minOrderAmount}
+                    onChange={(e) => setEditingPromo({ ...editingPromo, minOrderAmount: e.target.value })}
+                    placeholder="No minimum"
+                    data-testid="input-edit-min-order"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-per-customer-limit">Per-Customer Limit</Label>
+                  <Input
+                    id="edit-per-customer-limit"
+                    type="number"
+                    min="1"
+                    value={editingPromo.perCustomerLimit}
+                    onChange={(e) => setEditingPromo({ ...editingPromo, perCustomerLimit: parseInt(e.target.value) || 1 })}
+                    data-testid="input-edit-per-customer-limit"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-auto-apply"
+                  checked={editingPromo.autoApply}
+                  onCheckedChange={(checked) => setEditingPromo({ ...editingPromo, autoApply: checked })}
+                  data-testid="switch-edit-auto-apply"
+                />
+                <Label htmlFor="edit-auto-apply">Automatically apply (no code required)</Label>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Applies automatically at checkout when conditions are met — no need for the customer to enter a code.
+              </p>
 
               <div className="flex items-center space-x-2">
                 <Switch
@@ -832,6 +927,46 @@ export default function Promos() {
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-min-order">Minimum Order Amount (optional)</Label>
+                <Input
+                  id="new-min-order"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={newPromo.minOrderAmount}
+                  onChange={(e) => setNewPromo({ ...newPromo, minOrderAmount: e.target.value })}
+                  placeholder="No minimum"
+                  data-testid="input-new-min-order"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-per-customer-limit">Per-Customer Limit</Label>
+                <Input
+                  id="new-per-customer-limit"
+                  type="number"
+                  min="1"
+                  value={newPromo.perCustomerLimit}
+                  onChange={(e) => setNewPromo({ ...newPromo, perCustomerLimit: parseInt(e.target.value) || 1 })}
+                  data-testid="input-new-per-customer-limit"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="new-auto-apply"
+                checked={newPromo.autoApply}
+                onCheckedChange={(checked) => setNewPromo({ ...newPromo, autoApply: checked })}
+                data-testid="switch-new-auto-apply"
+              />
+              <Label htmlFor="new-auto-apply">Automatically apply (no code required)</Label>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Applies automatically at checkout when conditions are met — no need for the customer to enter a code.
+            </p>
 
             <div className="flex items-center space-x-2">
               <Switch

@@ -1531,16 +1531,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     // Validate required fields - match what frontend sends
-    const { name, promoCode, promoType, discountValue, scope, redemptionLimit, isActive, startsAt, endsAt, buyItemId, getItemId, buyQuantity, getQuantity, autoApply, perCustomerLimit, priority, description } = req.body;
-    
+    const { name, promoCode, promoType, discountValue, scope, redemptionLimit, isActive, startsAt, endsAt, buyItemId, getItemId, buyQuantity, getQuantity, autoApply, perCustomerLimit, priority, description, conditions } = req.body;
+
     if (!name || !promoCode) {
-      return res.status(400).json({ 
-        message: "Promo name and code are required" 
+      return res.status(400).json({
+        message: "Promo name and code are required"
       });
     }
 
     // Build promo data with correct field names matching database schema
-    const promoData = { 
+    const promoData = {
       restaurantId: restaurant.id,
       name,
       description: description || null,
@@ -1548,6 +1548,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       promoType: promoType || 'percentage',
       discountValue: discountValue ? discountValue.toString() : '0',
       scope: scope || 'order',
+      conditions: conditions || {},
       redemptionLimit: redemptionLimit || null,
       isActive: isActive !== undefined ? isActive : true,
       startsAt: startsAt ? new Date(startsAt) : new Date(),
@@ -1593,8 +1594,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (promo.restaurantId !== restaurant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
-      
-      const updated = await storage.updatePromo(req.params.id, req.body);
+
+      // Timestamp columns need real Date objects — JSON.stringify turns any Date the
+      // client sends back into a string, so it must be re-parsed here (POST already
+      // does this; PUT previously passed the raw string straight to Drizzle, which
+      // throws "value.toISOString is not a function" when writing the column).
+      const data = { ...req.body };
+      if (data.startsAt) data.startsAt = new Date(data.startsAt);
+      if ('endsAt' in data) data.endsAt = data.endsAt ? new Date(data.endsAt) : null;
+
+      const updated = await storage.updatePromo(req.params.id, data);
       res.json(updated);
     } catch (error: any) {
       console.error("Error updating promo:", error);
@@ -1629,6 +1638,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting promo:", error);
       res.status(400).json({ message: "Failed to delete promo" });
+    }
+  });
+
+  app.get('/api/promos/performance', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const restaurant = await storage.getRestaurantByOwnerId(userId);
+      if (!restaurant) {
+        return res.json([]);
+      }
+      const performance = await storage.getPromoPerformance(restaurant.id);
+      res.json(performance);
+    } catch (error) {
+      console.error("Error fetching promo performance:", error);
+      res.status(500).json({ message: "Failed to fetch promo performance" });
     }
   });
 
@@ -2560,6 +2584,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
     await storage.deleteLoyaltyTier(req.params.id, restaurant.id);
     res.json({ ok: true });
+  });
+
+  app.get('/api/loyalty/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const stats = await storage.getLoyaltyReportStats(restaurant.id);
+      res.json(stats);
+    } catch (e) {
+      logError("Loyalty stats failed", e);
+      res.status(500).json({ message: "Failed to load loyalty stats" });
+    }
   });
 
   // Merchant customers list + detail (Tier 2 — minimal CRM)

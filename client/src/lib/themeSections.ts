@@ -19,6 +19,7 @@ export interface ThemeSection {
   type: ThemeSectionType;
   settings: Record<string, any>;
   blocks: ThemeBlock[];
+  enabled: boolean;
 }
 
 export const SECTION_LABELS: Record<ThemeSectionType, string> = {
@@ -61,11 +62,11 @@ export function createDefaultBlock(sectionType: ThemeSectionType): ThemeBlock {
 
 export function createDefaultSection(type: ThemeSectionType): ThemeSection {
   const id = genId();
+  const base = { id, type, enabled: true };
   switch (type) {
     case "image-banner":
       return {
-        id,
-        type,
+        ...base,
         settings: {
           imageUrl: "",
           heading: "Announce something",
@@ -80,8 +81,7 @@ export function createDefaultSection(type: ThemeSectionType): ThemeSection {
       };
     case "image-with-text":
       return {
-        id,
-        type,
+        ...base,
         settings: {
           imageUrl: "",
           layout: "image-left",
@@ -96,15 +96,13 @@ export function createDefaultSection(type: ThemeSectionType): ThemeSection {
       };
     case "multicolumn":
       return {
-        id,
-        type,
+        ...base,
         settings: { heading: "Why shop with us", columns: 3, colorScheme: "default" },
         blocks: [createDefaultBlock(type), createDefaultBlock(type), createDefaultBlock(type)],
       };
     case "rich-text":
       return {
-        id,
-        type,
+        ...base,
         settings: {
           heading: "Talk about your business",
           text: "Share information about your business with your customers.",
@@ -116,8 +114,7 @@ export function createDefaultSection(type: ThemeSectionType): ThemeSection {
       };
     case "newsletter":
       return {
-        id,
-        type,
+        ...base,
         settings: {
           heading: "Subscribe to our emails",
           text: "Be the first to know about new collections and exclusive offers.",
@@ -127,8 +124,7 @@ export function createDefaultSection(type: ThemeSectionType): ThemeSection {
       };
     case "testimonials":
       return {
-        id,
-        type,
+        ...base,
         settings: { heading: "What customers are saying", colorScheme: "default" },
         blocks: [createDefaultBlock(type), createDefaultBlock(type)],
       };

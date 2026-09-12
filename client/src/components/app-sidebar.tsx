@@ -6,7 +6,6 @@ import {
   Package, 
   BarChart3,
   Settings,
-  Store,
   ChefHat,
   Palette,
   CreditCard,
@@ -33,10 +32,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarHeader,
-  SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
@@ -163,7 +159,7 @@ const storeItems = [
   },
 ];
 
-const adminMenuItems = [
+export const adminMenuItems = [
   {
     titleKey: "navigation.dashboard",
     url: "/admin",
@@ -216,6 +212,30 @@ const adminMenuItems = [
   },
 ];
 
+// Flattens the sidebar's own nav sections into one list for the top bar's command
+// palette, so the two never drift apart the way two hand-maintained lists would.
+export function getSearchableRoutes(businessConfig: ReturnType<typeof getBusinessTypeConfig>) {
+  const catalogItems = [
+    { titleKey: "navigation.menu", url: "/menu", icon: businessConfig.icon },
+    { titleKey: "navigation.collections", url: "/collections", icon: Layers },
+    { titleKey: "navigation.inventory", url: "/inventory", icon: Package },
+  ];
+  const operationsItems = businessConfig.hasDineIn
+    ? [...dineInOperationsItems, ...baseOperationsItems]
+    : baseOperationsItems;
+  return [
+    ...coreItems,
+    ...catalogItems,
+    ...marketingItems,
+    ...operationsItems,
+    ...reportsItems,
+    ...customerItems,
+    ...storeItems,
+    { titleKey: "navigation.billing", url: "/billing", icon: CreditCard },
+    { titleKey: "navigation.settings", url: "/settings", icon: Settings },
+  ];
+}
+
 export function AppSidebar({ side }: { side?: "left" | "right" }) {
   const [location] = useLocation();
   const { user } = useAuth();
@@ -223,7 +243,6 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
   const { newOrdersCount } = useNewOrders();
   
   const isAdmin = user?.role === 'admin';
-  const homeUrl = isAdmin ? "/admin" : "/dashboard";
 
   const { data: restaurant } = useQuery<Restaurant | null>({
     queryKey: ['/api/restaurants/me'],
@@ -291,17 +310,6 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
 
   return (
     <Sidebar side={side}>
-      <SidebarHeader className="border-b p-4">
-        <Link href={homeUrl}>
-          <div className="flex items-center gap-2 cursor-pointer hover-elevate p-2 rounded-md">
-            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
-              <Store className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-display font-bold">EatOut</span>
-          </div>
-        </Link>
-      </SidebarHeader>
-      
       <SidebarContent>
         {isAdmin ? (
           renderMenuGroup(adminMenuItems, t('navigation.platformManagement'))
@@ -351,25 +359,6 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
           </SidebarGroup>
         )}
       </SidebarContent>
-
-      <SidebarFooter className="border-t p-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9">
-            <AvatarImage src={user?.profileImageUrl || undefined} />
-            <AvatarFallback className="bg-primary text-primary-foreground">
-              {user?.firstName?.[0] || user?.email?.[0]?.toUpperCase() || "U"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">
-              {user?.firstName || user?.email || "User"}
-            </p>
-            <p className="text-xs text-muted-foreground truncate">
-              {user?.email || ""}
-            </p>
-          </div>
-        </div>
-      </SidebarFooter>
     </Sidebar>
   );
 }

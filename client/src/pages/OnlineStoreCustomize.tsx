@@ -23,14 +23,20 @@ import {
   ArrowLeft,
   ArrowUp,
   ArrowDown,
+  Eye,
+  EyeOff,
   ExternalLink,
   Image as ImageIcon,
+  Laptop,
   Layers,
+  LayoutGrid,
   Megaphone,
   Menu as MenuIcon,
   Palette,
   Plus,
   Save,
+  Smartphone,
+  Tablet,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -83,6 +89,7 @@ interface CustomizerDraft {
   seoDescription: string;
   seoImageUrl: string;
   sections: ThemeSection[];
+  cardStyle: "standard" | "bordered";
 }
 
 const defaultDraft: CustomizerDraft = {
@@ -95,6 +102,9 @@ const defaultDraft: CustomizerDraft = {
   seoDescription: "",
   seoImageUrl: "",
   sections: [],
+  // Existing merchants who never touched this setting keep today's boxed-card look —
+  // "standard" only ever appears via an explicit preset pick or toggle here.
+  cardStyle: "bordered",
 };
 
 function draftFromRestaurant(restaurant: any): CustomizerDraft {
@@ -108,6 +118,7 @@ function draftFromRestaurant(restaurant: any): CustomizerDraft {
     seoDescription: restaurant.seoDescription || "",
     seoImageUrl: restaurant.seoImageUrl || "",
     sections: restaurant.themeSettings?.sections || [],
+    cardStyle: restaurant.themeSettings?.cardStyle === "standard" ? "standard" : "bordered",
   };
 }
 
@@ -123,7 +134,7 @@ function draftToRestaurantPatch(draft: CustomizerDraft) {
     seoTitle: draft.seoTitle,
     seoDescription: draft.seoDescription,
     seoImageUrl: draft.seoImageUrl,
-    themeSettings: { sections: draft.sections },
+    themeSettings: { sections: draft.sections, cardStyle: draft.cardStyle },
   };
 }
 
@@ -137,6 +148,7 @@ export default function OnlineStoreCustomize() {
   const businessConfig = getBusinessTypeConfig(restaurant?.businessType);
 
   const [draft, setDraft] = useState<CustomizerDraft>(defaultDraft);
+  const [previewDevice, setPreviewDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const initialized = useRef(false);
   useEffect(() => {
     if (restaurant && !initialized.current) {
@@ -273,6 +285,7 @@ export default function OnlineStoreCustomize() {
     updateDraft({ sections: copy });
   };
   const removeSection = (i: number) => updateDraft({ sections: draft.sections.filter((_, idx) => idx !== i) });
+  const toggleSectionEnabled = (i: number) => updateSection(i, { enabled: draft.sections[i].enabled === false });
 
   const addBlock = (sectionIdx: number) => {
     const section = draft.sections[sectionIdx];
@@ -332,6 +345,38 @@ export default function OnlineStoreCustomize() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-md border p-0.5 mr-2">
+            <Button
+              size="icon"
+              variant={previewDevice === "desktop" ? "secondary" : "ghost"}
+              className="h-7 w-7"
+              onClick={() => setPreviewDevice("desktop")}
+              data-testid="button-preview-desktop"
+              title="Desktop preview"
+            >
+              <Laptop className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant={previewDevice === "tablet" ? "secondary" : "ghost"}
+              className="h-7 w-7"
+              onClick={() => setPreviewDevice("tablet")}
+              data-testid="button-preview-tablet"
+              title="Tablet preview"
+            >
+              <Tablet className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant={previewDevice === "mobile" ? "secondary" : "ghost"}
+              className="h-7 w-7"
+              onClick={() => setPreviewDevice("mobile")}
+              data-testid="button-preview-mobile"
+              title="Mobile preview"
+            >
+              <Smartphone className="h-3.5 w-3.5" />
+            </Button>
+          </div>
           <Button variant="outline" onClick={() => window.open(storefrontUrl, "_blank")} data-testid="button-preview-storefront">
             <ExternalLink className="h-4 w-4 mr-2" />
             Preview
@@ -345,90 +390,10 @@ export default function OnlineStoreCustomize() {
 
       <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
         <ResizablePanel defaultSize={34} minSize={26} maxSize={48}>
-          <div className="h-full overflow-y-auto p-4">
-            <Accordion type="multiple" defaultValue={["branding"]} className="w-full">
-              <AccordionItem value="branding">
-                <AccordionTrigger data-testid="accordion-logo-header">
-                  <span className="flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Logo & Header</span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-3">
-                  <Label>{businessConfig.business} Logo</Label>
-                  {restaurant.logoUrl ? (
-                    <div className="border rounded-lg p-3 space-y-3">
-                      <img
-                        src={restaurant.logoUrl}
-                        alt={`${businessConfig.business} logo`}
-                        className="h-20 w-20 object-cover rounded-lg mx-auto"
-                        data-testid="img-restaurant-logo"
-                      />
-                      <ObjectUploader
-                        maxNumberOfFiles={1}
-                        maxFileSize={5242880}
-                        onGetUploadParameters={handleGetUploadParameters}
-                        onComplete={handleLogoComplete}
-                        buttonClassName="w-full"
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        Change Logo
-                      </ObjectUploader>
-                    </div>
-                  ) : (
-                    <ObjectUploader
-                      maxNumberOfFiles={1}
-                      maxFileSize={5242880}
-                      onGetUploadParameters={handleGetUploadParameters}
-                      onComplete={handleLogoComplete}
-                      buttonClassName="w-full"
-                    >
-                      <ImageIcon className="h-4 w-4 mr-2" />
-                      Upload Logo
-                    </ObjectUploader>
-                  )}
-                  <p className="text-xs text-muted-foreground">Recommended: Square image, max 5MB</p>
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="hero">
-                <AccordionTrigger data-testid="accordion-hero">
-                  <span className="flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Hero / Cover Banner</span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-3">
-                  <Label>Cover Photo</Label>
-                  {restaurant.coverImageUrl ? (
-                    <div className="border rounded-lg p-3 space-y-3">
-                      <img
-                        src={restaurant.coverImageUrl}
-                        alt="Cover photo"
-                        className="h-20 w-full object-cover rounded-lg"
-                        data-testid="img-cover-photo"
-                      />
-                      <ObjectUploader
-                        maxNumberOfFiles={1}
-                        maxFileSize={5242880}
-                        onGetUploadParameters={handleGetUploadParameters}
-                        onComplete={handleCoverComplete}
-                        buttonClassName="w-full"
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        Change Cover Photo
-                      </ObjectUploader>
-                    </div>
-                  ) : (
-                    <ObjectUploader
-                      maxNumberOfFiles={1}
-                      maxFileSize={5242880}
-                      onGetUploadParameters={handleGetUploadParameters}
-                      onComplete={handleCoverComplete}
-                      buttonClassName="w-full"
-                    >
-                      <ImageIcon className="h-4 w-4 mr-2" />
-                      Upload Cover Photo
-                    </ObjectUploader>
-                  )}
-                  <p className="text-xs text-muted-foreground">Recommended: 1200x400px, max 5MB</p>
-                </AccordionContent>
-              </AccordionItem>
-
+          <div className="h-full overflow-y-auto p-4 space-y-6">
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">Theme Settings</h3>
+              <Accordion type="multiple" className="w-full">
               <AccordionItem value="colors">
                 <AccordionTrigger data-testid="accordion-colors">
                   <span className="flex items-center gap-2"><Palette className="h-4 w-4" /> Brand Colors</span>
@@ -497,6 +462,159 @@ export default function OnlineStoreCustomize() {
                     </div>
                     <p className="text-xs text-muted-foreground">Used for highlights</p>
                   </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="cardStyle">
+                <AccordionTrigger data-testid="accordion-card-style">
+                  <span className="flex items-center gap-2"><LayoutGrid className="h-4 w-4" /> Product Cards</span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="cardStyle">Card style</Label>
+                    <Select value={draft.cardStyle} onValueChange={(v) => updateDraft({ cardStyle: v as "standard" | "bordered" })}>
+                      <SelectTrigger id="cardStyle" data-testid="select-card-style">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="standard">Standard (borderless, image-first)</SelectItem>
+                        <SelectItem value="bordered">Bordered (boxed cards)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Standard is a cleaner, more editorial look with no card borders or shadows. Bordered is the classic boxed-card style.
+                    </p>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="seo">
+                <AccordionTrigger data-testid="accordion-seo">
+                  <span className="flex items-center gap-2">Search Engine Listing</span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="seo-title">Page title</Label>
+                    <Input
+                      id="seo-title"
+                      value={draft.seoTitle}
+                      onChange={(e) => updateDraft({ seoTitle: e.target.value })}
+                      placeholder={restaurant.name || "Your store name"}
+                      maxLength={70}
+                      data-testid="input-seo-title"
+                    />
+                    <p className="text-xs text-muted-foreground">{draft.seoTitle.length}/70</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="seo-description">Meta description</Label>
+                    <Textarea
+                      id="seo-description"
+                      rows={3}
+                      value={draft.seoDescription}
+                      onChange={(e) => updateDraft({ seoDescription: e.target.value })}
+                      placeholder={restaurant.description || "A short summary customers see in search results"}
+                      maxLength={320}
+                      data-testid="input-seo-description"
+                    />
+                    <p className="text-xs text-muted-foreground">{draft.seoDescription.length}/320</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="seo-image">Social preview image URL</Label>
+                    <Input
+                      id="seo-image"
+                      value={draft.seoImageUrl}
+                      onChange={(e) => updateDraft({ seoImageUrl: e.target.value })}
+                      placeholder="Falls back to your cover photo"
+                      data-testid="input-seo-image"
+                    />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              </Accordion>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">Header</h3>
+              <Accordion type="multiple" defaultValue={["branding"]} className="w-full">
+              <AccordionItem value="branding">
+                <AccordionTrigger data-testid="accordion-logo-header">
+                  <span className="flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Logo</span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3">
+                  <Label>{businessConfig.business} Logo</Label>
+                  {restaurant.logoUrl ? (
+                    <div className="border rounded-lg p-3 space-y-3">
+                      <img
+                        src={restaurant.logoUrl}
+                        alt={`${businessConfig.business} logo`}
+                        className="h-20 w-20 object-cover rounded-lg mx-auto"
+                        data-testid="img-restaurant-logo"
+                      />
+                      <ObjectUploader
+                        maxNumberOfFiles={1}
+                        maxFileSize={5242880}
+                        onGetUploadParameters={handleGetUploadParameters}
+                        onComplete={handleLogoComplete}
+                        buttonClassName="w-full"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Change Logo
+                      </ObjectUploader>
+                    </div>
+                  ) : (
+                    <ObjectUploader
+                      maxNumberOfFiles={1}
+                      maxFileSize={5242880}
+                      onGetUploadParameters={handleGetUploadParameters}
+                      onComplete={handleLogoComplete}
+                      buttonClassName="w-full"
+                    >
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Upload Logo
+                    </ObjectUploader>
+                  )}
+                  <p className="text-xs text-muted-foreground">Recommended: Square image, max 5MB</p>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="hero">
+                <AccordionTrigger data-testid="accordion-hero">
+                  <span className="flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Cover Banner</span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3">
+                  <Label>Cover Photo</Label>
+                  {restaurant.coverImageUrl ? (
+                    <div className="border rounded-lg p-3 space-y-3">
+                      <img
+                        src={restaurant.coverImageUrl}
+                        alt="Cover photo"
+                        className="h-20 w-full object-cover rounded-lg"
+                        data-testid="img-cover-photo"
+                      />
+                      <ObjectUploader
+                        maxNumberOfFiles={1}
+                        maxFileSize={5242880}
+                        onGetUploadParameters={handleGetUploadParameters}
+                        onComplete={handleCoverComplete}
+                        buttonClassName="w-full"
+                      >
+                        <Upload className="h-4 w-4 mr-2" />
+                        Change Cover Photo
+                      </ObjectUploader>
+                    </div>
+                  ) : (
+                    <ObjectUploader
+                      maxNumberOfFiles={1}
+                      maxFileSize={5242880}
+                      onGetUploadParameters={handleGetUploadParameters}
+                      onComplete={handleCoverComplete}
+                      buttonClassName="w-full"
+                    >
+                      <ImageIcon className="h-4 w-4 mr-2" />
+                      Upload Cover Photo
+                    </ObjectUploader>
+                  )}
+                  <p className="text-xs text-muted-foreground">Recommended: 1200x400px, max 5MB</p>
                 </AccordionContent>
               </AccordionItem>
 
@@ -602,29 +720,41 @@ export default function OnlineStoreCustomize() {
                   </Button>
                 </AccordionContent>
               </AccordionItem>
+              </Accordion>
+            </div>
 
-              <AccordionItem value="sections">
-                <AccordionTrigger data-testid="accordion-sections">
-                  <span className="flex items-center gap-2"><Layers className="h-4 w-4" /> Content Sections</span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4">
-                  {draft.sections.map((section, i) => {
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">Template</h3>
+              <Accordion type="multiple" className="w-full">
+              {draft.sections.map((section, i) => {
                     const s = section.settings;
                     const hasHeadingText = section.type !== "multicolumn" && section.type !== "testimonials";
                     const hasButton = section.type === "image-banner" || section.type === "image-with-text" || section.type === "rich-text";
                     const hasImage = section.type === "image-banner" || section.type === "image-with-text";
                     const hasBlocks = section.type === "multicolumn" || section.type === "testimonials";
                     return (
-                      <div key={section.id} className="rounded-md border p-3 space-y-3" data-testid={`section-${i}`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{SECTION_LABELS[section.type]}</span>
-                          <div className="flex gap-1">
-                            <Button size="icon" variant="ghost" onClick={() => moveSection(i, -1)}><ArrowUp className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" onClick={() => moveSection(i, 1)}><ArrowDown className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" onClick={() => removeSection(i)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      <AccordionItem key={section.id} value={section.id} className={section.enabled === false ? "opacity-50" : undefined}>
+                        <div className="flex items-center">
+                          <AccordionTrigger className="flex-1" data-testid={`accordion-section-${i}`}>
+                            <span className="flex items-center gap-2"><Layers className="h-4 w-4" /> {SECTION_LABELS[section.type]}</span>
+                          </AccordionTrigger>
+                          <div className="flex gap-0.5 shrink-0 pr-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => toggleSectionEnabled(i)}
+                              data-testid={`button-toggle-section-${i}`}
+                              title={section.enabled === false ? "Show section" : "Hide section"}
+                            >
+                              {section.enabled === false ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveSection(i, -1)}><ArrowUp className="h-3.5 w-3.5" /></Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => moveSection(i, 1)}><ArrowDown className="h-3.5 w-3.5" /></Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removeSection(i)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                           </div>
                         </div>
-
+                      <AccordionContent className="space-y-3">
                         {hasImage && (
                           <div className="space-y-1.5">
                             <Label className="text-xs">Image</Label>
@@ -854,70 +984,31 @@ export default function OnlineStoreCustomize() {
                             </Button>
                           </div>
                         )}
-                      </div>
+                      </AccordionContent>
+                    </AccordionItem>
                     );
                   })}
+              </Accordion>
 
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {SECTION_TYPES.map((type) => (
-                      <Button key={type} size="sm" variant="outline" onClick={() => addSection(type)} data-testid={`button-add-section-${type}`}>
-                        <Plus className="mr-1.5 h-3.5 w-3.5" />
-                        {SECTION_LABELS[type]}
-                      </Button>
-                    ))}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="seo">
-                <AccordionTrigger data-testid="accordion-seo">
-                  <span className="flex items-center gap-2">Search Engine Listing</span>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="seo-title">Page title</Label>
-                    <Input
-                      id="seo-title"
-                      value={draft.seoTitle}
-                      onChange={(e) => updateDraft({ seoTitle: e.target.value })}
-                      placeholder={restaurant.name || "Your store name"}
-                      maxLength={70}
-                      data-testid="input-seo-title"
-                    />
-                    <p className="text-xs text-muted-foreground">{draft.seoTitle.length}/70</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="seo-description">Meta description</Label>
-                    <Textarea
-                      id="seo-description"
-                      rows={3}
-                      value={draft.seoDescription}
-                      onChange={(e) => updateDraft({ seoDescription: e.target.value })}
-                      placeholder={restaurant.description || "A short summary customers see in search results"}
-                      maxLength={320}
-                      data-testid="input-seo-description"
-                    />
-                    <p className="text-xs text-muted-foreground">{draft.seoDescription.length}/320</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="seo-image">Social preview image URL</Label>
-                    <Input
-                      id="seo-image"
-                      value={draft.seoImageUrl}
-                      onChange={(e) => updateDraft({ seoImageUrl: e.target.value })}
-                      placeholder="Falls back to your cover photo"
-                      data-testid="input-seo-image"
-                    />
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+              <div className="flex flex-wrap gap-2 pt-3 px-1">
+                {SECTION_TYPES.map((type) => (
+                  <Button key={type} size="sm" variant="outline" onClick={() => addSection(type)} data-testid={`button-add-section-${type}`}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                    {SECTION_LABELS[type]}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={66}>
           <div className="h-full bg-muted/30 p-4">
-            <div className="mx-auto h-full max-w-5xl overflow-hidden rounded-lg border bg-background shadow-sm">
+            <div
+              className={`mx-auto h-full overflow-hidden rounded-lg border bg-background shadow-sm transition-all ${
+                previewDevice === "mobile" ? "w-[390px]" : previewDevice === "tablet" ? "w-[768px]" : "w-full max-w-5xl"
+              }`}
+            >
               <iframe
                 ref={iframeRef}
                 src={previewUrl}

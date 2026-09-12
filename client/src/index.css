@@ -4,7 +4,7 @@
 
 /* SHOPIFY-STYLE LIGHT THEME
    Platform-wide, every surface — marketing, auth, dashboard, storefront:
-   light canvas, white cards, dark sidebar, Shopify green (#008060) accents.
+   light canvas, white cards, light sidebar, Shopify green (#008060) accents.
    This is the app's only theme: :root and .dark carry identical values,
    so there is no light/dark split to maintain going forward. */
 :root {
@@ -30,19 +30,19 @@
 
   --card-border: 0 0% 88%;
 
-  --sidebar: 150 8% 12%;
+  --sidebar: 0 0% 100%;
 
-  --sidebar-foreground: 0 0% 96%;
+  --sidebar-foreground: 0 0% 13%;
 
-  --sidebar-border: 150 8% 20%;
+  --sidebar-border: 0 0% 88%;
 
   --sidebar-primary: 160 100% 25%;
 
   --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 150 8% 20%;
+  --sidebar-accent: 0 0% 92%;
 
-  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-accent-foreground: 0 0% 13%;
 
   --sidebar-ring: 160 100% 25%;
 
@@ -83,7 +83,7 @@
   --font-sans: Inter, system-ui, -apple-system, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
-  --font-display: Inter, system-ui, -apple-system, sans-serif;
+  --font-display: "Outfit", Inter, system-ui, -apple-system, sans-serif;
   --radius: .75rem; /* 12px */
   --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.04);
   --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.06);
@@ -149,19 +149,19 @@
 
   --card-border: 0 0% 88%;
 
-  --sidebar: 150 8% 12%;
+  --sidebar: 0 0% 100%;
 
-  --sidebar-foreground: 0 0% 96%;
+  --sidebar-foreground: 0 0% 13%;
 
-  --sidebar-border: 150 8% 20%;
+  --sidebar-border: 0 0% 88%;
 
   --sidebar-primary: 160 100% 25%;
 
   --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 150 8% 20%;
+  --sidebar-accent: 0 0% 92%;
 
-  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-accent-foreground: 0 0% 13%;
 
   --sidebar-ring: 160 100% 25%;
 

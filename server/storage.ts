@@ -1289,6 +1289,37 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
+  /** Real loyalty stats for the Reports page — replaces order-count-derived fake numbers. */
+  async getLoyaltyReportStats(restaurantId: string): Promise<{
+    totalMembers: number;
+    activeMembers: number;
+    tierDistribution: Array<{ tier: string; members: number }>;
+  }> {
+    const [totals] = await db
+      .select({
+        totalMembers: sql<number>`COUNT(*)::int`,
+        activeMembers: sql<number>`COUNT(*) FILTER (WHERE ${loyaltyAccounts.pointsBalance} > 0)::int`,
+      })
+      .from(loyaltyAccounts)
+      .where(eq(loyaltyAccounts.restaurantId, restaurantId));
+
+    const tierRows = await db
+      .select({
+        tier: sql<string>`COALESCE(${loyaltyTiers.name}, 'Unassigned')`,
+        members: sql<number>`COUNT(${loyaltyAccounts.id})::int`,
+      })
+      .from(loyaltyAccounts)
+      .leftJoin(loyaltyTiers, eq(loyaltyAccounts.tierId, loyaltyTiers.id))
+      .where(eq(loyaltyAccounts.restaurantId, restaurantId))
+      .groupBy(sql`COALESCE(${loyaltyTiers.name}, 'Unassigned')`);
+
+    return {
+      totalMembers: totals?.totalMembers || 0,
+      activeMembers: totals?.activeMembers || 0,
+      tierDistribution: tierRows,
+    };
+  }
+
   /** Move points on an account, write the ledger row, and re-evaluate the tier. */
   private async applyLoyaltyDelta(
     restaurantId: string,
@@ -2564,6 +2595,24 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(desc(promoRules.priority));
     return promos;
+  }
+
+  /** Real per-promo redemption/revenue/discount totals for the Reports page. */
+  async getPromoPerformance(restaurantId: string): Promise<Array<{ code: string | null; name: string; redemptions: number; revenue: string; discount: string }>> {
+    const rows = await db
+      .select({
+        code: promoRules.promoCode,
+        name: promoRules.name,
+        redemptions: sql<number>`COUNT(${promoRedemptions.id})::int`,
+        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+        discount: sql<string>`COALESCE(SUM(${promoRedemptions.discountAmount}), 0)`,
+      })
+      .from(promoRedemptions)
+      .innerJoin(promoRules, eq(promoRedemptions.promoRuleId, promoRules.id))
+      .leftJoin(orders, eq(promoRedemptions.orderId, orders.id))
+      .where(eq(promoRedemptions.restaurantId, restaurantId))
+      .groupBy(promoRules.id, promoRules.promoCode, promoRules.name);
+    return rows;
   }
 
   async validatePromoCode(restaurantId: string, promoCode: string): Promise<any | null> {

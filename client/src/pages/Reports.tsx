@@ -19,6 +19,26 @@ export default function Reports() {
     queryKey: ["/api/order-items"],
   });
 
+  const { data: promoPerformance = [], isLoading: promoPerfLoading } = useQuery<
+    Array<{ code: string | null; name: string; redemptions: number; revenue: string; discount: string }>
+  >({
+    queryKey: ["/api/promos/performance"],
+  });
+
+  const { data: loyaltyReportStats, isLoading: loyaltyStatsLoading } = useQuery<{
+    totalMembers: number;
+    activeMembers: number;
+    tierDistribution: Array<{ tier: string; members: number }>;
+  }>({
+    queryKey: ["/api/loyalty/stats"],
+  });
+
+  const { data: reportCustomers = [], isLoading: customersLoading } = useQuery<
+    Array<{ id: string; ordersCount: number; lastOrderAt: string | null }>
+  >({
+    queryKey: ["/api/customers"],
+  });
+
   const completedOrders = orders.filter(o => o.status === 'completed' || o.status === 'delivered');
   
   const itemSales = allOrderItems.reduce((acc, item) => {
@@ -42,31 +62,38 @@ export default function Reports() {
   const totalRevenue = completedOrders.reduce((sum, order) => sum + parseFloat(order.total), 0);
   const avgOrderValue = completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0;
 
-  const promoPerformance = [
-    { code: 'WELCOME10', redemptions: 45, revenue: 2340, discount: 234, roi: 10.0 },
-    { code: 'SAVE20', redemptions: 28, revenue: 1890, discount: 472, roi: 4.0 },
-    { code: 'FREESHIP', redemptions: 62, revenue: 3120, discount: 620, roi: 5.0 },
-  ];
+  // Repeat rate: real customers with 2+ orders, over all customers who have ordered at least once.
+  const orderedCustomers = reportCustomers.filter(c => c.ordersCount > 0);
+  const repeatCustomerCount = orderedCustomers.filter(c => c.ordersCount >= 2).length;
+  const repeatRate = orderedCustomers.length > 0
+    ? `${Math.round((repeatCustomerCount / orderedCustomers.length) * 100)}%`
+    : '0%';
 
   const loyaltyStats = {
-    totalMembers: completedOrders.length > 0 ? Math.floor(completedOrders.length * 0.6) : 0,
-    activeMembers: completedOrders.length > 0 ? Math.floor(completedOrders.length * 0.4) : 0,
-    repeatRate: '40%',
-    avgLifetimeValue: completedOrders.length > 0 ? (totalRevenue * 1.5).toFixed(2) : '0.00',
+    totalMembers: loyaltyReportStats?.totalMembers ?? 0,
+    activeMembers: loyaltyReportStats?.activeMembers ?? 0,
+    repeatRate,
   };
 
-  const tierDistribution = [
-    { tier: 'Bronze', members: Math.floor(loyaltyStats.totalMembers * 0.6), percentage: 60 },
-    { tier: 'Silver', members: Math.floor(loyaltyStats.totalMembers * 0.3), percentage: 30 },
-    { tier: 'Gold', members: Math.floor(loyaltyStats.totalMembers * 0.1), percentage: 10 },
-  ];
+  const tierDistribution = (loyaltyReportStats?.tierDistribution ?? []).map(t => ({
+    tier: t.tier,
+    members: t.members,
+    percentage: loyaltyStats.totalMembers > 0 ? Math.round((t.members / loyaltyStats.totalMembers) * 100) : 0,
+  }));
 
+  // Churn/retention: real, computed from days since each customer's last order.
+  const now = Date.now();
+  const daysSince = (iso: string | null) => (iso ? (now - new Date(iso).getTime()) / (1000 * 60 * 60 * 24) : Infinity);
+  const activeCustomers = orderedCustomers.filter(c => daysSince(c.lastOrderAt) <= 30).length;
+  const atRiskCustomers = orderedCustomers.filter(c => { const d = daysSince(c.lastOrderAt); return d > 30 && d <= 60; }).length;
+  const churnedCustomers = orderedCustomers.filter(c => daysSince(c.lastOrderAt) > 60).length;
   const churnMetrics = {
-    totalCustomers: completedOrders.length > 0 ? Math.floor(completedOrders.length * 0.8) : 0,
-    activeCustomers: completedOrders.length > 0 ? Math.floor(completedOrders.length * 0.6) : 0,
-    churnedCustomers: completedOrders.length > 0 ? Math.floor(completedOrders.length * 0.2) : 0,
-    churnRate: '20%',
-    retentionRate: '80%',
+    totalCustomers: orderedCustomers.length,
+    activeCustomers,
+    atRiskCustomers,
+    churnedCustomers,
+    churnRate: orderedCustomers.length > 0 ? `${Math.round((churnedCustomers / orderedCustomers.length) * 100)}%` : '0%',
+    retentionRate: orderedCustomers.length > 0 ? `${Math.round((activeCustomers / orderedCustomers.length) * 100)}%` : '0%',
   };
 
   return (
@@ -191,7 +218,9 @@ export default function Reports() {
               <CardDescription>Redemptions, revenue impact, and ROI analysis</CardDescription>
             </CardHeader>
             <CardContent>
-              {promoPerformance.length === 0 ? (
+              {promoPerfLoading ? (
+                <Skeleton className="h-48 w-full" />
+              ) : promoPerformance.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No promo codes active yet</p>
@@ -209,21 +238,26 @@ export default function Reports() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {promoPerformance.map((promo) => (
-                      <TableRow key={promo.code} data-testid={`promo-${promo.code}`}>
-                        <TableCell className="font-medium">
-                          <Badge variant="outline">{promo.code}</Badge>
-                        </TableCell>
-                        <TableCell className="text-right">{promo.redemptions}</TableCell>
-                        <TableCell className="text-right">${promo.revenue.toFixed(2)}</TableCell>
-                        <TableCell className="text-right text-red-500">
-                          -${promo.discount.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-green-600">
-                          {promo.roi.toFixed(1)}x
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {promoPerformance.map((promo) => {
+                      const revenue = parseFloat(promo.revenue) || 0;
+                      const discount = parseFloat(promo.discount) || 0;
+                      const roi = discount > 0 ? revenue / discount : null;
+                      return (
+                        <TableRow key={promo.code} data-testid={`promo-${promo.code}`}>
+                          <TableCell className="font-medium">
+                            <Badge variant="outline">{promo.code}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">{promo.redemptions}</TableCell>
+                          <TableCell className="text-right">${revenue.toFixed(2)}</TableCell>
+                          <TableCell className="text-right text-red-500">
+                            -${discount.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-green-600">
+                            {roi !== null ? `${roi.toFixed(1)}x` : "—"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
@@ -232,6 +266,16 @@ export default function Reports() {
         </TabsContent>
 
         <TabsContent value="loyalty" className="space-y-4">
+          {loyaltyStatsLoading ? (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Skeleton className="h-24" />
+                <Skeleton className="h-24" />
+              </div>
+              <Skeleton className="h-48 w-full" />
+            </div>
+          ) : (
+          <>
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -300,9 +344,22 @@ export default function Reports() {
               )}
             </CardContent>
           </Card>
+          </>
+          )}
         </TabsContent>
 
         <TabsContent value="churn" className="space-y-4">
+          {customersLoading ? (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                <Skeleton className="h-24" />
+                <Skeleton className="h-24" />
+                <Skeleton className="h-24" />
+              </div>
+              <Skeleton className="h-48 w-full" />
+            </div>
+          ) : (
+          <>
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -377,7 +434,7 @@ export default function Reports() {
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold">
-                      {Math.floor(churnMetrics.totalCustomers * 0.15)}
+                      {churnMetrics.atRiskCustomers}
                     </p>
                     <Badge variant="secondary">Monitor</Badge>
                   </div>
@@ -396,6 +453,8 @@ export default function Reports() {
               </div>
             </CardContent>
           </Card>
+          </>
+          )}
         </TabsContent>
       </Tabs>
     </div>
