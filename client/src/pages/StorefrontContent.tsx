@@ -10,9 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Newspaper, Menu as MenuIcon, Megaphone, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, FileText, Newspaper } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Markdown } from "@/components/Markdown";
 
@@ -238,142 +237,6 @@ function BlogTab() {
   );
 }
 
-/* ------------------------ Navigation tab ------------------------ */
-
-function NavigationTab() {
-  const { toast } = useToast();
-  const { data: restaurant } = useQuery<any>({ queryKey: ["/api/restaurants/me"] });
-  const { data: pages = [] } = useQuery<any[]>({ queryKey: ["/api/pages"] });
-  const { data: collections = [] } = useQuery<any[]>({ queryKey: ["/api/collections"] });
-
-  const [items, setItems] = useState<any[]>([]);
-  useEffect(() => {
-    setItems(restaurant?.storefrontNav?.items || []);
-  }, [restaurant]);
-
-  const save = useMutation({
-    mutationFn: async () => {
-      if (!restaurant?.id) throw new Error("No restaurant");
-      return apiRequest(`/api/restaurants/${restaurant.id}`, "PUT", { storefrontNav: { items } });
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] }); toast({ title: "Navigation saved" }); },
-    onError: (e) => toast({ variant: "destructive", title: "Error", description: extractErrorMessage(e, "Failed to save") }),
-  });
-
-  const addItem = () => setItems([...items, { id: crypto.randomUUID?.() || String(Date.now()), label: "New link", type: "home", value: "" }]);
-  const update = (i: number, patch: any) => setItems(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    if (j < 0 || j >= items.length) return;
-    const copy = [...items];
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-    setItems(copy);
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Storefront navigation</CardTitle>
-        <CardDescription>Links shown in the header of your CMS pages and blog. Reorder with the arrows.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {items.map((it, i) => (
-          <div key={it.id || i} className="flex flex-wrap items-end gap-2 rounded-md border p-3" data-testid={`nav-item-${i}`}>
-            <div className="space-y-1"><Label className="text-xs">Label</Label><Input className="w-40" value={it.label} onChange={(e) => update(i, { label: e.target.value })} /></div>
-            <div className="space-y-1">
-              <Label className="text-xs">Links to</Label>
-              <Select value={it.type} onValueChange={(v) => update(i, { type: v, value: "" })}>
-                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="home">Store home</SelectItem>
-                  <SelectItem value="blog">Blog</SelectItem>
-                  <SelectItem value="page">A page</SelectItem>
-                  <SelectItem value="collection">A collection</SelectItem>
-                  <SelectItem value="url">External URL</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {it.type === "page" && (
-              <div className="space-y-1"><Label className="text-xs">Page</Label>
-                <Select value={it.value} onValueChange={(v) => update(i, { value: v })}>
-                  <SelectTrigger className="w-44"><SelectValue placeholder="Choose" /></SelectTrigger>
-                  <SelectContent>{pages.map((p) => <SelectItem key={p.id} value={p.handle}>{p.title}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            )}
-            {it.type === "collection" && (
-              <div className="space-y-1"><Label className="text-xs">Collection</Label>
-                <Select value={it.value} onValueChange={(v) => update(i, { value: v })}>
-                  <SelectTrigger className="w-44"><SelectValue placeholder="Choose" /></SelectTrigger>
-                  <SelectContent>{collections.map((c) => <SelectItem key={c.id} value={c.handle}>{c.title}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            )}
-            {it.type === "url" && (
-              <div className="space-y-1"><Label className="text-xs">URL</Label><Input className="w-52" value={it.value} onChange={(e) => update(i, { value: e.target.value })} placeholder="https://" /></div>
-            )}
-            <div className="ml-auto flex gap-1">
-              <Button size="icon" variant="ghost" onClick={() => move(i, -1)}><ArrowUp className="h-4 w-4" /></Button>
-              <Button size="icon" variant="ghost" onClick={() => move(i, 1)}><ArrowDown className="h-4 w-4" /></Button>
-              <Button size="icon" variant="ghost" onClick={() => setItems(items.filter((_, idx) => idx !== i))}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-            </div>
-          </div>
-        ))}
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={addItem} data-testid="button-add-nav-item"><Plus className="mr-2 h-4 w-4" />Add link</Button>
-          <Button onClick={() => save.mutate()} disabled={save.isPending} data-testid="button-save-nav">{save.isPending ? "Saving…" : "Save navigation"}</Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-/* ------------------------ Announcement tab ------------------------ */
-
-function AnnouncementTab() {
-  const { toast } = useToast();
-  const { data: restaurant } = useQuery<any>({ queryKey: ["/api/restaurants/me"] });
-  const [a, setA] = useState({ enabled: false, text: "", linkLabel: "", linkUrl: "" });
-  useEffect(() => {
-    if (restaurant?.announcement) setA({ enabled: false, text: "", linkLabel: "", linkUrl: "", ...restaurant.announcement });
-  }, [restaurant]);
-
-  const save = useMutation({
-    mutationFn: async () => {
-      if (!restaurant?.id) throw new Error("No restaurant");
-      return apiRequest(`/api/restaurants/${restaurant.id}`, "PUT", { announcement: a });
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] }); toast({ title: "Announcement saved" }); },
-    onError: (e) => toast({ variant: "destructive", title: "Error", description: extractErrorMessage(e, "Failed to save") }),
-  });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Announcement bar</CardTitle>
-        <CardDescription>A strip across the top of every storefront page — sales, hours changes, free delivery threshold.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <label className="flex items-center gap-2 text-sm">
-          <Switch checked={a.enabled} onCheckedChange={(v) => setA({ ...a, enabled: v })} data-testid="switch-announcement" />
-          Show the announcement bar
-        </label>
-        <div className="space-y-1.5"><Label>Message</Label><Input value={a.text} onChange={(e) => setA({ ...a, text: e.target.value })} placeholder="Free delivery on orders over $30" data-testid="input-announcement-text" /></div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5"><Label>Link label (optional)</Label><Input value={a.linkLabel} onChange={(e) => setA({ ...a, linkLabel: e.target.value })} /></div>
-          <div className="space-y-1.5"><Label>Link URL (optional)</Label><Input value={a.linkUrl} onChange={(e) => setA({ ...a, linkUrl: e.target.value })} /></div>
-        </div>
-        {a.enabled && a.text && (
-          <div className="rounded-md bg-primary py-2 px-4 text-center text-sm text-primary-foreground">
-            {a.text}{a.linkUrl && <span className="ml-2 underline">{a.linkLabel || "Learn more"}</span>}
-          </div>
-        )}
-        <Button onClick={() => save.mutate()} disabled={save.isPending} data-testid="button-save-announcement">{save.isPending ? "Saving…" : "Save"}</Button>
-      </CardContent>
-    </Card>
-  );
-}
-
 /* ------------------------------ Page ------------------------------ */
 
 export default function StorefrontContent() {
@@ -381,19 +244,15 @@ export default function StorefrontContent() {
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Pages &amp; Blog</h1>
-        <p className="text-muted-foreground mt-1">Content pages, a blog, storefront navigation and an announcement bar.</p>
+        <p className="text-muted-foreground mt-1">Content pages and a blog for your storefront.</p>
       </div>
       <Tabs defaultValue="pages">
         <TabsList>
           <TabsTrigger value="pages"><FileText className="mr-1.5 h-4 w-4" />Pages</TabsTrigger>
           <TabsTrigger value="blog"><Newspaper className="mr-1.5 h-4 w-4" />Blog</TabsTrigger>
-          <TabsTrigger value="nav"><MenuIcon className="mr-1.5 h-4 w-4" />Navigation</TabsTrigger>
-          <TabsTrigger value="announcement"><Megaphone className="mr-1.5 h-4 w-4" />Announcement</TabsTrigger>
         </TabsList>
         <TabsContent value="pages" className="mt-4"><PagesTab /></TabsContent>
         <TabsContent value="blog" className="mt-4"><BlogTab /></TabsContent>
-        <TabsContent value="nav" className="mt-4"><NavigationTab /></TabsContent>
-        <TabsContent value="announcement" className="mt-4"><AnnouncementTab /></TabsContent>
       </Tabs>
     </div>
   );

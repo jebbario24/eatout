@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, Link } from "wouter";
 import { useStorefrontCustomer } from "@/hooks/useStorefrontCustomer";
+import { usePreviewDraftOverrides } from "@/hooks/usePreviewDraftOverrides";
 import { CustomerAuthDialog } from "@/components/storefront/CustomerAuthDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -50,6 +51,8 @@ import { ReferralCTA } from "@/components/marketing/storefront/ReferralCTA";
 import { BoostedItemsBadge } from "@/components/marketing/storefront/BoostedItemsBadge";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { MarketingTriggersModal } from "@/components/marketing/MarketingTriggersModal";
+import { ThemeSections } from "@/components/storefront/ThemeSections";
+import type { ThemeSection } from "@/lib/themeSections";
 
 interface StorefrontPromo {
   id: string;
@@ -232,7 +235,7 @@ export default function Storefront() {
   };
 
   // Try hostname-based lookup first, fallback to slug
-  const { data: restaurant, isLoading: restaurantLoading } = useQuery<Restaurant>({
+  const { data: fetchedRestaurant, isLoading: restaurantLoading } = useQuery<Restaurant>({
     queryKey: slug ? ["/api/storefront/restaurant", slug] : ["/api/storefront/by-hostname"],
     queryFn: async () => {
       if (slug) {
@@ -245,6 +248,14 @@ export default function Storefront() {
       return response.json();
     },
   });
+
+  // In the theme customizer's preview iframe, live (unsaved) edits are pushed in via
+  // postMessage and merged over the fetched restaurant for display only — never persisted.
+  const draftOverrides = usePreviewDraftOverrides<Restaurant>();
+  const restaurant = useMemo(
+    () => (draftOverrides && fetchedRestaurant ? { ...fetchedRestaurant, ...draftOverrides } : fetchedRestaurant),
+    [fetchedRestaurant, draftOverrides]
+  );
 
   const sfSlug = slug || restaurant?.slug || undefined;
   const { customer: sfCustomer } = useStorefrontCustomer(sfSlug);
@@ -2231,6 +2242,11 @@ export default function Storefront() {
           </div>
         </div>
       </div>
+
+      {/* Merchant-configurable marketing sections */}
+      {Array.isArray((restaurant as any)?.themeSettings?.sections) && (
+        <ThemeSections sections={(restaurant as any).themeSettings.sections as ThemeSection[]} />
+      )}
 
       {/* Categories - Horizontal Pills */}
       <div className="bg-background border-b sticky top-16 z-40">

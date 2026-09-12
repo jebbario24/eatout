@@ -32,7 +32,8 @@ import OrderTracking from "@/pages/storefront/OrderTracking";
 import StorefrontPage from "@/pages/storefront/StorefrontPage";
 import { StorefrontBlogIndex, StorefrontBlogPost } from "@/pages/storefront/StorefrontBlog";
 import Subscribe from "@/pages/Subscribe";
-import OnlineStore from "@/pages/OnlineStore";
+import OnlineStoreThemes from "@/pages/OnlineStoreThemes";
+import OnlineStoreCustomize from "@/pages/OnlineStoreCustomize";
 import Billing from "@/pages/Billing";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminOrders from "@/pages/AdminOrders";
@@ -135,7 +136,8 @@ function AuthenticatedRouter() {
       <Route path="/staff" component={Staff} />
       <Route path="/inventory" component={Inventory} />
       <Route path="/analytics" component={Analytics} />
-      <Route path="/online-store" component={OnlineStore} />
+      <Route path="/online-store" component={OnlineStoreThemes} />
+      <Route path="/online-store/customize" component={OnlineStoreCustomize} />
       <Route path="/online-store/content" component={StorefrontContent} />
       <Route path="/settings" component={Settings} />
       <Route path="/pos" component={POS} />

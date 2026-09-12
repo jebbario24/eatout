@@ -1,8 +1,5 @@
-const CACHE_NAME = 'eatout-driver-v2'; // Bumped version
+const CACHE_NAME = 'eatout-v3'; // Bumped to purge the old driver-era cache-first cache for all existing installs.
 const urlsToCache = [
-  '/',
-  '/driver/dashboard',
-  '/driver/settings',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png'
 ];
@@ -22,50 +19,30 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Fetch event - smart caching strategy
+// Fetch event - network-first. This app now serves every route (dashboard, storefront,
+// theme customizer), not just /driver/*, so a stale cache-first response here means
+// merchants/customers silently keep seeing an old build until they clear site data.
+// Only offline visitors fall back to whatever was last cached.
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests for caching
   if (event.request.method !== 'GET') {
     return;
   }
 
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/api/')) {
+    return; // never intercept API calls
+  }
+
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        if (response) {
-          return response;
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
         }
-        return fetch(event.request).then(
-          (response) => {
-            // Only cache successful GET responses that are basic (same-origin)
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-            
-            // Only cache navigation requests and assets, not API calls
-            const url = new URL(event.request.url);
-            const isApiRequest = url.pathname.startsWith('/api/');
-            
-            if (!isApiRequest) {
-              const responseToCache = response.clone();
-              caches.open(CACHE_NAME)
-                .then((cache) => {
-                  cache.put(event.request, responseToCache);
-                });
-            }
-            
-            return response;
-          }
-        );
+        return response;
       })
-      .catch(() => {
-        // Only provide fallback for navigation requests, let API calls fail naturally
-        if (event.request.mode === 'navigate') {
-          return caches.match('/driver/dashboard');
-        }
-        // Let the error propagate for API requests so the app can handle it
-        throw new Error('Network request failed and no cache available');
-      })
+      .catch(() => caches.match(event.request))
   );
 });
 
