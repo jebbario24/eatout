@@ -54,6 +54,12 @@ import { MarketingTriggersModal } from "@/components/marketing/MarketingTriggers
 import { ThemeSections } from "@/components/storefront/ThemeSections";
 import type { ThemeSection } from "@/lib/themeSections";
 import { MenuItemCard } from "@/components/storefront/MenuItemCard";
+import { getOrCreateVisitorId, buildTrackVisitPayload } from "@/lib/visitorSession";
+import { convertAndFormatPrice, type DisplayMarket } from "@/lib/currency";
+import { StorefrontHero } from "@/components/storefront/hero/StorefrontHero";
+import { MarqueeBanner } from "@/components/storefront/theme/MarqueeBanner";
+import { CategoryIconGrid } from "@/components/storefront/theme/CategoryIconGrid";
+import { ProductTabsCarousel } from "@/components/storefront/theme/ProductTabsCarousel";
 
 interface StorefrontPromo {
   id: string;
@@ -265,6 +271,36 @@ export default function Storefront() {
   const accountHref = slug ? `/store/${slug}/account` : "/account";
   const trackHref = slug ? `/store/${slug}/track` : "/track";
 
+  // Markets: active regions the merchant configured, for display-currency conversion
+  // only — the visitor's pick never changes what's actually charged/recorded at checkout.
+  const marketsQ = useQuery<DisplayMarket[]>({
+    queryKey: [`/api/storefront/${sfSlug}/markets`],
+    enabled: !!sfSlug,
+    queryFn: async () => {
+      const r = await fetch(`/api/storefront/${sfSlug}/markets`);
+      return r.ok ? r.json() : [];
+    },
+  });
+  const markets = marketsQ.data || [];
+  const [selectedMarketName, setSelectedMarketName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sfSlug) return;
+    try {
+      setSelectedMarketName(localStorage.getItem(`eatout_market_${sfSlug}`));
+    } catch {}
+  }, [sfSlug]);
+  const selectedMarket = markets.find((m: any) => m.name === selectedMarketName) || null;
+  const handleSelectMarket = (name: string) => {
+    setSelectedMarketName(name === "__default__" ? null : name);
+    try {
+      if (name === "__default__") {
+        localStorage.removeItem(`eatout_market_${sfSlug}`);
+      } else {
+        localStorage.setItem(`eatout_market_${sfSlug}`, name);
+      }
+    } catch {}
+  };
+
   // Rewards: the store's program terms (public) and the signed-in customer's balances
   const loyaltyProgramQ = useQuery<any>({
     queryKey: [`/api/storefront/${sfSlug}/loyalty`],
@@ -348,6 +384,28 @@ export default function Storefront() {
     if (!canonical) { canonical = document.createElement("link"); canonical.rel = "canonical"; document.head.appendChild(canonical); }
     canonical.href = window.location.origin + window.location.pathname;
   }, [restaurant]);
+
+  // Track a storefront visit once per browser tab session, for the Growth report.
+  // Best-effort and fire-and-forget — must never affect the customer-facing page.
+  // Skipped inside an iframe: the merchant's own Dashboard/Online Store/Customize
+  // preview cards embed this same page, and those views aren't real customer traffic.
+  useEffect(() => {
+    if (!restaurant || !sfSlug) return;
+    if (window.self !== window.top) return;
+    const trackedKey = `eatout_sf_tracked_${sfSlug}`;
+    try {
+      if (sessionStorage.getItem(trackedKey)) return;
+      sessionStorage.setItem(trackedKey, "1");
+    } catch {
+      return;
+    }
+    fetch(`/api/storefront/${sfSlug}/track-visit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(buildTrackVisitPayload()),
+      keepalive: true,
+    }).catch(() => {});
+  }, [restaurant, sfSlug]);
 
   // Set restaurant slug in i18n backend and reload restaurant namespace
   useEffect(() => {
@@ -1087,6 +1145,7 @@ export default function Storefront() {
           useStoreCredit: canUseStoreCredit && useStoreCredit ? true : undefined,
           giftCardCode: giftCard?.code || undefined,
           cartSessionId,
+          visitorId: getOrCreateVisitorId(),
         }),
       }).then((res) => res.json());
     },
@@ -1306,37 +1365,12 @@ export default function Storefront() {
 
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   
-  // Currency formatter using Intl.NumberFormat
+  // Currency formatter — applies the visitor's selected market's display conversion
+  // rate (if any) on top of the restaurant's base currency. Display-only: checkout
+  // always totals in the restaurant's base currency regardless of what's shown here.
   const formatPrice = (price: number | string) => {
     const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-    const currency = restaurant.currency || 'USD';
-    const country = restaurant.country || 'United States';
-    
-    // Map countries to locale codes
-    const localeMap: { [key: string]: string } = {
-      'United States': 'en-US',
-      'Canada': 'en-CA',
-      'United Kingdom': 'en-GB',
-      'Morocco': 'ar-MA',
-      'France': 'fr-FR',
-      'Germany': 'de-DE',
-      'Spain': 'es-ES',
-      'Italy': 'it-IT',
-      'UAE': 'ar-AE',
-      'Saudi Arabia': 'ar-SA',
-      'Egypt': 'ar-EG',
-      'India': 'en-IN',
-      'China': 'zh-CN',
-      'Japan': 'ja-JP',
-      'Australia': 'en-AU',
-    };
-    
-    const locale = localeMap[country] || 'en-US';
-    
-    return new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency: currency,
-    }).format(numPrice);
+    return convertAndFormatPrice(numPrice, restaurant.currency || 'USD', selectedMarket);
   };
 
   // Helper function to convert hex to HSL
@@ -1475,6 +1509,20 @@ export default function Storefront() {
           </div>
           
           <div className="flex items-center gap-2">
+            {markets.length > 0 && (
+              <Select value={selectedMarketName ?? "__default__"} onValueChange={handleSelectMarket}>
+                <SelectTrigger className="w-auto h-9 gap-1.5" data-testid="select-market">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">{restaurant.currency || 'USD'}</SelectItem>
+                  {markets.map((m: any) => (
+                    <SelectItem key={m.name} value={m.name}>{m.name} ({m.currency})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <LanguageSelector
               enabledLanguages={restaurant?.enabledLanguages || ['en']}
               restaurantId={restaurant?.id}
@@ -2163,88 +2211,32 @@ export default function Storefront() {
         )}
       </div>
 
-      {/* Hero Section with Cover Photo */}
-      <div className="relative">
-        {restaurant.coverImageUrl ? (
-          <div 
-            className="h-48 md:h-64 lg:h-80 bg-cover bg-center"
-            style={{ backgroundImage: `url(${restaurant.coverImageUrl})` }}
-          />
-        ) : (
-          <div className="h-48 md:h-64 lg:h-80 bg-gradient-to-br from-primary/20 to-primary/5" />
-        )}
-        
-        {/* Restaurant Logo & Info */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="-mt-16 md:-mt-20 mb-6">
-            <div className="flex items-end gap-4">
-              <div className="flex flex-col items-center gap-2">
-                {/* Star rating above logo */}
-                {reviews.length > 0 && (
-                  <div className="flex items-center gap-1 bg-background/95 backdrop-blur px-3 py-1.5 rounded-full shadow-lg" data-testid="rating-above-logo">
-                    <Star className="h-4 w-4 fill-primary text-primary" />
-                    <span className="text-sm font-semibold">
-                      {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">({reviews.length})</span>
-                  </div>
-                )}
-                
-                {/* Logo */}
-                {restaurant.logoUrl ? (
-                  <img 
-                    src={restaurant.logoUrl} 
-                    alt={restaurant.name}
-                    className="h-24 w-24 md:h-32 md:w-32 rounded-full object-cover bg-background border-4 border-background shadow-xl"
-                  />
-                ) : (
-                  <div className="h-24 w-24 md:h-32 md:w-32 rounded-full bg-background border-4 border-background shadow-xl flex items-center justify-center">
-                    <Store className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground" />
-                  </div>
-                )}
-                
-                {/* Star rating below logo */}
-                {reviews.length > 0 && (
-                  <div className="flex items-center gap-0.5" data-testid="rating-below-logo">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`h-4 w-4 ${
-                          i < Math.round(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length)
-                            ? "fill-primary text-primary"
-                            : "text-muted-foreground"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              
-              <div className="pb-2 flex-1">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-bold">{restaurant.name}</h1>
-                  <Badge 
-                    variant={isRestaurantOpen(restaurant.openingHours as OpeningHours) ? "default" : "secondary"}
-                    className={`text-sm px-3 py-1 ${isRestaurantOpen(restaurant.openingHours as OpeningHours) ? 'bg-green-600 dark:bg-green-600 hover:bg-green-700 dark:hover:bg-green-700' : 'bg-red-600 dark:bg-red-600 hover:bg-red-700 dark:hover:bg-red-700'} text-white`}
-                    data-testid="badge-open-status"
-                  >
-                    {isRestaurantOpen(restaurant.openingHours as OpeningHours) ? t('storefront.open') : t('storefront.closed')}
-                  </Badge>
-                </div>
-                {restaurant.description && (
-                  <p className="text-muted-foreground mt-1 hidden sm:block">{restaurant.description}</p>
-                )}
-                {todayHoursText && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                    <Clock className="h-4 w-4" />
-                    <span data-testid="text-today-hours">{todayHoursText}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Hero — swaps by restaurant.themeSettings.themeId; no themeId = today's exact hero */}
+      <StorefrontHero
+        restaurant={restaurant}
+        reviews={reviews}
+        todayHoursText={todayHoursText}
+        isOpen={isRestaurantOpen(restaurant.openingHours as OpeningHours)}
+        t={t}
+        themeId={(restaurant as any)?.themeSettings?.themeId}
+      />
+
+      {/* Full-theme content block — one per theme, lives above the merchant's own
+          ThemeSections content so switching themes never touches it */}
+      {(restaurant as any)?.themeSettings?.themeId === "editorial" && (
+        <MarqueeBanner restaurant={restaurant} />
+      )}
+      {(restaurant as any)?.themeSettings?.themeId === "fresh" && categories && (
+        <CategoryIconGrid categories={categories} items={items || []} onSelectCategory={setSelectedCategory} />
+      )}
+      {(restaurant as any)?.themeSettings?.themeId === "wellness" && items && (
+        <ProductTabsCarousel
+          items={items}
+          formatPrice={formatPrice}
+          onSelect={(item) => addToCart(item)}
+          onAddToCart={(item) => addToCart(item)}
+        />
+      )}
 
       {/* Merchant-configurable marketing sections */}
       {Array.isArray((restaurant as any)?.themeSettings?.sections) && (
@@ -2395,6 +2387,7 @@ export default function Storefront() {
                         displayName={translatedItem.name}
                         displayDescription={translatedItem.description}
                         cardStyle={cardStyle}
+                        theme={(restaurant as any)?.themeSettings?.themeId}
                         formattedPrice={formatPrice(item.price)}
                         isBoosted={isItemBoosted(item.name)}
                         scarcity={
@@ -2454,6 +2447,7 @@ export default function Storefront() {
                   displayName={translatedItem.name}
                   displayDescription={translatedItem.description}
                   cardStyle={cardStyle}
+                  theme={(restaurant as any)?.themeSettings?.themeId}
                   formattedPrice={formatPrice(item.price)}
                   isBoosted={isItemBoosted(item.name)}
                   scarcity={

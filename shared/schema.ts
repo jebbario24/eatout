@@ -404,6 +404,10 @@ export const orders = pgTable("orders", {
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   promoCode: varchar("promo_code", { length: 100 }),
   promoDiscount: decimal("promo_discount", { precision: 10, scale: 2 }).default('0'),
+  // Marketing channel attributed at checkout time, from the customer's most recent
+  // storefront_sessions row (same-browser match via visitorId). Null = unattributed
+  // (no matching session, or order predates this feature — never backfilled).
+  channel: varchar("channel", { length: 20 }),
   tax: decimal("tax", { precision: 10, scale: 2 }).notNull().default('0'),
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   status: varchar("status", { length: 50 }).notNull().default('pending'),
@@ -820,6 +824,27 @@ export const promoPerformance = pgTable("promo_performance", {
   index("idx_promo_performance_promo").on(table.promoRuleId),
 ]);
 
+// Markets - named regions for storefront price display. Currency conversion is
+// display-only (merchant-entered fixed rate, no live FX) since online checkout only
+// ever charges/records in the restaurant's base currency (cash-on-delivery today).
+// Country coverage is informational only — it does not gate checkout eligibility.
+export const markets = pgTable("markets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  name: varchar("name", { length: 255 }).notNull(),
+  currency: varchar("currency", { length: 10 }).notNull().default('USD'),
+  conversionRate: decimal("conversion_rate", { precision: 12, scale: 6 }).notNull().default('1'),
+  // Null = inherit restaurants.taxRate; an explicit value (including 0) overrides it.
+  taxRate: decimal("tax_rate", { precision: 5, scale: 2 }),
+  countries: text("countries").array().notNull().default(sql`ARRAY[]::text[]`),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_markets_restaurant").on(table.restaurantId),
+  index("idx_markets_restaurant_active").on(table.restaurantId, table.isActive),
+]);
+
 // Loyalty Program - one config row per merchant. Controls earn/redeem rates.
 export const loyaltyPrograms = pgTable("loyalty_programs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1151,6 +1176,31 @@ export const marketingEvents = pgTable("marketing_events", {
   index("idx_marketing_events_restaurant").on(table.restaurantId),
   index("idx_marketing_events_type").on(table.eventType),
   index("idx_marketing_events_customer").on(table.customerId),
+]);
+
+// Storefront Sessions - one row per browser session, deduplicated by sessionId.
+// Powers the Growth page's sessions-by-channel report. channel/referrer/UTM are
+// captured once on the first track-visit call of the session (landing-page
+// attribution), not updated on subsequent pageviews within the same session.
+export const storefrontSessions = pgTable("storefront_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  sessionId: varchar("session_id", { length: 255 }).notNull(),
+  visitorId: varchar("visitor_id", { length: 255 }).notNull(),
+  channel: varchar("channel", { length: 20 }).notNull(), // 'direct'|'organic'|'paid'|'social'|'referral'|'unknown'
+  referrer: text("referrer"),
+  utmSource: varchar("utm_source", { length: 255 }),
+  utmMedium: varchar("utm_medium", { length: 255 }),
+  utmCampaign: varchar("utm_campaign", { length: 255 }),
+  landingPath: varchar("landing_path", { length: 500 }),
+  pageviews: integer("pageviews").notNull().default(1),
+  firstSeenAt: timestamp("first_seen_at").notNull().defaultNow(),
+  lastSeenAt: timestamp("last_seen_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_storefront_sessions_restaurant_first_seen").on(table.restaurantId, table.firstSeenAt),
+  index("idx_storefront_sessions_visitor").on(table.restaurantId, table.visitorId),
+  unique("storefront_sessions_session_unique").on(table.restaurantId, table.sessionId),
 ]);
 
 // Marketing Metrics Daily - Aggregated daily metrics
@@ -1788,6 +1838,14 @@ export const insertPromoRuleSchema = createInsertSchema(promoRules).omit({
 export type InsertPromoRule = z.infer<typeof insertPromoRuleSchema>;
 export type PromoRule = typeof promoRules.$inferSelect;
 
+export const insertMarketSchema = createInsertSchema(markets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertMarket = z.infer<typeof insertMarketSchema>;
+export type Market = typeof markets.$inferSelect;
+
 export const insertGiftCardSchema = createInsertSchema(giftCards).omit({
   id: true,
   createdAt: true,
@@ -1928,6 +1986,13 @@ export const insertMarketingEventSchema = createInsertSchema(marketingEvents).om
 });
 export type InsertMarketingEvent = z.infer<typeof insertMarketingEventSchema>;
 export type MarketingEvent = typeof marketingEvents.$inferSelect;
+
+export const insertStorefrontSessionSchema = createInsertSchema(storefrontSessions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertStorefrontSession = z.infer<typeof insertStorefrontSessionSchema>;
+export type StorefrontSession = typeof storefrontSessions.$inferSelect;
 
 export const insertPixelSchema = createInsertSchema(pixels).omit({
   id: true,

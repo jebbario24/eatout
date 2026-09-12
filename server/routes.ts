@@ -163,7 +163,61 @@ const onlineOrderSchema = z.object({
   giftCardCode: z.string().trim().max(40).nullable().optional(),
   // abandoned-cart session id, so a recovered cart is marked as such
   cartSessionId: z.string().trim().max(255).nullable().optional(),
+  // persistent anonymous browser id, used to attribute the order to a marketing
+  // channel via the customer's most recent storefront_sessions row (same-browser only)
+  visitorId: z.string().trim().max(255).nullable().optional(),
 });
+
+const trackVisitSchema = z.object({
+  sessionId: z.string().trim().min(1).max(255),
+  visitorId: z.string().trim().min(1).max(255),
+  channel: z.enum(['direct', 'organic', 'paid', 'social', 'referral', 'unknown']),
+  referrer: z.string().trim().max(2000).nullable().optional(),
+  utmSource: z.string().trim().max(255).nullable().optional(),
+  utmMedium: z.string().trim().max(255).nullable().optional(),
+  utmCampaign: z.string().trim().max(255).nullable().optional(),
+  landingPath: z.string().trim().max(500).nullable().optional(),
+});
+
+// Shared date-range resolution for dashboard report endpoints (Analytics, Growth).
+function resolveDateFilter(dateFilter: string): { startDate: Date; endDate: Date | null } {
+  const now = new Date();
+  let startDate = new Date();
+  let endDate: Date | null = null;
+
+  switch (dateFilter) {
+    case 'today':
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case 'yesterday':
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+    case 'last-7-days':
+      startDate.setDate(now.getDate() - 7);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case 'this-month':
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+    case 'last-month':
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+      endDate.setHours(23, 59, 59, 999);
+      break;
+    case 'year':
+    default:
+      startDate.setFullYear(now.getFullYear() - 1);
+      startDate.setHours(0, 0, 0, 0);
+      break;
+  }
+  return { startDate, endDate };
+}
 
 // Middleware to check if user is authenticated
 const isAuthenticated = (req: any, res: any, next: any) => {
@@ -1653,6 +1707,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching promo performance:", error);
       res.status(500).json({ message: "Failed to fetch promo performance" });
+    }
+  });
+
+  // Market routes — named regions for storefront display-currency conversion.
+  // Currency conversion here is display-only; checkout always totals in the
+  // restaurant's base currency. Country coverage is informational only.
+  app.get('/api/markets', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const restaurant = await storage.getRestaurantByOwnerId(userId);
+      if (!restaurant) {
+        return res.json([]);
+      }
+      const marketsList = await storage.getMarkets(restaurant.id);
+      res.json(marketsList);
+    } catch (error) {
+      console.error("Error fetching markets:", error);
+      res.status(500).json({ message: "Failed to fetch markets" });
+    }
+  });
+
+  app.post('/api/markets', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const restaurant = await storage.getRestaurantByOwnerId(userId);
+      if (!restaurant) {
+        return res.status(404).json({ message: "Restaurant not found" });
+      }
+
+      const { name, currency, conversionRate, taxRate, countries, isActive } = req.body;
+      if (!name || !currency) {
+        return res.status(400).json({ message: "Market name and currency are required" });
+      }
+
+      const marketData = {
+        restaurantId: restaurant.id,
+        name,
+        currency,
+        conversionRate: conversionRate ? conversionRate.toString() : '1',
+        taxRate: taxRate !== undefined && taxRate !== null && taxRate !== '' ? taxRate.toString() : null,
+        countries: Array.isArray(countries) ? countries : [],
+        isActive: isActive !== undefined ? isActive : true,
+      };
+
+      const market = await storage.createMarket(marketData);
+      res.json(market);
+    } catch (error) {
+      console.error("Error creating market:", error);
+      res.status(400).json({ message: "Failed to create market. Please check your inputs and try again." });
+    }
+  });
+
+  app.put('/api/markets/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const restaurant = await storage.getRestaurantByOwnerId(userId);
+      if (!restaurant) {
+        return res.status(404).json({ message: "Restaurant not found" });
+      }
+
+      const market = await storage.getMarket(req.params.id);
+      if (!market) {
+        return res.status(404).json({ message: "Market not found" });
+      }
+      if (market.restaurantId !== restaurant.id) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      const { name, currency, conversionRate, taxRate, countries, isActive } = req.body;
+      const data: Record<string, unknown> = {};
+      if (name !== undefined) data.name = name;
+      if (currency !== undefined) data.currency = currency;
+      if (conversionRate !== undefined) data.conversionRate = conversionRate.toString();
+      if (taxRate !== undefined) data.taxRate = taxRate !== null && taxRate !== '' ? taxRate.toString() : null;
+      if (countries !== undefined) data.countries = Array.isArray(countries) ? countries : [];
+      if (isActive !== undefined) data.isActive = isActive;
+
+      const updated = await storage.updateMarket(req.params.id, data);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating market:", error);
+      res.status(400).json({ message: "Failed to update market. Please check your inputs and try again." });
+    }
+  });
+
+  app.delete('/api/markets/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const restaurant = await storage.getRestaurantByOwnerId(userId);
+      if (!restaurant) {
+        return res.status(404).json({ message: "Restaurant not found" });
+      }
+
+      const market = await storage.getMarket(req.params.id);
+      if (!market) {
+        return res.status(404).json({ message: "Market not found" });
+      }
+      if (market.restaurantId !== restaurant.id) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+
+      await storage.deleteMarket(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting market:", error);
+      res.status(400).json({ message: "Failed to delete market" });
     }
   });
 
@@ -3330,44 +3490,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get date filter from query params (default to 'year')
       const dateFilter = req.query.dateFilter || 'year';
-      
-      // Calculate date range based on filter
-      const now = new Date();
-      let startDate = new Date();
-      let endDate: Date | null = null;
-      
-      switch (dateFilter) {
-        case 'today':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          startDate.setHours(0, 0, 0, 0); // Start of today
-          break;
-        case 'yesterday':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-          startDate.setHours(0, 0, 0, 0); // Start of yesterday
-          endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-          endDate.setHours(23, 59, 59, 999); // End of yesterday
-          break;
-        case 'last-7-days':
-          startDate.setDate(now.getDate() - 7);
-          startDate.setHours(0, 0, 0, 0); // Normalize to midnight
-          break;
-        case 'this-month':
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-          startDate.setHours(0, 0, 0, 0); // Normalize to midnight
-          break;
-        case 'last-month':
-          startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          startDate.setHours(0, 0, 0, 0); // Normalize to midnight
-          endDate = new Date(now.getFullYear(), now.getMonth(), 0);
-          endDate.setHours(23, 59, 59, 999);
-          break;
-        case 'year':
-        default:
-          startDate.setFullYear(now.getFullYear() - 1);
-          startDate.setHours(0, 0, 0, 0); // Normalize to midnight
-          break;
-      }
-      
+      const { startDate, endDate } = resolveDateFilter(dateFilter);
+
       const allOrders = await storage.getOrders(restaurant.id);
       
       // Filter orders by date range
@@ -3479,6 +3603,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching detailed analytics:", error);
       res.status(500).json({ message: "Failed to fetch analytics" });
+    }
+  });
+
+  // Growth: sessions by channel + sessions over time, from real storefront_sessions rows
+  app.get('/api/growth/sessions', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await storage.getRestaurantByOwnerId(req.user.id);
+      if (!restaurant) return res.json({ byChannel: [], overTime: [] });
+      const { startDate, endDate } = resolveDateFilter(req.query.dateFilter || 'year');
+      const [byChannel, overTime] = await Promise.all([
+        storage.getSessionsByChannel(restaurant.id, startDate, endDate),
+        storage.getSessionsOverTime(restaurant.id, startDate, endDate),
+      ]);
+      res.json({ byChannel, overTime });
+    } catch (error) {
+      console.error("Error fetching growth sessions:", error);
+      res.status(500).json({ message: "Failed to fetch growth sessions" });
+    }
+  });
+
+  // Growth: sales attributed to a marketing channel (same-browser checkout match only)
+  app.get('/api/growth/sales-by-channel', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await storage.getRestaurantByOwnerId(req.user.id);
+      if (!restaurant) return res.json([]);
+      const { startDate, endDate } = resolveDateFilter(req.query.dateFilter || 'year');
+      const salesByChannel = await storage.getSalesByChannel(restaurant.id, startDate, endDate);
+      res.json(salesByChannel);
+    } catch (error) {
+      console.error("Error fetching sales by channel:", error);
+      res.status(500).json({ message: "Failed to fetch sales by channel" });
     }
   });
 
@@ -3661,6 +3816,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // Public: record a storefront visit for the Growth report. Fire-and-forget from
+  // the client — always responds 204, tracking failures must never surface.
+  app.post('/api/storefront/:slug/track-visit', async (req, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(204).end();
+      const data = trackVisitSchema.parse(req.body);
+      await storage.recordStorefrontVisit(restaurant.id, data);
+      res.status(204).end();
+    } catch {
+      res.status(204).end();
+    }
+  });
+
   // The signed-in customer's rewards: points, tier, progress, store credit, history
   app.get('/api/storefront/:slug/account/rewards', requireStorefrontAuth, async (req: any, res) => {
     try {
@@ -3789,6 +3958,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching categories:", error);
       res.status(500).json({ message: "Failed to fetch categories" });
+    }
+  });
+
+  // Public: active markets for the storefront's currency-display selector.
+  app.get('/api/storefront/:slug/markets', async (req, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) {
+        return res.status(404).json({ message: "Restaurant not found" });
+      }
+      const marketsList = await storage.getActiveMarkets(restaurant.id);
+      res.json(marketsList);
+    } catch (error) {
+      console.error("Error fetching markets:", error);
+      res.status(500).json({ message: "Failed to fetch markets" });
     }
   });
 
@@ -4401,10 +4585,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Attribute the order to a marketing channel via the customer's most recent
+      // storefront_sessions row (same-browser match only, never backfilled).
+      let orderChannel: string | null = null;
+      if (data.visitorId) {
+        const session = await storage.getLatestSessionForVisitor(restaurant.id, data.visitorId, new Date());
+        orderChannel = session?.channel ?? null;
+      }
+
       const order = await storage.createOrder({
         restaurantId: restaurant.id,
         orderNumber,
         orderType: data.orderType,
+        channel: orderChannel,
         customerName: data.customerName || null,
         customerPhone: data.customerPhone || null,
         customerEmail: data.customerEmail || null,

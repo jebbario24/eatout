@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import type { UploadResult } from "@uppy/core";
 import { getBusinessTypeConfig } from "@/lib/businessType";
+import { STOREFRONT_THEMES, type StorefrontThemeId } from "@/lib/storefrontThemes";
 import {
   SECTION_LABELS,
   SECTION_TYPES,
@@ -90,6 +91,7 @@ interface CustomizerDraft {
   seoImageUrl: string;
   sections: ThemeSection[];
   cardStyle: "standard" | "bordered";
+  themeId?: StorefrontThemeId;
 }
 
 const defaultDraft: CustomizerDraft = {
@@ -119,6 +121,7 @@ function draftFromRestaurant(restaurant: any): CustomizerDraft {
     seoImageUrl: restaurant.seoImageUrl || "",
     sections: restaurant.themeSettings?.sections || [],
     cardStyle: restaurant.themeSettings?.cardStyle === "standard" ? "standard" : "bordered",
+    themeId: restaurant.themeSettings?.themeId || undefined,
   };
 }
 
@@ -134,7 +137,7 @@ function draftToRestaurantPatch(draft: CustomizerDraft) {
     seoTitle: draft.seoTitle,
     seoDescription: draft.seoDescription,
     seoImageUrl: draft.seoImageUrl,
-    themeSettings: { sections: draft.sections, cardStyle: draft.cardStyle },
+    themeSettings: { sections: draft.sections, cardStyle: draft.cardStyle, themeId: draft.themeId },
   };
 }
 
@@ -394,6 +397,34 @@ export default function OnlineStoreCustomize() {
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 mb-2">Theme Settings</h3>
               <Accordion type="multiple" className="w-full">
+              <AccordionItem value="fullTheme">
+                <AccordionTrigger data-testid="accordion-full-theme">
+                  <span className="flex items-center gap-2"><LayoutGrid className="h-4 w-4" /> Full Theme</span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="themeId">Storefront theme</Label>
+                    <Select
+                      value={draft.themeId || "__classic__"}
+                      onValueChange={(v) => updateDraft({ themeId: v === "__classic__" ? undefined : (v as StorefrontThemeId) })}
+                    >
+                      <SelectTrigger id="themeId" data-testid="select-full-theme">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__classic__">Classic (default)</SelectItem>
+                        {STOREFRONT_THEMES.map((theme) => (
+                          <SelectItem key={theme.id} value={theme.id}>{theme.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Changes the hero layout and adds a signature section (marquee, category grid, or best-sellers tabs). Your colors and manually-added sections below are unaffected.
+                    </p>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
               <AccordionItem value="colors">
                 <AccordionTrigger data-testid="accordion-colors">
                   <span className="flex items-center gap-2"><Palette className="h-4 w-4" /> Brand Colors</span>

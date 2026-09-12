@@ -24,6 +24,8 @@ import Tables from "@/pages/Tables";
 import Staff from "@/pages/Staff";
 import Inventory from "@/pages/Inventory";
 import Analytics from "@/pages/Analytics";
+import Growth from "@/pages/Growth";
+import Markets from "@/pages/Markets";
 import Settings from "@/pages/Settings";
 import POS from "@/pages/POS";
 import Storefront from "@/pages/Storefront";
@@ -136,6 +138,8 @@ function AuthenticatedRouter() {
       <Route path="/staff" component={Staff} />
       <Route path="/inventory" component={Inventory} />
       <Route path="/analytics" component={Analytics} />
+      <Route path="/growth" component={Growth} />
+      <Route path="/markets" component={Markets} />
       <Route path="/online-store" component={OnlineStoreThemes} />
       <Route path="/online-store/customize" component={OnlineStoreCustomize} />
       <Route path="/online-store/content" component={StorefrontContent} />

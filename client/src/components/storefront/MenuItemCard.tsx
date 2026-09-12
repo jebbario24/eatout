@@ -1,9 +1,11 @@
+import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Plus, Store, Users } from "lucide-react";
 import { BoostedItemsBadge } from "@/components/marketing/storefront/BoostedItemsBadge";
 import type { MenuItem } from "@shared/schema";
+import type { StorefrontThemeId } from "@/lib/storefrontThemes";
 
 const TAG_COLORS: Record<string, string> = {
   Bestseller: "bg-[hsl(38,92%,50%)] text-white border-transparent",
@@ -22,6 +24,9 @@ export interface MenuItemCardProps {
   displayName: string;
   displayDescription?: string | null;
   cardStyle: "standard" | "bordered";
+  // Optional full-theme flourish, orthogonal to cardStyle's boxed-vs-borderless
+  // skeleton choice. undefined = today's exact rendering (no visual change).
+  theme?: StorefrontThemeId | null;
   formattedPrice: string;
   isBoosted: boolean;
   scarcity?: { text: string } | null;
@@ -118,6 +123,7 @@ export function MenuItemCard({
   displayName,
   displayDescription,
   cardStyle,
+  theme,
   formattedPrice,
   isBoosted,
   scarcity,
@@ -128,49 +134,59 @@ export function MenuItemCard({
   // Always visible — this used to be `opacity-0 group-hover:opacity-100`, which meant
   // touch users (most storefront traffic) never saw an add-to-cart affordance at all.
   const addToCartButton = item.isAvailable && (
-    <Button size="icon" onClick={onAddToCart} data-testid={`button-add-to-cart-${item.id}`}>
+    <Button
+      size="icon"
+      className={theme === "wellness" ? "rounded-full" : theme === "editorial" ? "rounded-none" : undefined}
+      variant={theme === "editorial" ? "ghost" : "default"}
+      onClick={onAddToCart}
+      data-testid={`button-add-to-cart-${item.id}`}
+    >
       <Plus className="h-4 w-4" />
     </Button>
   );
+  const imageRadius = theme === "fresh" ? "rounded-2xl" : theme === "editorial" ? "rounded-none" : "rounded-md";
+  const hoverLift = theme ? { whileHover: { y: -4 }, transition: { duration: 0.2 } } : {};
 
   if (cardStyle === "bordered") {
     return (
-      <Card
-        className="overflow-hidden hover-elevate transition-all cursor-pointer group"
-        onClick={onSelect}
-        data-testid={`menu-item-${item.id}`}
-      >
-        <div className="relative aspect-square">
-          <ImageAndBadges item={item} displayName={displayName} isBoosted={isBoosted} />
-        </div>
-        <CardContent className="p-4">
-          <h3 className="font-bold text-lg mb-1 line-clamp-1">{displayName}</h3>
-          {displayDescription && <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{displayDescription}</p>}
-          <div className="flex items-center justify-between">
-            <span className="text-lg font-bold text-primary">{formattedPrice}</span>
-            {addToCartButton}
+      <motion.div {...hoverLift}>
+        <Card
+          className="overflow-hidden hover-elevate transition-all cursor-pointer group"
+          onClick={onSelect}
+          data-testid={`menu-item-${item.id}`}
+        >
+          <div className={`relative aspect-square ${theme === "fresh" ? "rounded-t-2xl overflow-hidden" : ""}`}>
+            <ImageAndBadges item={item} displayName={displayName} isBoosted={isBoosted} />
           </div>
-          <MarketingBadges item={item} scarcity={scarcity} socialProof={socialProof} />
-        </CardContent>
-      </Card>
+          <CardContent className="p-4">
+            <h3 className={`font-bold text-lg mb-1 line-clamp-1 ${theme === "editorial" ? "font-serif font-normal" : ""}`}>{displayName}</h3>
+            {displayDescription && <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{displayDescription}</p>}
+            <div className="flex items-center justify-between">
+              <span className="text-lg font-bold text-primary">{formattedPrice}</span>
+              {addToCartButton}
+            </div>
+            <MarketingBadges item={item} scarcity={scarcity} socialProof={socialProof} />
+          </CardContent>
+        </Card>
+      </motion.div>
     );
   }
 
   // "standard": borderless, shadowless, image-first — matches the reference theme's default.
   return (
-    <div className="group cursor-pointer" onClick={onSelect} data-testid={`menu-item-${item.id}`}>
-      <div className="relative aspect-square overflow-hidden rounded-md bg-muted">
+    <motion.div {...hoverLift} className="group cursor-pointer" onClick={onSelect} data-testid={`menu-item-${item.id}`}>
+      <div className={`relative aspect-square overflow-hidden ${imageRadius} bg-muted`}>
         <ImageAndBadges item={item} displayName={displayName} isBoosted={isBoosted} />
       </div>
       <div className="pt-3">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="font-display font-semibold text-base leading-snug line-clamp-1">{displayName}</h3>
+          <h3 className={`font-display font-semibold text-base leading-snug line-clamp-1 ${theme === "editorial" ? "font-serif font-normal" : ""}`}>{displayName}</h3>
           {addToCartButton}
         </div>
         {displayDescription && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{displayDescription}</p>}
         <span className="mt-1.5 block text-base font-semibold text-primary">{formattedPrice}</span>
         <MarketingBadges item={item} scarcity={scarcity} socialProof={socialProof} />
       </div>
-    </div>
+    </motion.div>
   );
 }

@@ -46,6 +46,8 @@ import {
   upsellRules as upsellRulesTable,
   activityLogs,
   translationRecords,
+  storefrontSessions,
+  markets,
   type User,
   type UpsertUser,
   type Restaurant,
@@ -103,9 +105,12 @@ import {
   type InsertActivityLog,
   type TranslationRecord,
   type InsertTranslationRecord,
+  type InsertStorefrontSession,
+  type Market,
+  type InsertMarket,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, desc, asc, like, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, asc, like, sql, inArray, gte, lte } from "drizzle-orm";
 
 /** URL handle from a title: lowercase, hyphen-separated, ascii-ish. */
 export function slugify(input: string): string {
@@ -2581,6 +2586,48 @@ export class DatabaseStorage implements IStorage {
     await db.delete(promoRules).where(eq(promoRules.id, id));
   }
 
+  // Market Management
+  async getMarkets(restaurantId: string): Promise<Market[]> {
+    return db
+      .select()
+      .from(markets)
+      .where(eq(markets.restaurantId, restaurantId))
+      .orderBy(desc(markets.createdAt));
+  }
+
+  /** Active markets only — this is what the public storefront selector fetches, so
+   *  an inactive market never reaches a visitor. */
+  async getActiveMarkets(restaurantId: string): Promise<Market[]> {
+    return db
+      .select()
+      .from(markets)
+      .where(and(eq(markets.restaurantId, restaurantId), eq(markets.isActive, true)))
+      .orderBy(desc(markets.createdAt));
+  }
+
+  async getMarket(id: string): Promise<Market | null> {
+    const [market] = await db.select().from(markets).where(eq(markets.id, id));
+    return market || null;
+  }
+
+  async createMarket(data: InsertMarket): Promise<Market> {
+    const [market] = await db.insert(markets).values(data).returning();
+    return market;
+  }
+
+  async updateMarket(id: string, data: Partial<InsertMarket>): Promise<Market> {
+    const [updated] = await db
+      .update(markets)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(markets.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteMarket(id: string): Promise<void> {
+    await db.delete(markets).where(eq(markets.id, id));
+  }
+
   async getActiveAutoApplyPromos(restaurantId: string): Promise<any[]> {
     const now = new Date();
     const promos = await db
@@ -2613,6 +2660,105 @@ export class DatabaseStorage implements IStorage {
       .where(eq(promoRedemptions.restaurantId, restaurantId))
       .groupBy(promoRules.id, promoRules.promoCode, promoRules.name);
     return rows;
+  }
+
+  /** Upserts one row per browser tab session; channel/referrer/UTM are set only on
+   *  the initial insert so a session is always attributed to its landing channel. */
+  async recordStorefrontVisit(restaurantId: string, data: {
+    sessionId: string;
+    visitorId: string;
+    channel: string;
+    referrer?: string | null;
+    utmSource?: string | null;
+    utmMedium?: string | null;
+    utmCampaign?: string | null;
+    landingPath?: string | null;
+  }): Promise<void> {
+    await db
+      .insert(storefrontSessions)
+      .values({
+        restaurantId,
+        sessionId: data.sessionId,
+        visitorId: data.visitorId,
+        channel: data.channel,
+        referrer: data.referrer ?? null,
+        utmSource: data.utmSource ?? null,
+        utmMedium: data.utmMedium ?? null,
+        utmCampaign: data.utmCampaign ?? null,
+        landingPath: data.landingPath ?? null,
+      } satisfies InsertStorefrontSession)
+      .onConflictDoUpdate({
+        target: [storefrontSessions.restaurantId, storefrontSessions.sessionId],
+        set: {
+          lastSeenAt: new Date(),
+          pageviews: sql`${storefrontSessions.pageviews} + 1`,
+        },
+      });
+  }
+
+  /** Real sessions-by-channel totals for the Growth page. */
+  async getSessionsByChannel(restaurantId: string, startDate: Date, endDate?: Date | null): Promise<Array<{ channel: string; sessions: number }>> {
+    return db
+      .select({
+        channel: storefrontSessions.channel,
+        sessions: sql<number>`COUNT(*)::int`,
+      })
+      .from(storefrontSessions)
+      .where(and(
+        eq(storefrontSessions.restaurantId, restaurantId),
+        gte(storefrontSessions.firstSeenAt, startDate),
+        endDate ? lte(storefrontSessions.firstSeenAt, endDate) : sql`true`,
+      ))
+      .groupBy(storefrontSessions.channel);
+  }
+
+  /** Real sessions-per-day totals for the Growth page's trend chart. */
+  async getSessionsOverTime(restaurantId: string, startDate: Date, endDate?: Date | null): Promise<Array<{ date: string; sessions: number }>> {
+    const dateExpr = sql<string>`TO_CHAR(${storefrontSessions.firstSeenAt}, 'YYYY-MM-DD')`;
+    return db
+      .select({ date: dateExpr, sessions: sql<number>`COUNT(*)::int` })
+      .from(storefrontSessions)
+      .where(and(
+        eq(storefrontSessions.restaurantId, restaurantId),
+        gte(storefrontSessions.firstSeenAt, startDate),
+        endDate ? lte(storefrontSessions.firstSeenAt, endDate) : sql`true`,
+      ))
+      .groupBy(dateExpr)
+      .orderBy(dateExpr);
+  }
+
+  /** Most recent session's channel for a visitor, used to attribute an order placed
+   *  from the same browser. Returns null if no matching session exists. */
+  async getLatestSessionForVisitor(restaurantId: string, visitorId: string, before: Date): Promise<{ channel: string } | null> {
+    const [row] = await db
+      .select({ channel: storefrontSessions.channel })
+      .from(storefrontSessions)
+      .where(and(
+        eq(storefrontSessions.restaurantId, restaurantId),
+        eq(storefrontSessions.visitorId, visitorId),
+        lte(storefrontSessions.firstSeenAt, before),
+      ))
+      .orderBy(desc(storefrontSessions.firstSeenAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /** Real orders-by-channel totals for the Growth page. Orders with no matching
+   *  same-browser session (or predating this feature) fall under 'unattributed'. */
+  async getSalesByChannel(restaurantId: string, startDate: Date, endDate?: Date | null): Promise<Array<{ channel: string; orders: number; revenue: string }>> {
+    return db
+      .select({
+        channel: sql<string>`COALESCE(${orders.channel}, 'unattributed')`,
+        orders: sql<number>`COUNT(*)::int`,
+        revenue: sql<string>`COALESCE(SUM(${orders.total}), 0)`,
+      })
+      .from(orders)
+      .where(and(
+        eq(orders.restaurantId, restaurantId),
+        gte(orders.createdAt, startDate),
+        endDate ? lte(orders.createdAt, endDate) : sql`true`,
+      ))
+      .groupBy(sql`COALESCE(${orders.channel}, 'unattributed')`);
   }
 
   async validatePromoCode(restaurantId: string, promoCode: string): Promise<any | null> {

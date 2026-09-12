@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Check, ExternalLink, Palette } from "lucide-react";
 import { THEME_PRESETS, matchPreset, type ThemePreset } from "@/lib/themePresets";
+import { STOREFRONT_THEMES, type StorefrontThemeDef } from "@/lib/storefrontThemes";
 
 export default function OnlineStoreThemes() {
   const { toast } = useToast();
@@ -25,6 +26,24 @@ export default function OnlineStoreThemes() {
         secondaryColor: preset.secondaryColor,
         accentColor: preset.accentColor,
         themeSettings: { ...currentThemeSettings, cardStyle: preset.cardStyle },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      toast({ title: "Theme applied" });
+    },
+    onError: () => toast({ title: "Failed to apply theme", variant: "destructive" }),
+  });
+
+  const applyStorefrontThemeMutation = useMutation({
+    mutationFn: async (theme: StorefrontThemeDef) => {
+      if (!restaurant?.id) throw new Error("No restaurant");
+      const currentThemeSettings = (restaurant.themeSettings as any) || {};
+      return apiRequest(`/api/restaurants/${restaurant.id}`, "PUT", {
+        primaryColor: theme.primaryColor,
+        secondaryColor: theme.secondaryColor,
+        accentColor: theme.accentColor,
+        themeSettings: { ...currentThemeSettings, cardStyle: theme.cardStyle, themeId: theme.id },
       });
     },
     onSuccess: () => {
@@ -102,6 +121,76 @@ export default function OnlineStoreThemes() {
           </div>
         </CardContent>
       </Card>
+
+      <div>
+        <h2 className="text-lg font-display font-semibold mb-1">Full Themes</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Complete storefront layouts — hero, product cards, and a signature section — not just colors.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {STOREFRONT_THEMES.map((theme) => {
+            const isActive = (restaurant.themeSettings as any)?.themeId === theme.id;
+            return (
+              <Card key={theme.id} className={isActive ? "overflow-hidden ring-2 ring-primary" : "overflow-hidden"}>
+                <CardContent className="p-0">
+                  <div className="rounded-t-lg overflow-hidden border-b bg-background h-28" data-testid={`preview-theme-${theme.id}`}>
+                    {theme.id === "editorial" && (
+                      <div className="h-full w-full flex flex-col justify-center items-center gap-1.5" style={{ backgroundColor: theme.primaryColor }}>
+                        <div className="h-1.5 w-16 rounded-full" style={{ backgroundColor: theme.accentColor }} />
+                        <div className="h-2.5 w-24 rounded-sm bg-white/90" />
+                        <div className="h-1 w-full mt-2" style={{ backgroundColor: theme.secondaryColor }} />
+                      </div>
+                    )}
+                    {theme.id === "fresh" && (
+                      <div className="h-full w-full p-3 flex flex-col gap-2" style={{ backgroundColor: `${theme.primaryColor}1a` }}>
+                        <div className="h-8 w-full rounded-xl" style={{ backgroundColor: theme.secondaryColor }} />
+                        <div className="flex gap-1.5 justify-center">
+                          {[0, 1, 2, 3].map((i) => (
+                            <div key={i} className="h-6 w-6 rounded-full" style={{ backgroundColor: theme.accentColor }} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {theme.id === "wellness" && (
+                      <div className="h-full w-full grid grid-cols-2">
+                        <div className="h-full" style={{ backgroundColor: theme.primaryColor }} />
+                        <div className="h-full flex flex-col justify-center gap-1.5 p-3" style={{ backgroundColor: `${theme.accentColor}55` }}>
+                          <div className="h-2 w-3/4 rounded-sm bg-foreground/70" />
+                          <div className="flex gap-1">
+                            <div className="h-3 w-10 rounded-full" style={{ backgroundColor: theme.secondaryColor }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+                <CardFooter className="flex-col items-start gap-3 pt-3">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">{theme.name}</p>
+                    {isActive && (
+                      <Badge variant="secondary" className="gap-1">
+                        <Check className="h-3 w-3" />
+                        Active
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{theme.description}</p>
+                  <Button
+                    size="sm"
+                    variant={isActive ? "outline" : "default"}
+                    disabled={isActive || applyStorefrontThemeMutation.isPending}
+                    onClick={() => applyStorefrontThemeMutation.mutate(theme)}
+                    className="w-full"
+                    data-testid={`button-apply-theme-${theme.id}`}
+                  >
+                    {isActive ? "Currently applied" : "Apply theme"}
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
 
       <div>
         <h2 className="text-lg font-display font-semibold mb-1">Theme Gallery</h2>

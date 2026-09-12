@@ -20,7 +20,9 @@ import {
   UserRound,
   Gift,
   Layers,
-  Send
+  Send,
+  TrendingUp,
+  Globe
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -110,6 +112,11 @@ const reportsItems = [
     icon: BarChart3,
   },
   {
+    titleKey: "navigation.growth",
+    url: "/growth",
+    icon: TrendingUp,
+  },
+  {
     titleKey: "navigation.reports",
     url: "/reports",
     icon: FileText,
@@ -156,6 +163,11 @@ const storeItems = [
     titleKey: "navigation.domainVerification",
     url: "/marketing/domain-verification",
     icon: Shield,
+  },
+  {
+    titleKey: "navigation.markets",
+    url: "/markets",
+    icon: Globe,
   },
 ];
 
