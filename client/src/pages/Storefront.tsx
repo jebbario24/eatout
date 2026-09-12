@@ -157,7 +157,7 @@ export default function Storefront() {
     } catch { return `s_${Date.now()}`; }
   });
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [orderType, setOrderType] = useState<'pickup' | 'delivery'>('delivery');
+  const [orderType, setOrderType] = useState<'pickup' | 'shipping'>('shipping');
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -1031,12 +1031,12 @@ export default function Storefront() {
           customerName,
           customerPhone,
           customerEmail: customerEmail || null,
-          saveAddress: !!sfCustomer && orderType === 'delivery' && saveAddress,
+          saveAddress: !!sfCustomer && orderType === 'shipping' && saveAddress,
           shippingAddress: fullAddress || null,
-          deliveryCountry: orderType === 'delivery' ? deliveryCountry : null,
-          deliveryCity: orderType === 'delivery' ? deliveryCity : null,
-          deliveryAddress: orderType === 'delivery' ? fullAddress : null,
-          deliveryFee: orderType === 'delivery' ? deliveryFee.toFixed(2) : '0.00',
+          deliveryCountry: orderType === 'shipping' ? deliveryCountry : null,
+          deliveryCity: orderType === 'shipping' ? deliveryCity : null,
+          deliveryAddress: orderType === 'shipping' ? fullAddress : null,
+          deliveryFee: orderType === 'shipping' ? deliveryFee.toFixed(2) : '0.00',
           paymentMethod,
           items: cart.map((ci) => {
             if (ci.bundle) {
@@ -1200,17 +1200,17 @@ export default function Storefront() {
   useEffect(() => {
     if (!restaurant?.orderTypes) return;
     
-    const orderTypes = restaurant.orderTypes as { pickup: boolean; delivery: boolean };
+    const orderTypes = restaurant.orderTypes as { pickup: boolean; shipping: boolean };
     const pickupEnabled = orderTypes.pickup ?? true;
-    const deliveryEnabled = orderTypes.delivery ?? true;
+    const deliveryEnabled = orderTypes.shipping ?? true;
 
     // If only pickup is enabled, set to pickup
     if (pickupEnabled && !deliveryEnabled && orderType !== 'pickup') {
       setOrderType('pickup');
     }
-    // If only delivery is enabled, set to delivery
-    if (!pickupEnabled && deliveryEnabled && orderType !== 'delivery') {
-      setOrderType('delivery');
+    // If only shipping is enabled, set to shipping
+    if (!pickupEnabled && deliveryEnabled && orderType !== 'shipping') {
+      setOrderType('shipping');
     }
   }, [restaurant?.orderTypes]);
 
@@ -1667,9 +1667,9 @@ export default function Storefront() {
                     />
                     
                     {(() => {
-                      const orderTypes = restaurant?.orderTypes as { pickup: boolean; delivery: boolean } | null;
+                      const orderTypes = restaurant?.orderTypes as { pickup: boolean; shipping: boolean } | null;
                       const pickupEnabled = orderTypes?.pickup ?? true;
-                      const deliveryEnabled = orderTypes?.delivery ?? true;
+                      const deliveryEnabled = orderTypes?.shipping ?? true;
                       const bothEnabled = pickupEnabled && deliveryEnabled;
 
                       // Only show toggle if both types are enabled
@@ -1678,11 +1678,11 @@ export default function Storefront() {
                       return (
                         <div className="space-y-2">
                           <Label className="text-sm font-medium">Order Type</Label>
-                          <RadioGroup value={orderType} onValueChange={(value: 'pickup' | 'delivery') => setOrderType(value)} data-testid="order-type-toggle">
+                          <RadioGroup value={orderType} onValueChange={(value: 'pickup' | 'shipping') => setOrderType(value)} data-testid="order-type-toggle">
                             {deliveryEnabled && (
                               <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="delivery" id="delivery" data-testid="radio-delivery" />
-                                <Label htmlFor="delivery" className="font-normal cursor-pointer">Delivery</Label>
+                                <RadioGroupItem value="shipping" id="shipping" data-testid="radio-shipping" />
+                                <Label htmlFor="shipping" className="font-normal cursor-pointer">Shipping</Label>
                               </div>
                             )}
                             {pickupEnabled && (
@@ -1703,7 +1703,7 @@ export default function Storefront() {
                       </div>
                     )}
 
-                    {orderType === 'delivery' && (
+                    {orderType === 'shipping' && (
                       <>
                         <div className="space-y-2">
                           <Label htmlFor="country-select" className="text-sm">Country *</Label>
@@ -1992,7 +1992,7 @@ export default function Storefront() {
                           <Button
                             variant="outline"
                             className="h-16 bg-black hover:bg-black/90 text-white border-black flex flex-col items-center justify-center gap-1"
-                            disabled={!customerName || !customerPhone || (orderType === 'delivery' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
+                            disabled={!customerName || !customerPhone || (orderType === 'shipping' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
                             onClick={() => {
                               setPaymentMethod('apple');
                               setCurrentOrderId(null);
@@ -2010,7 +2010,7 @@ export default function Storefront() {
                           <Button
                             variant="outline"
                             className="h-16 bg-white hover:bg-gray-50 text-gray-800 border-gray-300 flex flex-col items-center justify-center gap-1"
-                            disabled={!customerName || !customerPhone || (orderType === 'delivery' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
+                            disabled={!customerName || !customerPhone || (orderType === 'shipping' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
                             onClick={() => {
                               setPaymentMethod('google');
                               setCurrentOrderId(null);
@@ -2029,7 +2029,7 @@ export default function Storefront() {
                         <Button
                           variant="outline"
                           className="w-full h-16 bg-black hover:bg-black/90 text-white border-black flex items-center justify-center gap-2"
-                          disabled={!customerName || !customerPhone || (orderType === 'delivery' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
+                          disabled={!customerName || !customerPhone || (orderType === 'shipping' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
                           onClick={() => {
                             setPaymentMethod('stripe');
                             setCurrentOrderId(null);
@@ -2047,7 +2047,7 @@ export default function Storefront() {
                         <Button
                           variant="outline"
                           className="w-full h-16 bg-[#0070BA] hover:bg-[#005EA6] text-white border-[#0070BA] flex items-center justify-center gap-2"
-                          disabled={!customerName || !customerPhone || (orderType === 'delivery' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
+                          disabled={!customerName || !customerPhone || (orderType === 'shipping' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
                           onClick={() => {
                             setPaymentMethod('paypal');
                             setCurrentOrderId(null);
@@ -2071,7 +2071,7 @@ export default function Storefront() {
                         <Button
                           variant="outline"
                           className="w-full h-16 flex items-center justify-center gap-2"
-                          disabled={!customerName || !customerPhone || (orderType === 'delivery' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
+                          disabled={!customerName || !customerPhone || (orderType === 'shipping' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
                           onClick={() => {
                             setPaymentMethod('cash');
                             setCurrentOrderId(null);
@@ -2089,7 +2089,7 @@ export default function Storefront() {
                           method yet — applies to both pickup and delivery, otherwise a
                           delivery checkout with no Stripe/PayPal/Cash enabled is a dead end:
                           the customer fills in their address and has no way to submit. */}
-                      {!enabledPaymentMethods?.stripe && !enabledPaymentMethods?.paypal && !enabledPaymentMethods?.cash && (orderType === 'pickup' || orderType === 'delivery') && (
+                      {!enabledPaymentMethods?.stripe && !enabledPaymentMethods?.paypal && !enabledPaymentMethods?.cash && (orderType === 'pickup' || orderType === 'shipping') && (
                         <div className="space-y-3">
                           <div className="bg-muted/50 rounded-lg p-3 text-center">
                             <p className="text-sm text-muted-foreground">
@@ -2101,7 +2101,7 @@ export default function Storefront() {
                           <Button
                             variant="default"
                             className="w-full h-16 flex items-center justify-center gap-2"
-                            disabled={!customerName || !customerPhone || (orderType === 'delivery' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
+                            disabled={!customerName || !customerPhone || (orderType === 'shipping' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
                             onClick={() => {
                               setPaymentMethod('cash');
                               setCurrentOrderId(null);

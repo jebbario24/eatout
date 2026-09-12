@@ -126,7 +126,7 @@ const orderSchema = z.object({
 });
 
 const onlineOrderSchema = z.object({
-  orderType: z.enum(['pickup', 'delivery']).default('delivery'),
+  orderType: z.enum(['pickup', 'shipping']).default('shipping'),
   customerName: z.string().nullable().optional(),
   customerPhone: z.string().nullable().optional(),
   customerEmail: z.string().nullable().optional(),
@@ -2060,7 +2060,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     selectedOptions: z.any().nullable().optional(),
   });
   const draftOrderSchema = z.object({
-    orderType: z.enum(["pickup", "delivery", "dine_in"]).default("pickup"),
+    orderType: z.enum(["pickup", "shipping", "dine_in"]).default("pickup"),
     customerName: z.string().nullable().optional(),
     customerPhone: z.string().nullable().optional(),
     customerEmail: z.string().nullable().optional(),
@@ -2109,7 +2109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customerEmail: data.customerEmail || null,
         shippingAddress: data.shippingAddress || null,
         notes: data.notes || null,
-        deliveryFee: deliveryFee.toFixed(2),
+        shippingFee: deliveryFee.toFixed(2),
         subtotal,
         tax,
         total,
@@ -2146,7 +2146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customerEmail: data.customerEmail || null,
         shippingAddress: data.shippingAddress || null,
         notes: data.notes || null,
-        deliveryFee: deliveryFee.toFixed(2),
+        shippingFee: deliveryFee.toFixed(2),
         subtotal, tax, total,
       } as any, lineRows as any);
       res.json(updated);
@@ -4347,11 +4347,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rewardsDiscount = rewardsCents / 100;
       const adjustedTotal = (runningCents / 100).toFixed(2);
 
-      // Geocode delivery address for delivery orders (delivery-zone matching removed)
-      const deliveryZoneId: string | null = null;
+      // Geocode delivery address for shipping orders
       let deliveryLat: string | null = null;
       let deliveryLng: string | null = null;
-      if (data.orderType === 'delivery') {
+      if (data.orderType === 'shipping') {
         if (data.deliveryAddress) {
           try {
             const { googleMapsService } = await import('./services/googleMaps');
@@ -4379,8 +4378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         deliveryLat,
         deliveryLng,
         deliveryAddress: data.deliveryAddress || null,
-        deliveryFee: data.deliveryFee || '0',
-        deliveryZoneId,
+        shippingFee: data.deliveryFee || '0',
         paymentMethod: data.paymentMethod || null,
         subtotal: data.subtotal,
         promoCode: promoRule ? (promoRule.promoCode || data.promoCode || null) : null,
@@ -4450,7 +4448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         if (
           checkoutCustomer && sessionCustomer && data.saveAddress &&
-          data.orderType === "delivery" && data.deliveryAddress
+          data.orderType === "shipping" && data.deliveryAddress
         ) {
           await storage.createCustomerAddress({
             customerId: checkoutCustomer.id,
@@ -4755,10 +4753,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json({ error: "orderTypes is required" });
     }
 
-    const { pickup, delivery } = req.body.orderTypes;
+    const { pickup, shipping } = req.body.orderTypes;
 
     // Validate that at least one order type is enabled
-    if (!pickup && !delivery) {
+    if (!pickup && !shipping) {
       return res.status(400).json({ error: "At least one order type must be enabled" });
     }
 

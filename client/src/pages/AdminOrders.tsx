@@ -341,10 +341,10 @@ export default function AdminOrders() {
                     <span>Subtotal:</span>
                     <span>{formatCurrency(selectedOrder.subtotal, selectedOrder.currency || "USD")}</span>
                   </div>
-                  {parseFloat(selectedOrder.deliveryFee || "0") > 0 && (
+                  {parseFloat(selectedOrder.shippingFee || "0") > 0 && (
                     <div className="flex justify-between text-sm">
                       <span>Shipping Fee:</span>
-                      <span>{formatCurrency(selectedOrder.deliveryFee, selectedOrder.currency || "USD")}</span>
+                      <span>{formatCurrency(selectedOrder.shippingFee, selectedOrder.currency || "USD")}</span>
                     </div>
                   )}
                   {parseFloat(selectedOrder.tax || "0") > 0 && (

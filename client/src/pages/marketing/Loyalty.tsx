@@ -321,7 +321,7 @@ export default function Loyalty() {
               onCheckedChange={(v) => setForm({ ...form, earnOnDeliveryFee: v })}
               data-testid="switch-earn-delivery"
             />
-            <Label htmlFor="earn-delivery">Also earn points on the delivery fee</Label>
+            <Label htmlFor="earn-delivery">Also earn points on the shipping fee</Label>
           </div>
 
           <div className="flex justify-end">
@@ -402,7 +402,7 @@ export default function Loyalty() {
                         {[
                           t.benefits?.description,
                           t.benefits?.discountPercentage ? `${t.benefits.discountPercentage}% off` : null,
-                          t.benefits?.freeDelivery ? "Free delivery" : null,
+                          t.benefits?.freeDelivery ? "Free shipping" : null,
                         ]
                           .filter(Boolean)
                           .join(" · ") || "—"}
@@ -493,7 +493,7 @@ export default function Loyalty() {
                   onCheckedChange={(v) => setTierForm({ ...tierForm, freeDelivery: v })}
                   data-testid="switch-tier-free-delivery"
                 />
-                <Label htmlFor="tier-free-delivery">Free delivery</Label>
+                <Label htmlFor="tier-free-delivery">Free shipping</Label>
               </div>
             </div>
             <div className="flex items-center gap-2">

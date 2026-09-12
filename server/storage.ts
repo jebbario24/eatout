@@ -28,7 +28,6 @@ import {
   boostSlots,
   staff,
   inventory,
-  deliveryZones,
   restaurantPayoutAccounts,
   earningsLedger,
   payoutRuns,
@@ -175,7 +174,7 @@ export interface IStorage {
   getAllOrderItems(restaurantId: string): Promise<(OrderItem & { menuItem?: MenuItem; bundle?: Bundle })[]>;
   createOrder(order: InsertOrder, items: Omit<InsertOrderItem, 'orderId'>[]): Promise<Order>;
   updateOrderStatus(orderId: string, status: string): Promise<Order>;
-  confirmOrderWithPayment(orderId: string, paymentProvider: string, paymentIntentId: string, totalAmount: number, deliveryFee?: number): Promise<Order>;
+  confirmOrderWithPayment(orderId: string, paymentProvider: string, paymentIntentId: string, totalAmount: number, shippingFee?: number): Promise<Order>;
   getLastOrderByPrefix(restaurantId: string, prefix: string): Promise<Order | undefined>;
   
   // Staff operations
@@ -366,10 +365,9 @@ export class DatabaseStorage implements IStorage {
     await db.delete(menuItems).where(eq(menuItems.restaurantId, id));
     await db.delete(menuCategories).where(eq(menuCategories.restaurantId, id));
     
-    // Delete staff, inventory, delivery zones
+    // Delete staff, inventory
     await db.delete(staff).where(eq(staff.restaurantId, id));
     await db.delete(inventory).where(eq(inventory.restaurantId, id));
-    await db.delete(deliveryZones).where(eq(deliveryZones.restaurantId, id));
     
     // Delete customer reviews
     await db.delete(customerReviews).where(eq(customerReviews.restaurantId, id));
@@ -679,23 +677,22 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async confirmOrderWithPayment(orderId: string, paymentProvider: string, paymentIntentId: string, totalAmount: number, deliveryFee: number = 0): Promise<Order> {
+  async confirmOrderWithPayment(orderId: string, paymentProvider: string, paymentIntentId: string, totalAmount: number, shippingFee: number = 0): Promise<Order> {
     const currentOrder = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
     if (!currentOrder || currentOrder.length === 0) {
       throw new Error("Order not found");
     }
-    
+
     const order = currentOrder[0];
-    
+
     // Calculate amounts correctly to avoid double-counting shipping fees
-    // totalAmount = subtotal + tax + deliveryFee (what customer pays)
+    // totalAmount = subtotal + tax + shippingFee (what customer pays)
     const platformFeeRate = 0.02; // 2% platform fee
     const platformFee = Math.round(totalAmount * platformFeeRate * 100) / 100;
-    const driverShare = 0;
 
-    // Restaurant gets: totalAmount - platformFee (no driver share — fulfillment is shipping/pickup only)
+    // Restaurant gets: totalAmount - platformFee (fulfillment is shipping/pickup only)
     const restaurantShare = Math.round((totalAmount - platformFee) * 100) / 100;
-    
+
     // Update order with payment tracking data
     const [updated] = await db
       .update(orders)
@@ -706,7 +703,6 @@ export class DatabaseStorage implements IStorage {
         platformCaptureStatus: 'captured',
         paymentIntentId,
         restaurantShare: restaurantShare.toString(),
-        driverShare: driverShare.toString(),
         platformFee: platformFee.toString(),
         updatedAt: new Date(),
       })
@@ -1343,7 +1339,7 @@ export class DatabaseStorage implements IStorage {
 
     const base =
       parseFloat(order.subtotal || "0") +
-      (program.earnOnDeliveryFee ? parseFloat(order.deliveryFee || "0") : 0);
+      (program.earnOnDeliveryFee ? parseFloat(order.shippingFee || "0") : 0);
     const points = Math.floor(base * parseFloat(program.pointsPerUnit || "1"));
     if (points <= 0) return;
 

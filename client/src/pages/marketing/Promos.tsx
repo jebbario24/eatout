@@ -352,7 +352,7 @@ export default function Promos() {
       case 'fixed_amount':
         return `$${promo.value.toFixed(2)}`;
       case 'free_delivery':
-        return 'Free Delivery';
+        return 'Free Shipping';
       case 'buy_x_get_y':
         return (
           <span className="text-xs">
@@ -454,7 +454,7 @@ export default function Promos() {
                       <Badge variant="outline" data-testid={`badge-type-${promo.id}`}>
                         {promo.type === 'percentage' ? 'Percentage' :
                          promo.type === 'fixed_amount' ? 'Fixed Amount' :
-                         promo.type === 'free_delivery' ? 'Free Delivery' :
+                         promo.type === 'free_delivery' ? 'Free Shipping' :
                          promo.type === 'buy_x_get_y' ? 'Buy X Get Y' :
                          promo.type}
                       </Badge>
@@ -545,7 +545,7 @@ export default function Promos() {
                     <SelectContent>
                       <SelectItem value="percentage">Percentage Discount</SelectItem>
                       <SelectItem value="fixed_amount">Fixed Amount Discount</SelectItem>
-                      <SelectItem value="free_delivery">Free Delivery</SelectItem>
+                      <SelectItem value="free_delivery">Free Shipping</SelectItem>
                       <SelectItem value="buy_x_get_y">Buy X Get Y Free</SelectItem>
                     </SelectContent>
                   </Select>
@@ -722,7 +722,7 @@ export default function Promos() {
                   <SelectContent>
                     <SelectItem value="percentage">Percentage Discount</SelectItem>
                     <SelectItem value="fixed_amount">Fixed Amount Discount</SelectItem>
-                    <SelectItem value="free_delivery">Free Delivery</SelectItem>
+                    <SelectItem value="free_delivery">Free Shipping</SelectItem>
                     <SelectItem value="buy_x_get_y">Buy X Get Y Free</SelectItem>
                   </SelectContent>
                 </Select>

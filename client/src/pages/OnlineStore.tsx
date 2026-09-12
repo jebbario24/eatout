@@ -163,7 +163,7 @@ export default function OnlineStore() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethods>(defaultPaymentMethods);
   const [orderTypes, setOrderTypes] = useState({
     pickup: true,
-    delivery: true,
+    shipping: true,
   });
   const [taxSettings, setTaxSettings] = useState({
     taxRate: "0.00",
@@ -287,7 +287,7 @@ export default function OnlineStore() {
   });
 
   const orderTypesMutation = useMutation({
-    mutationFn: async (types: { pickup: boolean; delivery: boolean }) => {
+    mutationFn: async (types: { pickup: boolean; shipping: boolean }) => {
       return apiRequest("/api/restaurant/order-types", "PUT", { orderTypes: types });
     },
     onSuccess: () => {
@@ -472,7 +472,7 @@ export default function OnlineStore() {
   // Load existing order types
   useEffect(() => {
     if (restaurant?.orderTypes) {
-      setOrderTypes(restaurant.orderTypes as { pickup: boolean; delivery: boolean });
+      setOrderTypes(restaurant.orderTypes as { pickup: boolean; shipping: boolean });
     }
   }, [restaurant?.orderTypes]);
 
@@ -1029,27 +1029,27 @@ export default function OnlineStore() {
             />
           </div>
 
-          <div className="flex items-center justify-between" data-testid="order-type-delivery">
+          <div className="flex items-center justify-between" data-testid="order-type-shipping">
             <div className="space-y-0.5">
-              <Label htmlFor="enable-delivery">Delivery</Label>
-              <p className="text-sm text-muted-foreground">Allow customers to order delivery</p>
+              <Label htmlFor="enable-shipping">Shipping</Label>
+              <p className="text-sm text-muted-foreground">Allow customers to have orders shipped</p>
             </div>
             <Switch
-              id="enable-delivery"
-              checked={orderTypes.delivery}
-              onCheckedChange={(checked) => setOrderTypes(prev => ({ ...prev, delivery: checked }))}
-              data-testid="switch-delivery"
+              id="enable-shipping"
+              checked={orderTypes.shipping}
+              onCheckedChange={(checked) => setOrderTypes(prev => ({ ...prev, shipping: checked }))}
+              data-testid="switch-shipping"
             />
           </div>
 
-          <Button 
+          <Button
             onClick={() => orderTypesMutation.mutate(orderTypes)}
-            disabled={orderTypesMutation.isPending || (!orderTypes.pickup && !orderTypes.delivery)}
+            disabled={orderTypesMutation.isPending || (!orderTypes.pickup && !orderTypes.shipping)}
             data-testid="button-save-order-types"
           >
             Save Order Types
           </Button>
-          {!orderTypes.pickup && !orderTypes.delivery && (
+          {!orderTypes.pickup && !orderTypes.shipping && (
             <p className="text-sm text-destructive">At least one order type must be enabled</p>
           )}
         </CardContent>

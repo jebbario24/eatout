@@ -33,7 +33,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     orderTypes: [
       { value: "dine-in", label: "Dine-in" },
       { value: "takeout", label: "Takeout" },
-      { value: "delivery", label: "Delivery" },
+      { value: "shipping", label: "Shipping" },
     ],
   },
   grocery: {
@@ -44,7 +44,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     hasDineIn: false,
     orderTypes: [
       { value: "pickup", label: "Pickup" },
-      { value: "delivery", label: "Delivery" },
+      { value: "shipping", label: "Shipping" },
     ],
   },
   pharmacy: {
@@ -55,7 +55,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     hasDineIn: false,
     orderTypes: [
       { value: "pickup", label: "Pickup" },
-      { value: "delivery", label: "Delivery" },
+      { value: "shipping", label: "Shipping" },
     ],
   },
   flowers: {
@@ -66,7 +66,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     hasDineIn: false,
     orderTypes: [
       { value: "pickup", label: "Pickup" },
-      { value: "delivery", label: "Delivery" },
+      { value: "shipping", label: "Shipping" },
     ],
   },
   retail: {
@@ -77,7 +77,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
     hasDineIn: false,
     orderTypes: [
       { value: "pickup", label: "Pickup" },
-      { value: "delivery", label: "Delivery" },
+      { value: "shipping", label: "Shipping" },
     ],
   },
 };
