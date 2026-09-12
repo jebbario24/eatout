@@ -64,6 +64,13 @@ import Reports from "@/pages/Reports";
 import Inbox from "@/pages/Inbox";
 import Payouts from "@/pages/Payouts";
 import Contact from "@/pages/Contact";
+import Pricing from "@/pages/Pricing";
+import Documentation from "@/pages/Documentation";
+import About from "@/pages/About";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
+import Blog from "@/pages/Blog";
+import BlogPost from "@/pages/BlogPost";
 
 function PublicRouter() {
   return (
@@ -73,6 +80,13 @@ function PublicRouter() {
       <Route path="/signup" component={Signup} />
       <Route path="/subscribe" component={Subscribe} />
       <Route path="/contact" component={Contact} />
+      <Route path="/pricing" component={Pricing} />
+      <Route path="/docs" component={Documentation} />
+      <Route path="/about" component={About} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
+      <Route path="/blog" component={Blog} />
+      <Route path="/blog/:slug" component={BlogPost} />
       <Route component={NotFound} />
     </Switch>
   );
