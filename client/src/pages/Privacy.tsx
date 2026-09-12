@@ -4,7 +4,7 @@ const SECTIONS = [
   {
     title: "1. Information we collect",
     body: [
-      "When you create an account, we collect the information you provide directly: your name, email address, phone number, and business details. When customers place orders through a storefront on EatOut, we collect the order and contact information needed to fulfill that order — name, delivery or pickup details, and payment confirmation.",
+      "When you create an account, we collect the information you provide directly: your name, email address, phone number, and business details. When customers place orders through a storefront on EatOut, we collect the order and contact information needed to fulfill that order: name, delivery or pickup details, and payment confirmation.",
       "We also collect usage information automatically, such as pages visited and actions taken within the dashboard, to help us understand how the platform is used and to improve it.",
     ],
   },
@@ -18,7 +18,7 @@ const SECTIONS = [
   {
     title: "3. Payment information",
     body: [
-      "Payments are processed by Stripe and/or PayPal. EatOut does not store full card numbers on its own servers — payment details are handled directly by these processors under their own security standards and privacy policies.",
+      "Payments are processed by Stripe and/or PayPal. EatOut does not store full card numbers on its own servers. Payment details are handled directly by these processors under their own security standards and privacy policies.",
     ],
   },
   {
@@ -30,7 +30,7 @@ const SECTIONS = [
   {
     title: "5. Data sharing",
     body: [
-      "We share information only where necessary to operate the service — with payment processors to complete transactions, with infrastructure providers who host our systems, and where required by law.",
+      "We share information only where necessary to operate the service: with payment processors to complete transactions, with infrastructure providers who host our systems, and where required by law.",
     ],
   },
   {

@@ -16,19 +16,19 @@ const INCLUDED = [
 const FAQS = [
   {
     q: "Is there really no commission on sales?",
-    a: "Correct — EatOut charges one flat monthly subscription, not a percentage of your orders. Whether you process ten orders a month or ten thousand, the platform fee stays the same, and 100% of what you charge customers is yours.",
+    a: "Correct. EatOut charges one flat monthly subscription, not a percentage of your orders. Whether you process ten orders a month or ten thousand, the platform fee stays the same, and 100% of what you charge customers is yours.",
   },
   {
     q: "What happens after my free trial?",
-    a: "You can start a 7-day free trial with no credit card charged upfront, or skip the trial and get immediate access. After the trial, your subscription is $79/month until you cancel — no long-term contract.",
+    a: "You can start a 7-day free trial with no credit card charged upfront, or skip the trial and get immediate access. After the trial, your subscription is $79/month until you cancel, with no long-term contract.",
   },
   {
     q: "Can I cancel anytime?",
-    a: "Yes. There's no long-term commitment — cancel from your account settings whenever you'd like, no phone call or retention flow required.",
+    a: "Yes. There's no long-term commitment. Cancel from your account settings whenever you'd like, no phone call or retention flow required.",
   },
   {
     q: "Do you charge extra for payment processing?",
-    a: "Stripe and PayPal charge their own standard processing fees on transactions, same as they would on any platform — EatOut doesn't add a markup on top of that.",
+    a: "Stripe and PayPal charge their own standard processing fees on transactions, same as they would on any platform. EatOut doesn't add a markup on top of that.",
   },
 ];
 
@@ -45,7 +45,7 @@ export default function Pricing() {
             One plan. No commission. No surprises.
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-[16px] text-[#6d7175]">
-            A flat monthly price, regardless of how many orders you process. Everything is included — no paywalled features, no per-order fees.
+            A flat monthly price, regardless of how many orders you process. Everything is included, with no paywalled features and no per-order fees.
           </p>
         </div>
 

@@ -4,7 +4,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Store, Menu, Mail } from "lucide-react";
 import { Link } from "wouter";
 
-/** A pill button whose position eases toward the cursor when hovered — the "magnetic" feel. */
+/** A pill button whose position eases toward the cursor when hovered, the "magnetic" feel. */
 function useMagnetic(strength = 0.35) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -239,7 +239,7 @@ export function MarketingFooter() {
               <span className="text-[16px] font-semibold text-[#1a1a1a]">EatOut</span>
             </div>
             <p className="mt-3 max-w-xs text-[14px] leading-[1.5] text-[#6d7175]">
-              One platform for your storefront, orders, payments, inventory, and team — built for online shops of every kind, anywhere in the world.
+              One platform for your storefront, orders, payments, inventory, and team, built for online shops of every kind, anywhere in the world.
             </p>
           </div>
 

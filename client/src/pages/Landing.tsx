@@ -29,10 +29,10 @@ gsap.registerPlugin(ScrollTrigger);
 // ============================================================
 // Shopify-light foundation (canvas #f6f6f7, card #ffffff, border
 // #e3e3e3, Shopify green #008060), built with Motion's
-// motion-value primitives — magnetic
+// motion-value primitives: magnetic
 // buttons, a cursor-tracked spotlight, living aurora blobs,
 // word-reveal headlines, 3D tilt cards, and a scroll-progress
-// rail — instead of only mount-time fades.
+// rail, instead of only mount-time fades.
 // ============================================================
 
 interface Feature {
@@ -46,7 +46,7 @@ const HERO = {
   headlineTop: "Sell online,",
   headlineHighlight: "anywhere in the world",
   subtitle:
-    "One platform for your storefront, orders, payments, inventory, and team — built for online shops of every kind, wherever your customers are.",
+    "One platform for your storefront, orders, payments, inventory, and team, built for online shops of every kind, wherever your customers are.",
   primaryCta: "Get Started Free",
   secondaryCta: "Login",
 };
@@ -55,7 +55,7 @@ const FEATURES: Feature[] = [
   { icon: Store, title: "Online Storefront", description: "A branded store customers can find and order from in minutes, in any country" },
   { icon: ShoppingCart, title: "Orders & Payments", description: "Accept orders and payments from customers anywhere, in their currency" },
   { icon: Package, title: "Inventory", description: "Track stock levels and get low-stock alerts automatically" },
-  { icon: Truck, title: "Flexible Fulfillment", description: "Ship with your preferred carriers or manage your own delivery — your choice" },
+  { icon: Truck, title: "Flexible Fulfillment", description: "Ship with your preferred carriers or manage your own delivery, whichever you choose" },
   { icon: Users, title: "Team Management", description: "Manage your team with roles, schedules, and permissions" },
   { icon: BarChart3, title: "Analytics", description: "Real-time insights into sales, top products, and revenue trends" },
 ];
@@ -70,15 +70,15 @@ const STATS = [
 const HOW_IT_WORKS = [
   {
     title: "Set up your storefront",
-    description: "Add your catalog, connect payments, and go live in minutes — no developer required.",
+    description: "Add your catalog, connect payments, and go live in minutes. No developer required.",
   },
   {
     title: "Fulfill orders your way",
-    description: "Ship with your preferred carriers or manage your own delivery — whatever fits your business, wherever you are.",
+    description: "Ship with your preferred carriers or manage your own delivery, whatever fits your business, wherever you are.",
   },
   {
     title: "Grow with real data",
-    description: "Promos, analytics, and payouts built in — everything you need to run and grow the business.",
+    description: "Promos, analytics, and payouts built in: everything you need to run and grow the business.",
   },
 ];
 
@@ -96,7 +96,7 @@ function ScrollProgressRail() {
   );
 }
 
-/** Two slow-drifting blurred blobs — a living background instead of a static gradient. */
+/** Two slow-drifting blurred blobs, a living background instead of a static gradient. */
 function AuroraField() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -371,7 +371,7 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Features — bento-style: first card featured (spans 2 cols), rest standard */}
+      {/* Features: bento-style, first card featured (spans 2 cols), rest standard */}
       <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -471,7 +471,7 @@ export default function Landing() {
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <PrimaryPill onClick={() => (window.location.href = "/signup")} testId="button-start-now">
-                  Start Now — It's Free
+                  Start Now, It's Free
                   <ArrowRight className="h-4 w-4" />
                 </PrimaryPill>
               </div>

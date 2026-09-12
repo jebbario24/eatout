@@ -50,7 +50,7 @@ export default function BlogPost() {
         <div className="mt-14 rounded-xl border border-[#e3e3e3] bg-white p-8 text-center">
           <h2 className="text-[20px] font-medium text-[#1a1a1a]">Ready to run your own online shop?</h2>
           <p className="mx-auto mt-2 max-w-md text-[14px] text-[#6d7175]">
-            Storefront, orders, payments, and fulfillment — one platform, no commission on your sales.
+            Storefront, orders, payments, and fulfillment: one platform, no commission on your sales.
           </p>
           <div className="mt-5">
             <PrimaryPill onClick={() => (window.location.href = "/signup")} testId="button-blog-cta">

@@ -16,7 +16,7 @@ export default function Blog() {
             Branding, marketing, and running an online shop
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-[16px] text-[#6d7175]">
-            Practical, no-fluff writing for people running a real online business — not growth-hacking theory.
+            Practical, no-fluff writing for people running a real online business, not growth-hacking theory.
           </p>
         </div>
 
