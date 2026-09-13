@@ -65,6 +65,7 @@
     "connect-pg-simple": "^10.0.0",
     "country-state-city": "^3.2.1",
     "date-fns": "^3.6.0",
+    "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.39.1",
     "drizzle-zod": "^0.7.0",
     "embla-carousel-react": "^8.6.0",
@@ -134,7 +135,6 @@
     "@types/web-push": "^3.6.4",
     "@types/ws": "^8.5.13",
     "cross-env": "^10.1.0",
-    "drizzle-kit": "^0.31.4",
     "tsx": "^4.20.5",
     "wrangler": "^4.131.0"
   },

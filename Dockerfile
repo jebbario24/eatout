@@ -31,6 +31,17 @@ ENV PORT=8080
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./package.json
+# Needed at boot (not build time) to apply any pending schema changes against
+# whichever database DATABASE_URL points to — drizzle-kit reads these directly.
+COPY --from=builder /app/shared ./shared
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
 EXPOSE 8080
-CMD ["node", "dist/index.js"]
+# Sync the database schema before the server starts, every boot. This is what
+# was missing when a deploy shipped code expecting new columns/tables that
+# hadn't been migrated yet: the app crashed on every request touching them and
+# the health check timed out. Additive-only schema changes (new nullable
+# columns, new tables — this project's actual pattern so far) apply silently
+# here; if a future change is ever a genuine rename/drop, review it with
+# `drizzle-kit push` locally first rather than trusting this unattended.
+CMD ["sh", "-c", "npx drizzle-kit push --force && node dist/index.js"]

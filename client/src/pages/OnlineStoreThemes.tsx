@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Check, ExternalLink, Palette } from "lucide-react";
 import { THEME_PRESETS, matchPreset, type ThemePreset } from "@/lib/themePresets";
 import { STOREFRONT_THEMES, type StorefrontThemeDef } from "@/lib/storefrontThemes";
+import { getReadyTemplateSections } from "@/lib/readyTemplateSections";
 
 export default function OnlineStoreThemes() {
   const { toast } = useToast();
@@ -38,18 +39,33 @@ export default function OnlineStoreThemes() {
     mutationFn: async (theme: StorefrontThemeDef) => {
       if (!restaurant?.id) throw new Error("No restaurant");
       const currentThemeSettings = (restaurant.themeSettings as any) || {};
+      const currentSections = Array.isArray(currentThemeSettings.sections) ? currentThemeSettings.sections : [];
+      if (currentSections.length > 0) {
+        const proceed = window.confirm(
+          "This ready-made template comes with its own set of sections (brand story, FAQ, etc.) and will replace the sections you currently have. Continue?"
+        );
+        if (!proceed) throw new Error("__cancelled__");
+      }
       return apiRequest(`/api/restaurants/${restaurant.id}`, "PUT", {
         primaryColor: theme.primaryColor,
         secondaryColor: theme.secondaryColor,
         accentColor: theme.accentColor,
-        themeSettings: { ...currentThemeSettings, cardStyle: theme.cardStyle, themeId: theme.id },
+        themeSettings: {
+          ...currentThemeSettings,
+          cardStyle: theme.cardStyle,
+          themeId: theme.id,
+          sections: getReadyTemplateSections(theme.id, restaurant.name),
+        },
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
-      toast({ title: "Theme applied" });
+      toast({ title: "Template applied", description: "Your storefront now has a brand story, FAQ, and more — fine-tune it in Customize." });
     },
-    onError: () => toast({ title: "Failed to apply theme", variant: "destructive" }),
+    onError: (e: Error) => {
+      if (e.message === "__cancelled__") return;
+      toast({ title: "Failed to apply template", variant: "destructive" });
+    },
   });
 
   if (isLoading) {
@@ -122,9 +138,9 @@ export default function OnlineStoreThemes() {
       </Card>
 
       <div>
-        <h2 className="text-lg font-display font-semibold mb-1">Full Themes</h2>
+        <h2 className="text-lg font-display font-semibold mb-1">Ready Templates</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Complete storefront layouts — hero, product cards, and a signature section — not just colors.
+          Complete, ready-to-launch storefronts — hero, product cards, brand story, FAQ, and newsletter sign-up already filled in. Pick one, then fine-tune it in Customize.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {STOREFRONT_THEMES.map((theme) => {
@@ -195,7 +211,7 @@ export default function OnlineStoreThemes() {
                     className="w-full"
                     data-testid={`button-apply-theme-${theme.id}`}
                   >
-                    {isActive ? "Currently applied" : "Apply theme"}
+                    {isActive ? "Currently applied" : "Apply template"}
                   </Button>
                 </CardFooter>
               </Card>
