@@ -13,7 +13,6 @@ import {
   AlertCircle,
   Clock,
   CreditCard,
-  ExternalLink,
   CheckCircle2,
   Circle,
 } from "lucide-react";
@@ -154,9 +153,7 @@ export default function Dashboard() {
     },
   ];
 
-  const storefrontUrl = restaurant.slug ? `${window.location.origin}/store/${restaurant.slug}` : "";
   const hasMenuItems = (menuItems?.length ?? 0) > 0;
-  const hasThemeSections = ((restaurant as any).themeSettings?.sections?.length ?? 0) > 0;
   const setupTasks = [
     {
       key: "add-product",
@@ -169,16 +166,6 @@ export default function Dashboard() {
       label: "Connect your bank account",
       done: !!stripeStatus?.payoutsEnabled,
       href: "/settings",
-    },
-    {
-      key: "customize-store",
-      label: "Customize your online store",
-      done: hasThemeSections,
-      href: "/online-store/customize",
-      // The theme editor is a standalone full-screen tool without the dashboard
-      // sidebar/topbar — it lives outside the SPA route tree, so it must be
-      // opened as a real navigation (new tab) rather than a client-side Link.
-      openInNewTab: true,
     },
   ];
   const allSetupDone = setupTasks.every((t) => t.done);
@@ -230,51 +217,15 @@ export default function Dashboard() {
       </div>
 
       <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          <div className="flex flex-col md:flex-row">
-            <div className="p-6 flex-1 flex flex-col justify-center gap-3">
-              <h2 className="text-2xl font-display font-bold">
-                {restaurant.slug ? `${restaurant.name} is open for business!` : `Finish setting up ${restaurant.name}`}
-              </h2>
-              <p className="text-muted-foreground">
-                {restaurant.slug
-                  ? "Your storefront is live and ready to take orders."
-                  : "Set up your online store slug in Settings to go live."}
-              </p>
-              {storefrontUrl && (
-                <Button
-                  variant="default"
-                  className="w-fit"
-                  onClick={() => window.open(storefrontUrl, "_blank")}
-                  data-testid="button-preview-storefront"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Preview Storefront
-                </Button>
-              )}
-            </div>
-            {storefrontUrl && (
-              <div className="flex-1 bg-muted/30 p-4 min-h-[220px]">
-                <div className="h-full rounded-lg border bg-background shadow-sm overflow-hidden flex flex-col">
-                  <div className="flex items-center gap-1.5 border-b bg-muted/50 px-3 py-2 shrink-0">
-                    <span className="h-2.5 w-2.5 rounded-full bg-destructive/60" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-primary/60" />
-                    <span className="ml-2 text-xs text-muted-foreground truncate rounded bg-background px-2 py-0.5 border">
-                      /store/{restaurant.slug}
-                    </span>
-                  </div>
-                  <iframe
-                    src={storefrontUrl}
-                    className="flex-1 w-full border-0 pointer-events-none"
-                    style={{ minHeight: 180 }}
-                    title="Storefront preview"
-                    data-testid="iframe-storefront-preview"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+        <CardContent className="p-6">
+          <h2 className="text-2xl font-display font-bold">
+            {restaurant.slug ? `Welcome back, ${restaurant.name}!` : `Finish setting up ${restaurant.name}`}
+          </h2>
+          <p className="text-muted-foreground mt-1">
+            {restaurant.slug
+              ? "Here's what's happening with your business."
+              : "Set up your online store slug in Settings to get started."}
+          </p>
         </CardContent>
       </Card>
 
@@ -295,11 +246,7 @@ export default function Dashboard() {
                   <span className={task.done ? "text-muted-foreground line-through" : ""}>{task.label}</span>
                 </div>
               );
-              return task.openInNewTab ? (
-                <a key={task.key} href={task.href} target="_blank" rel="noopener noreferrer">
-                  {content}
-                </a>
-              ) : (
+              return (
                 <Link key={task.key} href={task.href}>
                   {content}
                 </Link>

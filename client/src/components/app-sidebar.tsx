@@ -5,7 +5,6 @@ import {
   Package,
   BarChart3,
   Settings,
-  Palette,
   CreditCard,
   Building2,
   Megaphone,
@@ -127,16 +126,6 @@ const customerItems = [
 
 // Store section
 const storeItems = [
-  {
-    titleKey: "navigation.onlineStore",
-    url: "/online-store",
-    icon: Palette,
-  },
-  {
-    titleKey: "navigation.pagesBlog",
-    url: "/online-store/content",
-    icon: FileText,
-  },
   {
     titleKey: "navigation.pixelsTracking",
     url: "/marketing/pixels",

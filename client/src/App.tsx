@@ -25,20 +25,7 @@ import Growth from "@/pages/Growth";
 import Markets from "@/pages/Markets";
 import Settings from "@/pages/Settings";
 import POS from "@/pages/POS";
-import Storefront from "@/pages/Storefront";
-import CustomerAccount from "@/pages/storefront/CustomerAccount";
-import OrderTracking from "@/pages/storefront/OrderTracking";
-import StorefrontPage from "@/pages/storefront/StorefrontPage";
-import { StorefrontBlogIndex, StorefrontBlogPost } from "@/pages/storefront/StorefrontBlog";
-import ProductDetail from "@/pages/storefront/ProductDetail";
-import StorefrontShop from "@/pages/storefront/StorefrontShop";
-import StorefrontCollection from "@/pages/storefront/StorefrontCollection";
-import StorefrontContact from "@/pages/storefront/StorefrontContact";
-import ThankYou from "@/pages/storefront/ThankYou";
-import { StorefrontCartProvider } from "@/contexts/StorefrontCartContext";
 import Subscribe from "@/pages/Subscribe";
-import OnlineStoreThemes from "@/pages/OnlineStoreThemes";
-import OnlineStoreCustomize from "@/pages/OnlineStoreCustomize";
 import Billing from "@/pages/Billing";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminOrders from "@/pages/AdminOrders";
@@ -57,8 +44,6 @@ import Loyalty from "@/pages/marketing/Loyalty";
 import GiftCards from "@/pages/marketing/GiftCards";
 import Campaigns from "@/pages/marketing/Campaigns";
 import Collections from "@/pages/Collections";
-import StorefrontContent from "@/pages/StorefrontContent";
-import StoreBuilder from "@/pages/StoreBuilder";
 import Customers from "@/pages/Customers";
 import Boosts from "@/pages/marketing/Boosts";
 import Upsells from "@/pages/marketing/Upsells";
@@ -101,7 +86,7 @@ function PublicRouter() {
 
 function AuthenticatedRouter() {
   const { user } = useAuth();
-  
+
   // Admin routes
   if (user?.role === 'admin') {
     return (
@@ -138,8 +123,6 @@ function AuthenticatedRouter() {
       <Route path="/analytics" component={Analytics} />
       <Route path="/growth" component={Growth} />
       <Route path="/markets" component={Markets} />
-      <Route path="/online-store" component={OnlineStoreThemes} />
-      <Route path="/online-store/content" component={StorefrontContent} />
       <Route path="/settings" component={Settings} />
       <Route path="/pos" component={POS} />
       <Route path="/marketing" component={Marketing} />
@@ -166,24 +149,24 @@ function AuthenticatedRouter() {
 function AppContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
   usePlatformLanguage();
-  
+
   // Track RTL direction dynamically
   const [isRTL, setIsRTL] = useState(document.documentElement.dir === 'rtl');
-  
+
   useEffect(() => {
     // Watch for direction changes
     const observer = new MutationObserver(() => {
       setIsRTL(document.documentElement.dir === 'rtl');
     });
-    
+
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['dir']
     });
-    
+
     return () => observer.disconnect();
   }, []);
-  
+
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -223,145 +206,7 @@ function AppContent() {
   );
 }
 
-// The theme editor is a full-screen tool (its own header, back button, and live
-// preview pane) meant to be opened in its own tab — the dashboard's sidebar/topbar
-// would only eat into its already-tight layout, so it bypasses AppContent's shell
-// entirely rather than rendering inside <AuthenticatedRouter>.
-function ThemeEditorPage() {
-  const { isAuthenticated, isLoading } = useAuth();
-  usePlatformLanguage();
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Login />;
-  }
-
-  return (
-    <SubscriptionGuard>
-      <RestaurantSetupGuard>
-        <div className="h-screen w-full overflow-hidden">
-          <OnlineStoreCustomize />
-        </div>
-      </RestaurantSetupGuard>
-    </SubscriptionGuard>
-  );
-}
-
-// Full-screen, like ThemeEditorPage above — the review step's iframe preview
-// needs the same tight-layout headroom the theme editor already claimed.
-function StoreBuilderPage() {
-  const { isAuthenticated, isLoading } = useAuth();
-  usePlatformLanguage();
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Login />;
-  }
-
-  return (
-    <SubscriptionGuard>
-      <RestaurantSetupGuard>
-        <div className="h-screen w-full overflow-hidden">
-          <StoreBuilder />
-        </div>
-      </RestaurantSetupGuard>
-    </SubscriptionGuard>
-  );
-}
-
-function StorefrontRouter() {
-  return (
-    <StorefrontCartProvider>
-      <Switch>
-        <Route path="/store/:slug/account" component={CustomerAccount} />
-        <Route path="/store/:slug/track" component={OrderTracking} />
-        <Route path="/store/:slug/blog/:handle" component={StorefrontBlogPost} />
-        <Route path="/store/:slug/blog" component={StorefrontBlogIndex} />
-        <Route path="/store/:slug/pages/:handle" component={StorefrontPage} />
-        <Route path="/store/:slug/products/:handle" component={ProductDetail} />
-        <Route path="/store/:slug/shop" component={StorefrontShop} />
-        <Route path="/store/:slug/collections/:handle" component={StorefrontCollection} />
-        <Route path="/store/:slug/contact" component={StorefrontContact} />
-        <Route path="/store/:slug/thank-you/:orderId" component={ThankYou} />
-        <Route path="/account" component={CustomerAccount} />
-        <Route path="/track" component={OrderTracking} />
-        <Route path="/blog/:handle" component={StorefrontBlogPost} />
-        <Route path="/blog" component={StorefrontBlogIndex} />
-        <Route path="/pages/:handle" component={StorefrontPage} />
-        <Route path="/products/:handle" component={ProductDetail} />
-        <Route path="/shop" component={StorefrontShop} />
-        <Route path="/collections/:handle" component={StorefrontCollection} />
-        <Route path="/contact" component={StorefrontContact} />
-        <Route path="/thank-you/:orderId" component={ThankYou} />
-        <Route path="/" component={Storefront} />
-        <Route path="/store/:slug" component={Storefront} />
-        <Route component={Storefront} />
-      </Switch>
-    </StorefrontCartProvider>
-  );
-}
-
 function App() {
-  const currentPath = window.location.pathname;
-  const isStorefrontPath = currentPath.startsWith('/store/');
-  const isThemeEditorPath = currentPath.startsWith('/online-store/customize');
-  const isStoreBuilderPath = currentPath.startsWith('/online-store/build');
-
-  const hostname = window.location.hostname;
-  const parts = hostname.split('.');
-  const isReplitDomain = hostname.includes('replit.app') || hostname.includes('replit.dev');
-  const isStorefrontDomain = isReplitDomain && (
-    (hostname.includes('replit.app') && parts.length > 3) ||
-    (hostname.includes('replit.dev') && parts.length > 4)
-  );
-
-  if (isStorefrontPath || isStorefrontDomain) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <StorefrontRouter />
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
-    );
-  }
-
-  if (isThemeEditorPath) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <ThemeEditorPage />
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
-    );
-  }
-
-  if (isStoreBuilderPath) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <StoreBuilderPage />
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
-    );
-  }
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

@@ -15,11 +15,6 @@ import {
   promoRedemptions,
   collections,
   collectionItems,
-  storefrontPages,
-  blogPosts,
-  contactMessages,
-  storeGenerations,
-  newsletterSubscribers,
   productVariants,
   customerSegments,
   segmentMembers,
@@ -73,11 +68,6 @@ import {
   type GiftCardTransaction,
   type Collection,
   type CollectionItem,
-  type StorefrontPage,
-  type BlogPost,
-  type ContactMessage,
-  type StoreGeneration,
-  type NewsletterSubscriber,
   type ProductVariant,
   type CustomerSegment,
   type Campaign,
@@ -437,8 +427,6 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(menuItems.restaurantId, restaurantId), eq(menuItems.handle, handle)))
       .limit(1);
     if (!item) return item;
-    // Match getStorefrontMenuItems' convention: attach the variant list so the
-    // product detail page has what it needs in one request, no second round-trip.
     if ((item as any).hasVariants) {
       const variants = await this.listVariants(item.id);
       return { ...item, variants: variants.filter((v) => v.isActive) } as any;
@@ -505,23 +493,6 @@ export class DatabaseStorage implements IStorage {
     await db.update(productVariants)
       .set({ stockCount: sql`GREATEST(0, COALESCE(${productVariants.stockCount}, 0) - ${qty})`, updatedAt: new Date() })
       .where(and(eq(productVariants.id, variantId), sql`${productVariants.stockCount} IS NOT NULL`));
-  }
-
-  /** Storefront menu with variants attached to items that have them. */
-  async getStorefrontMenuItems(restaurantId: string): Promise<any[]> {
-    const items = await this.getMenuItems(restaurantId);
-    const withVariants = items.filter((i) => (i as any).hasVariants);
-    if (withVariants.length === 0) return items;
-    const vRows = await db.select().from(productVariants)
-      .where(and(eq(productVariants.restaurantId, restaurantId), eq(productVariants.isActive, true)))
-      .orderBy(asc(productVariants.position));
-    const byItem = new Map<string, ProductVariant[]>();
-    for (const v of vRows) {
-      const arr = byItem.get(v.menuItemId) || [];
-      arr.push(v);
-      byItem.set(v.menuItemId, arr);
-    }
-    return items.map((i) => ((i as any).hasVariants ? { ...i, variants: byItem.get(i.id) || [] } : i));
   }
 
   async createMenuItem(item: InsertMenuItem): Promise<MenuItem> {
@@ -1781,259 +1752,6 @@ export class DatabaseStorage implements IStorage {
         menuItemIds.map((menuItemId, i) => ({ collectionId, menuItemId, position: i })),
       );
     }
-  }
-
-  async listStorefrontCollections(restaurantId: string): Promise<(Collection & { items: any[] })[]> {
-    const cols = await db
-      .select()
-      .from(collections)
-      .where(and(
-        eq(collections.restaurantId, restaurantId),
-        eq(collections.isActive, true),
-        eq(collections.showOnStorefront, true),
-      ))
-      .orderBy(asc(collections.sortOrder), asc(collections.title));
-    const result: (Collection & { items: any[] })[] = [];
-    for (const c of cols) {
-      const items = (await this.listCollectionItems(c.id)).filter(
-        (it) => it.isAvailable && it.visibleOnline,
-      );
-      result.push({ ...c, items });
-    }
-    return result;
-  }
-
-  // ---- Storefront CMS: pages, blog, nav (Tier 7) ----
-
-  private async uniquePageHandle(restaurantId: string, base: string, ignoreId?: string): Promise<string> {
-    const root = slugify(base) || "page";
-    for (let i = 0; i < 50; i++) {
-      const candidate = i === 0 ? root : `${root}-${i + 1}`;
-      const [clash] = await db.select().from(storefrontPages)
-        .where(and(eq(storefrontPages.restaurantId, restaurantId), eq(storefrontPages.handle, candidate))).limit(1);
-      if (!clash || clash.id === ignoreId) return candidate;
-    }
-    return `${root}-${Date.now().toString(36)}`;
-  }
-  private async uniquePostHandle(restaurantId: string, base: string, ignoreId?: string): Promise<string> {
-    const root = slugify(base) || "post";
-    for (let i = 0; i < 50; i++) {
-      const candidate = i === 0 ? root : `${root}-${i + 1}`;
-      const [clash] = await db.select().from(blogPosts)
-        .where(and(eq(blogPosts.restaurantId, restaurantId), eq(blogPosts.handle, candidate))).limit(1);
-      if (!clash || clash.id === ignoreId) return candidate;
-    }
-    return `${root}-${Date.now().toString(36)}`;
-  }
-
-  async listPages(restaurantId: string): Promise<StorefrontPage[]> {
-    return db.select().from(storefrontPages).where(eq(storefrontPages.restaurantId, restaurantId))
-      .orderBy(asc(storefrontPages.sortOrder), asc(storefrontPages.title));
-  }
-  async getPage(id: string): Promise<StorefrontPage | undefined> {
-    const [p] = await db.select().from(storefrontPages).where(eq(storefrontPages.id, id)).limit(1);
-    return p;
-  }
-  async getPageByHandle(restaurantId: string, handle: string): Promise<StorefrontPage | undefined> {
-    const [p] = await db.select().from(storefrontPages)
-      .where(and(eq(storefrontPages.restaurantId, restaurantId), eq(storefrontPages.handle, handle))).limit(1);
-    return p;
-  }
-  async createPage(restaurantId: string, data: any): Promise<StorefrontPage> {
-    const handle = await this.uniquePageHandle(restaurantId, data.handle || data.title || "page");
-    const [created] = await db.insert(storefrontPages).values({
-      restaurantId,
-      title: String(data.title || "Untitled page").slice(0, 255),
-      handle,
-      body: data.body ?? null,
-      isPublished: data.isPublished ?? false,
-      showInFooter: data.showInFooter ?? false,
-      footerGroup: data.footerGroup || null,
-      sortOrder: data.sortOrder ?? 0,
-      seoTitle: data.seoTitle ?? null,
-      seoDescription: data.seoDescription ?? null,
-    }).returning();
-    return created;
-  }
-  async updatePage(id: string, restaurantId: string, data: any): Promise<StorefrontPage | undefined> {
-    const patch: any = { updatedAt: new Date() };
-    for (const k of ["title", "body", "isPublished", "showInFooter", "footerGroup", "sortOrder", "seoTitle", "seoDescription"] as const) {
-      if (data[k] !== undefined) patch[k] = data[k];
-    }
-    if (data.handle !== undefined) patch.handle = await this.uniquePageHandle(restaurantId, data.handle, id);
-    const [updated] = await db.update(storefrontPages).set(patch)
-      .where(and(eq(storefrontPages.id, id), eq(storefrontPages.restaurantId, restaurantId))).returning();
-    return updated;
-  }
-  async deletePage(id: string, restaurantId: string): Promise<void> {
-    await db.delete(storefrontPages).where(and(eq(storefrontPages.id, id), eq(storefrontPages.restaurantId, restaurantId)));
-  }
-
-  async listPosts(restaurantId: string): Promise<BlogPost[]> {
-    return db.select().from(blogPosts).where(eq(blogPosts.restaurantId, restaurantId))
-      .orderBy(desc(blogPosts.publishedAt), desc(blogPosts.createdAt));
-  }
-  async getPost(id: string): Promise<BlogPost | undefined> {
-    const [p] = await db.select().from(blogPosts).where(eq(blogPosts.id, id)).limit(1);
-    return p;
-  }
-  async getPostByHandle(restaurantId: string, handle: string): Promise<BlogPost | undefined> {
-    const [p] = await db.select().from(blogPosts)
-      .where(and(eq(blogPosts.restaurantId, restaurantId), eq(blogPosts.handle, handle))).limit(1);
-    return p;
-  }
-  async createPost(restaurantId: string, data: any): Promise<BlogPost> {
-    const handle = await this.uniquePostHandle(restaurantId, data.handle || data.title || "post");
-    const publishedAt = data.isPublished ? (data.publishedAt ? new Date(data.publishedAt) : new Date()) : null;
-    const [created] = await db.insert(blogPosts).values({
-      restaurantId,
-      title: String(data.title || "Untitled post").slice(0, 255),
-      handle,
-      excerpt: data.excerpt ?? null,
-      body: data.body ?? null,
-      coverImageUrl: data.coverImageUrl ?? null,
-      author: data.author ?? null,
-      tags: Array.isArray(data.tags) ? data.tags : null,
-      isPublished: data.isPublished ?? false,
-      publishedAt,
-      seoTitle: data.seoTitle ?? null,
-      seoDescription: data.seoDescription ?? null,
-    }).returning();
-    return created;
-  }
-  async updatePost(id: string, restaurantId: string, data: any): Promise<BlogPost | undefined> {
-    const existing = await this.getPost(id);
-    const patch: any = { updatedAt: new Date() };
-    for (const k of ["title", "excerpt", "body", "coverImageUrl", "author", "seoTitle", "seoDescription"] as const) {
-      if (data[k] !== undefined) patch[k] = data[k];
-    }
-    if (data.tags !== undefined) patch.tags = Array.isArray(data.tags) ? data.tags : null;
-    if (data.handle !== undefined) patch.handle = await this.uniquePostHandle(restaurantId, data.handle, id);
-    if (data.isPublished !== undefined) {
-      patch.isPublished = !!data.isPublished;
-      if (data.isPublished && !existing?.publishedAt) patch.publishedAt = new Date();
-    }
-    if (data.publishedAt !== undefined) patch.publishedAt = data.publishedAt ? new Date(data.publishedAt) : null;
-    const [updated] = await db.update(blogPosts).set(patch)
-      .where(and(eq(blogPosts.id, id), eq(blogPosts.restaurantId, restaurantId))).returning();
-    return updated;
-  }
-  async deletePost(id: string, restaurantId: string): Promise<void> {
-    await db.delete(blogPosts).where(and(eq(blogPosts.id, id), eq(blogPosts.restaurantId, restaurantId)));
-  }
-
-  async listContactMessages(restaurantId: string): Promise<ContactMessage[]> {
-    return db.select().from(contactMessages).where(eq(contactMessages.restaurantId, restaurantId))
-      .orderBy(desc(contactMessages.createdAt));
-  }
-  async createContactMessage(restaurantId: string, data: { name: string; email: string; subject?: string | null; message: string }): Promise<ContactMessage> {
-    const [created] = await db.insert(contactMessages).values({
-      restaurantId,
-      name: data.name.slice(0, 255),
-      email: data.email.slice(0, 255),
-      subject: data.subject ? data.subject.slice(0, 255) : null,
-      message: data.message,
-    }).returning();
-    return created;
-  }
-  async markContactMessageRead(id: string, restaurantId: string, isRead: boolean): Promise<ContactMessage | undefined> {
-    const [updated] = await db.update(contactMessages).set({ isRead })
-      .where(and(eq(contactMessages.id, id), eq(contactMessages.restaurantId, restaurantId))).returning();
-    return updated;
-  }
-  async deleteContactMessage(id: string, restaurantId: string): Promise<void> {
-    await db.delete(contactMessages).where(and(eq(contactMessages.id, id), eq(contactMessages.restaurantId, restaurantId)));
-  }
-
-  // Gives a brand-new store a working header menu, footer menu, and standard
-  // page set on day one instead of launching completely empty. Only ever runs
-  // once, right after a restaurant row is first created — never touches an
-  // existing account's pages or nav.
-  async seedDefaultStorefrontContent(restaurantId: string, restaurantName: string): Promise<void> {
-    const storeName = restaurantName || "our store";
-    const pages: Array<{ title: string; handle: string; body: string; footerGroup: string }> = [
-      {
-        title: "About Us",
-        handle: "about-us",
-        footerGroup: "Company",
-        body: `# About Us\n\nWelcome to ${storeName}! We're glad you're here.\n\n_This is a starter page — edit it any time from Settings → Pages & Blog to tell customers your story: how you started, what you sell, and what makes you different._`,
-      },
-      {
-        title: "Privacy Policy",
-        handle: "privacy-policy",
-        footerGroup: "Legal",
-        body: `# Privacy Policy\n\nThis Privacy Policy describes how ${storeName} collects, uses, and protects the personal information you share with us.\n\n## Information We Collect\nWhen you place an order, we collect the information needed to fulfill it — your name, email address, shipping address, and payment details.\n\n## How We Use Your Information\nWe use this information to process your orders, communicate with you about your purchases, and improve our store. We do not sell your personal information to third parties.\n\n## Contact\nQuestions about this policy can be sent to us through our Contact page.\n\n_This is a starter template — review and customize it (or have a legal professional review it) before relying on it._`,
-      },
-      {
-        title: "Terms of Service",
-        handle: "terms-of-service",
-        footerGroup: "Legal",
-        body: `# Terms of Service\n\nBy using ${storeName} and placing an order, you agree to the following terms.\n\n## Orders\nAll orders are subject to availability and confirmation of the order price.\n\n## Pricing\nPrices for products are as displayed on the store at the time of your order and may change without notice.\n\n## Limitation of Liability\n${storeName} is not liable for any indirect or consequential loss arising from use of this store.\n\n_This is a starter template — review and customize it (or have a legal professional review it) before relying on it._`,
-      },
-      {
-        title: "Refund Policy",
-        handle: "refund-policy",
-        footerGroup: "Legal",
-        body: `# Refund Policy\n\nWe want you to be happy with your purchase from ${storeName}.\n\n## Returns\nIf something isn't right, contact us through our Contact page and let us know your order number and the issue — we'll work with you on a return, replacement, or refund.\n\n## Damaged or Incorrect Items\nIf your order arrives damaged or incorrect, contact us as soon as possible so we can make it right.\n\n_This is a starter template — replace the details above (return window, condition requirements, who pays return shipping, etc.) with your store's actual policy._`,
-      },
-    ];
-    for (const p of pages) {
-      await db.insert(storefrontPages).values({
-        restaurantId,
-        title: p.title,
-        handle: p.handle,
-        body: p.body,
-        isPublished: true,
-        showInFooter: true,
-        footerGroup: p.footerGroup,
-      });
-    }
-    await db.update(restaurants).set({
-      storefrontNav: {
-        items: [
-          { id: "home", label: "Home", type: "home" },
-          { id: "shop", label: "Shop", type: "shop" },
-          { id: "about", label: "About Us", type: "page", value: "about-us" },
-          { id: "contact", label: "Contact", type: "contact" },
-        ],
-      },
-    }).where(eq(restaurants.id, restaurantId));
-  }
-
-  // ---- AI store builder ----
-
-  async createStoreGeneration(restaurantId: string, data: { kind: string; brief: any; blueprint: any; copy: any }): Promise<StoreGeneration> {
-    const [created] = await db.insert(storeGenerations).values({
-      restaurantId,
-      kind: data.kind,
-      brief: data.brief ?? null,
-      blueprint: data.blueprint,
-      copy: data.copy ?? null,
-    }).returning();
-    return created;
-  }
-  async listStoreGenerations(restaurantId: string): Promise<StoreGeneration[]> {
-    return db.select().from(storeGenerations).where(eq(storeGenerations.restaurantId, restaurantId))
-      .orderBy(desc(storeGenerations.createdAt));
-  }
-  async getStoreGeneration(id: string): Promise<StoreGeneration | undefined> {
-    const [g] = await db.select().from(storeGenerations).where(eq(storeGenerations.id, id)).limit(1);
-    return g;
-  }
-  async markStoreGenerationStatus(id: string, restaurantId: string, status: 'applied' | 'discarded'): Promise<StoreGeneration | undefined> {
-    const [updated] = await db.update(storeGenerations)
-      .set({ status, appliedAt: status === 'applied' ? new Date() : undefined })
-      .where(and(eq(storeGenerations.id, id), eq(storeGenerations.restaurantId, restaurantId)))
-      .returning();
-    return updated;
-  }
-
-  async addNewsletterSubscriber(restaurantId: string, email: string): Promise<NewsletterSubscriber> {
-    const [existing] = await db.select().from(newsletterSubscribers)
-      .where(and(eq(newsletterSubscribers.restaurantId, restaurantId), eq(newsletterSubscribers.email, email))).limit(1);
-    if (existing) return existing;
-    const [created] = await db.insert(newsletterSubscribers).values({ restaurantId, email }).returning();
-    return created;
   }
 
   // ---- Marketing: segments, campaigns, abandoned carts, boosts (Tier 6) ----

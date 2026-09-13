@@ -287,15 +287,6 @@ export default function Settings() {
         }
       }
       toast({ title: restaurant ? "Settings updated successfully" : `${labels.business} created successfully` });
-      // First-time setup only — hand off to the AI store builder instead of an
-      // empty dashboard. Not shown again on later saves (restaurant already exists).
-      // Hard navigation: the store builder bypasses the dashboard shell the same
-      // way the theme editor does (App() reads window.location.pathname directly,
-      // not a wouter route match), so a client-side setLocation here wouldn't swap
-      // which top-level tree renders.
-      if (isFirstCreation) {
-        window.location.href = "/online-store/build";
-      }
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
