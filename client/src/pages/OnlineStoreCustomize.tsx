@@ -105,9 +105,9 @@ const defaultDraft: CustomizerDraft = {
   seoDescription: "",
   seoImageUrl: "",
   sections: [],
-  // Existing merchants who never touched this setting keep today's boxed-card look —
-  // "standard" only ever appears via an explicit preset pick or toggle here.
-  cardStyle: "bordered",
+  // Default is "standard" (borderless, image-first product-catalog look) — matches
+  // the storefront's own default. "bordered" is opt-in via the toggle below.
+  cardStyle: "standard",
   // Existing merchants who never touch this keep today's full grid on the homepage —
   // "curated" only ever appears via an explicit toggle here.
   homepageLayout: "full",
@@ -124,7 +124,7 @@ function draftFromRestaurant(restaurant: any): CustomizerDraft {
     seoDescription: restaurant.seoDescription || "",
     seoImageUrl: restaurant.seoImageUrl || "",
     sections: restaurant.themeSettings?.sections || [],
-    cardStyle: restaurant.themeSettings?.cardStyle === "standard" ? "standard" : "bordered",
+    cardStyle: restaurant.themeSettings?.cardStyle === "bordered" ? "bordered" : "standard",
     homepageLayout: restaurant.themeSettings?.homepageLayout === "curated" ? "curated" : "full",
     themeId: restaurant.themeSettings?.themeId || undefined,
   };

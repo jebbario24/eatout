@@ -59,6 +59,9 @@ const itemSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   price: z.string().min(1, "Price is required"),
+  // Sale pricing (Compare-at) — shown as a strikethrough "was" price + a
+  // percent-off badge on the storefront when it's higher than the real price.
+  compareAtPrice: z.string().optional(),
   imageUrl: z.string().optional(),
   isAvailable: z.boolean().default(true),
   prepTimeMinutes: z.string().optional(),
@@ -177,6 +180,7 @@ export default function Menu() {
       name: "",
       description: "",
       price: "",
+      compareAtPrice: "",
       imageUrl: "",
       isAvailable: true,
       prepTimeMinutes: "",
@@ -207,6 +211,7 @@ export default function Menu() {
         name: editingMenuItem.name,
         description: editingMenuItem.description || "",
         price: editingMenuItem.price,
+        compareAtPrice: editingMenuItem.compareAtPrice || "",
         imageUrl: editingMenuItem.imageUrl || "",
         isAvailable: editingMenuItem.isAvailable,
         prepTimeMinutes: editingMenuItem.prepTimeMinutes ? String(editingMenuItem.prepTimeMinutes) : "",
@@ -351,11 +356,14 @@ export default function Menu() {
       if (isNaN(priceCents)) {
         throw new Error("Invalid price value");
       }
-      
-      const { price, ...dataWithoutPrice } = data;
+      const compareAtPriceCents = data.compareAtPrice ? Math.round(parseFloat(data.compareAtPrice) * 100) : null;
+
+      const { price, compareAtPrice, ...dataWithoutPrice } = data;
       const requestBody = {
         ...dataWithoutPrice,
         priceCents,
+        compareAtPrice: compareAtPrice || null,
+        compareAtPriceCents,
         prepTimeMinutes: data.prepTimeMinutes ? parseInt(data.prepTimeMinutes) : null,
       };
       console.log("[FRONTEND] Sending menu item create request:", requestBody);
@@ -430,11 +438,14 @@ export default function Menu() {
       if (isNaN(priceCents)) {
         throw new Error("Invalid price value");
       }
-      
-      const { price, ...dataWithoutPrice } = data;
+      const compareAtPriceCents = data.compareAtPrice ? Math.round(parseFloat(data.compareAtPrice) * 100) : null;
+
+      const { price, compareAtPrice, ...dataWithoutPrice } = data;
       return await apiRequest(`/api/menu/items/${id}`, "PUT", {
         ...dataWithoutPrice,
         priceCents,
+        compareAtPrice: compareAtPrice || null,
+        compareAtPriceCents,
         prepTimeMinutes: data.prepTimeMinutes ? parseInt(data.prepTimeMinutes) : null,
       });
     },
@@ -924,6 +935,31 @@ export default function Menu() {
                                 data-testid="input-item-price" 
                               />
                             </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={itemForm.control}
+                        name="compareAtPrice"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="flex items-center gap-2">
+                              <DollarSign className="h-4 w-4" />
+                              Compare-at price
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                {...field}
+                                data-testid="input-item-compare-at-price"
+                              />
+                            </FormControl>
+                            <p className="text-xs text-muted-foreground">
+                              Optional. Set higher than Price to show a sale badge and strikethrough price on the storefront.
+                            </p>
                             <FormMessage />
                           </FormItem>
                         )}

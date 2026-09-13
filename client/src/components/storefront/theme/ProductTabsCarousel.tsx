@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MenuItemCard } from "@/components/storefront/MenuItemCard";
+import { getSaleInfo } from "@/lib/salePricing";
 import type { MenuItem } from "@shared/schema";
 
 interface ProductTabsCarouselProps {
@@ -66,6 +67,7 @@ export function ProductTabsCarousel({ items, formatPrice, onSelect, onAddToCart 
                   cardStyle="bordered"
                   theme="wellness"
                   formattedPrice={formatPrice(item.price)}
+                  {...getSaleInfo(item, formatPrice)}
                   isBoosted={false}
                   scarcity={null}
                   socialProof={null}

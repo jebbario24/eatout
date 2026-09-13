@@ -28,6 +28,10 @@ export interface MenuItemCardProps {
   // skeleton choice. undefined = today's exact rendering (no visual change).
   theme?: StorefrontThemeId | null;
   formattedPrice: string;
+  // Sale pricing (Compare-at) — both set together when item.compareAtPrice is a
+  // real, merchant-entered value higher than the current price. Never fabricated.
+  formattedCompareAtPrice?: string | null;
+  discountPercent?: number | null;
   isBoosted: boolean;
   scarcity?: { text: string } | null;
   socialProof?: { text: string } | null;
@@ -35,7 +39,7 @@ export interface MenuItemCardProps {
   onAddToCart: (e: React.MouseEvent) => void;
 }
 
-function ImageAndBadges({ item, displayName, isBoosted }: { item: MenuItem; displayName: string; isBoosted: boolean }) {
+function ImageAndBadges({ item, displayName, isBoosted, discountPercent }: { item: MenuItem; displayName: string; isBoosted: boolean; discountPercent?: number | null }) {
   return (
     <>
       {item.imageUrl ? (
@@ -52,9 +56,17 @@ function ImageAndBadges({ item, displayName, isBoosted }: { item: MenuItem; disp
 
       <BoostedItemsBadge isBoosted={isBoosted} />
 
-      {item.tags && item.tags.length > 0 && (
+      {(!!discountPercent || (item.tags && item.tags.length > 0)) && (
         <div className="absolute top-2 left-2 flex flex-wrap gap-1.5">
-          {item.tags.map((tag, idx) => (
+          {!!discountPercent && (
+            <Badge
+              className="shadow-md text-xs font-semibold bg-[hsl(0,84%,46%)] text-white border-transparent"
+              data-testid={`badge-sale-${item.id}`}
+            >
+              -{discountPercent}%
+            </Badge>
+          )}
+          {item.tags?.map((tag, idx) => (
             <Badge
               key={idx}
               className={`shadow-md text-xs font-semibold ${TAG_COLORS[tag] || "bg-muted text-foreground border-border"}`}
@@ -125,6 +137,8 @@ export function MenuItemCard({
   cardStyle,
   theme,
   formattedPrice,
+  formattedCompareAtPrice,
+  discountPercent,
   isBoosted,
   scarcity,
   socialProof,
@@ -136,7 +150,7 @@ export function MenuItemCard({
   const addToCartButton = item.isAvailable && (
     <Button
       size="icon"
-      className={theme === "wellness" ? "rounded-full" : theme === "editorial" ? "rounded-none" : undefined}
+      className={theme === "wellness" ? "rounded-full" : theme === "editorial" || theme === "nova" ? "rounded-none" : undefined}
       variant={theme === "editorial" ? "ghost" : "default"}
       onClick={onAddToCart}
       data-testid={`button-add-to-cart-${item.id}`}
@@ -144,7 +158,7 @@ export function MenuItemCard({
       <Plus className="h-4 w-4" />
     </Button>
   );
-  const imageRadius = theme === "fresh" ? "rounded-2xl" : theme === "editorial" ? "rounded-none" : "rounded-md";
+  const imageRadius = theme === "fresh" ? "rounded-2xl" : theme === "editorial" || theme === "nova" ? "rounded-none" : "rounded-md";
   const hoverLift = theme ? { whileHover: { y: -4 }, transition: { duration: 0.2 } } : {};
 
   if (cardStyle === "bordered") {
@@ -156,13 +170,18 @@ export function MenuItemCard({
           data-testid={`menu-item-${item.id}`}
         >
           <div className={`relative aspect-square ${theme === "fresh" ? "rounded-t-2xl overflow-hidden" : ""}`}>
-            <ImageAndBadges item={item} displayName={displayName} isBoosted={isBoosted} />
+            <ImageAndBadges item={item} displayName={displayName} isBoosted={isBoosted} discountPercent={discountPercent} />
           </div>
           <CardContent className="p-4">
-            <h3 className={`font-bold text-lg mb-1 line-clamp-1 ${theme === "editorial" ? "font-serif font-normal" : ""}`}>{displayName}</h3>
+            <h3 className={`font-bold text-lg mb-1 line-clamp-1 ${theme === "editorial" ? "font-serif font-normal" : theme === "nova" ? "font-sans font-light" : ""}`}>{displayName}</h3>
             {displayDescription && <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{displayDescription}</p>}
             <div className="flex items-center justify-between">
-              <span className="text-lg font-bold text-primary">{formattedPrice}</span>
+              <span className="flex items-baseline gap-2">
+                <span className={`text-lg font-bold ${formattedCompareAtPrice ? "text-[hsl(0,84%,46%)]" : "text-primary"} ${theme === "nova" ? "font-mono" : ""}`}>{formattedPrice}</span>
+                {formattedCompareAtPrice && (
+                  <span className={`text-sm text-muted-foreground line-through ${theme === "nova" ? "font-mono" : ""}`}>{formattedCompareAtPrice}</span>
+                )}
+              </span>
               {addToCartButton}
             </div>
             <MarketingBadges item={item} scarcity={scarcity} socialProof={socialProof} />
@@ -176,15 +195,20 @@ export function MenuItemCard({
   return (
     <motion.div {...hoverLift} className="group cursor-pointer" onClick={onSelect} data-testid={`menu-item-${item.id}`}>
       <div className={`relative aspect-square overflow-hidden ${imageRadius} bg-muted`}>
-        <ImageAndBadges item={item} displayName={displayName} isBoosted={isBoosted} />
+        <ImageAndBadges item={item} displayName={displayName} isBoosted={isBoosted} discountPercent={discountPercent} />
       </div>
       <div className="pt-3">
         <div className="flex items-start justify-between gap-2">
-          <h3 className={`font-display font-semibold text-base leading-snug line-clamp-1 ${theme === "editorial" ? "font-serif font-normal" : ""}`}>{displayName}</h3>
+          <h3 className={`font-display font-semibold text-base leading-snug line-clamp-1 ${theme === "editorial" ? "font-serif font-normal" : theme === "nova" ? "font-sans font-light" : ""}`}>{displayName}</h3>
           {addToCartButton}
         </div>
         {displayDescription && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{displayDescription}</p>}
-        <span className="mt-1.5 block text-base font-semibold text-primary">{formattedPrice}</span>
+        <span className="mt-1.5 flex items-baseline gap-2">
+          <span className={`text-base font-semibold ${formattedCompareAtPrice ? "text-[hsl(0,84%,46%)]" : "text-primary"} ${theme === "nova" ? "font-mono" : ""}`}>{formattedPrice}</span>
+          {formattedCompareAtPrice && (
+            <span className={`text-sm text-muted-foreground line-through ${theme === "nova" ? "font-mono" : ""}`}>{formattedCompareAtPrice}</span>
+          )}
+        </span>
         <MarketingBadges item={item} scarcity={scarcity} socialProof={socialProof} />
       </div>
     </motion.div>

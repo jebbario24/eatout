@@ -11,6 +11,7 @@ import { StorefrontBrandStyle } from "@/components/storefront/StorefrontBrandSty
 import { StorefrontCartSheet } from "@/components/storefront/StorefrontCartSheet";
 import { CustomerAuthDialog } from "@/components/storefront/CustomerAuthDialog";
 import { MenuItemCard } from "@/components/storefront/MenuItemCard";
+import { getSaleInfo } from "@/lib/salePricing";
 import { VariantPicker } from "@/components/storefront/VariantPicker";
 import { ItemOptionsForm, type SelectedOption } from "@/components/storefront/ItemOptionsForm";
 import { Button } from "@/components/ui/button";
@@ -174,7 +175,7 @@ export default function StorefrontShop() {
   const accountHref = slug ? `/store/${slug}/account` : "/account";
   const trackHref = slug ? `/store/${slug}/track` : "/track";
   const cardStyle: "standard" | "bordered" =
-    (restaurant as any)?.themeSettings?.cardStyle === "standard" ? "standard" : "bordered";
+    (restaurant as any)?.themeSettings?.cardStyle === "bordered" ? "bordered" : "standard";
 
   return (
     <div className="min-h-screen bg-background">
@@ -266,6 +267,7 @@ export default function StorefrontShop() {
                 cardStyle={cardStyle}
                 theme={(restaurant as any)?.themeSettings?.themeId}
                 formattedPrice={formatPrice(item.price)}
+                {...getSaleInfo(item, formatPrice)}
                 isBoosted={false}
                 onSelect={() => onSelectItem(item)}
                 onAddToCart={(e) => { e.stopPropagation(); handleQuickAdd(item); }}

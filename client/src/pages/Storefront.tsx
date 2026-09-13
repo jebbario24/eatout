@@ -55,10 +55,12 @@ import type { ThemeSection } from "@/lib/themeSections";
 import { MenuItemCard } from "@/components/storefront/MenuItemCard";
 import { getOrCreateVisitorId, buildTrackVisitPayload } from "@/lib/visitorSession";
 import { convertAndFormatPrice, type DisplayMarket } from "@/lib/currency";
+import { getSaleInfo } from "@/lib/salePricing";
 import { StorefrontHero } from "@/components/storefront/hero/StorefrontHero";
 import { MarqueeBanner } from "@/components/storefront/theme/MarqueeBanner";
 import { CategoryIconGrid } from "@/components/storefront/theme/CategoryIconGrid";
 import { ProductTabsCarousel } from "@/components/storefront/theme/ProductTabsCarousel";
+import { SpecStrip } from "@/components/storefront/theme/SpecStrip";
 import { StorefrontHeader } from "@/components/storefront/StorefrontHeader";
 import { VariantPicker } from "@/components/storefront/VariantPicker";
 import { ItemOptionsForm } from "@/components/storefront/ItemOptionsForm";
@@ -240,8 +242,10 @@ export default function Storefront() {
     () => (draftOverrides && fetchedRestaurant ? { ...fetchedRestaurant, ...draftOverrides } : fetchedRestaurant),
     [fetchedRestaurant, draftOverrides]
   );
+  // Default is "standard" (borderless, image-first) — a real product-catalog look.
+  // "bordered" is opt-in for merchants who explicitly want boxed cards.
   const cardStyle: "standard" | "bordered" =
-    (restaurant as any)?.themeSettings?.cardStyle === "standard" ? "standard" : "bordered";
+    (restaurant as any)?.themeSettings?.cardStyle === "bordered" ? "bordered" : "standard";
   const themeId = (restaurant as any)?.themeSettings?.themeId as string | undefined;
 
   const sfSlug = slug || restaurant?.slug || undefined;
@@ -2054,6 +2058,7 @@ export default function Storefront() {
           onAddToCart={(item) => addToCart(item)}
         />
       )}
+      <SpecStrip variant={themeId === "nova" ? "dark" : "light"} />
 
       {/* Merchant-configurable marketing sections */}
       {Array.isArray((restaurant as any)?.themeSettings?.sections) && (
@@ -2205,6 +2210,7 @@ export default function Storefront() {
                       cardStyle={cardStyle}
                       theme={themeId as any}
                       formattedPrice={formatPrice(item.price)}
+                      {...getSaleInfo(item, formatPrice)}
                       isBoosted={isItemBoosted(item.name)}
                       onSelect={() => handleItemSelect(item)}
                       onAddToCart={(e) => {
@@ -2246,6 +2252,7 @@ export default function Storefront() {
                         cardStyle={cardStyle}
                         theme={themeId as any}
                         formattedPrice={formatPrice(item.price)}
+                      {...getSaleInfo(item, formatPrice)}
                         isBoosted={isItemBoosted(item.name)}
                         scarcity={
                           (item.marketingTactics as any)?.enableScarcityNotice &&
@@ -2306,6 +2313,7 @@ export default function Storefront() {
                   cardStyle={cardStyle}
                   theme={themeId as any}
                   formattedPrice={formatPrice(item.price)}
+                      {...getSaleInfo(item, formatPrice)}
                   isBoosted={isItemBoosted(item.name)}
                   scarcity={
                     (item.marketingTactics as any)?.enableScarcityNotice &&

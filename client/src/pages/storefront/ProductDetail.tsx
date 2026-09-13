@@ -18,6 +18,7 @@ import { FrequentlyBoughtTogether } from "@/components/marketing/FrequentlyBough
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ShoppingCart, Loader2 } from "lucide-react";
+import { getSaleInfo } from "@/lib/salePricing";
 import type { Restaurant, MenuItem } from "@shared/schema";
 
 // Standalone product detail page (Tier — storefront expansion). Deliberately does
@@ -77,6 +78,8 @@ export default function ProductDetail() {
   const options = (item?.options as any) || [];
   const selectedVariant = hasVariants ? item?.variants?.find((v: any) => v.id === selectedVariantId) : null;
   const displayPrice = selectedVariant ? selectedVariant.priceCents / 100 : Number(item?.price || 0);
+  // Compare-at pricing only applies to the base item, not per-variant.
+  const saleInfo = item && !hasVariants ? getSaleInfo(item, formatPrice) : { formattedCompareAtPrice: null, discountPercent: null };
 
   const requiredOptionsMissing = options.some((group: any) => {
     if (!group.required) return false;
@@ -181,8 +184,21 @@ export default function ProductDetail() {
                 )}
               </div>
 
-              <div className="text-2xl font-bold text-primary" data-testid="text-product-price">
-                {formatPrice(displayPrice)}
+              <div className="flex items-center gap-3">
+                <span
+                  className={`text-2xl font-bold ${saleInfo.formattedCompareAtPrice ? "text-[hsl(0,84%,46%)]" : "text-primary"}`}
+                  data-testid="text-product-price"
+                >
+                  {formatPrice(displayPrice)}
+                </span>
+                {saleInfo.formattedCompareAtPrice && (
+                  <span className="text-lg text-muted-foreground line-through">{saleInfo.formattedCompareAtPrice}</span>
+                )}
+                {!!saleInfo.discountPercent && (
+                  <Badge className="bg-[hsl(0,84%,46%)] text-white border-transparent" data-testid="badge-sale">
+                    -{saleInfo.discountPercent}%
+                  </Badge>
+                )}
               </div>
 
               {!item.isAvailable && <Badge variant="destructive">Out of stock</Badge>}

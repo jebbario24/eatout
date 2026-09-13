@@ -161,6 +161,19 @@ export default function OnlineStoreThemes() {
                         </div>
                       </div>
                     )}
+                    {theme.id === "nova" && (
+                      <div
+                        className="relative h-full w-full flex flex-col justify-center items-center gap-2 overflow-hidden"
+                        style={{ backgroundColor: theme.primaryColor }}
+                      >
+                        <div
+                          className="absolute inset-0 opacity-10"
+                          style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "10px 10px" }}
+                        />
+                        <div className="relative h-2 w-20 bg-white/90" />
+                        <div className="relative h-1.5 w-10" style={{ backgroundColor: theme.accentColor }} />
+                      </div>
+                    )}
                   </div>
                 </CardContent>
                 <CardFooter className="flex-col items-start gap-3 pt-3">

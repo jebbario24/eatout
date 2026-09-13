@@ -84,6 +84,7 @@ export function StorefrontBrandStyle({ restaurant, themeId }: StorefrontBrandSty
         --accent-foreground: ${getForegroundFromHex(accentHex)};
         --ring: ${hexToHSL(primaryHex)};
         ${themeId === "editorial" ? "--background: 27 60% 97%;" : ""}
+        ${themeId === "nova" ? '--background: 0 0% 98%; --font-mono: "Space Mono", Menlo, monospace;' : ""}
       }
     `}</style>
   );

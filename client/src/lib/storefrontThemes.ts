@@ -1,4 +1,4 @@
-export type StorefrontThemeId = "editorial" | "fresh" | "wellness";
+export type StorefrontThemeId = "editorial" | "fresh" | "wellness" | "nova";
 
 export interface StorefrontThemeDef {
   id: StorefrontThemeId;
@@ -37,6 +37,15 @@ export const STOREFRONT_THEMES: StorefrontThemeDef[] = [
     secondaryColor: "#a8b89a",
     accentColor: "#d9cdb8",
     cardStyle: "bordered",
+  },
+  {
+    id: "nova",
+    name: "Nova",
+    description: "Full-bleed photography, ultra-light type, and a technical mono accent — a sharp, tech-forward look.",
+    primaryColor: "#0a0a0a",
+    secondaryColor: "#6b6b6b",
+    accentColor: "#cbff3d",
+    cardStyle: "standard",
   },
 ];
 

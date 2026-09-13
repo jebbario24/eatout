@@ -1,5 +1,7 @@
-import { Star, Clock, Store } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Link } from "wouter";
+import { motion } from "framer-motion";
+import { Star, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { Restaurant, CustomerReview } from "@shared/schema";
 
 export interface StorefrontHeroProps {
@@ -8,92 +10,88 @@ export interface StorefrontHeroProps {
   todayHoursText: string;
   isOpen: boolean;
   t: (key: string) => string;
-  // Link to the full catalog/shop page — only the Atelier hero renders a CTA
-  // with it today, but it's on the shared props so any hero variant can use it.
+  // Link to the full catalog/shop page — every hero variant's primary CTA.
   shopHref?: string;
 }
 
-// Extracted verbatim from the storefront's original fixed hero — the fallback for
-// every merchant who hasn't picked one of the 3 full themes. Must stay byte-for-byte
-// behavior-identical to what every existing storefront already renders.
-export function HeroClassic({ restaurant, reviews, todayHoursText, isOpen, t }: StorefrontHeroProps) {
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+};
+
+const staggerContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
+};
+
+// The default storefront hero — every merchant who hasn't picked one of the full
+// themes gets this. Deliberately a product-catalog banner (full-bleed image,
+// headline, "Shop now" CTA) rather than a local-business-listing profile header
+// (avatar, star rating, hours as the lead element) — this storefront sells
+// products, across every business vertical, not just restaurants.
+export function HeroClassic({ restaurant, reviews, todayHoursText, isOpen, t, shopHref }: StorefrontHeroProps) {
+  const avgRating = reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0;
+
   return (
-    <div className="relative">
+    <div className="relative h-[56vh] min-h-[380px] max-h-[620px] overflow-hidden bg-foreground">
       {restaurant.coverImageUrl ? (
         <div
-          className="h-48 md:h-64 lg:h-80 bg-cover bg-center"
+          className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${restaurant.coverImageUrl})` }}
         />
       ) : (
-        <div className="h-48 md:h-64 lg:h-80 bg-gradient-to-br from-primary/20 to-primary/5" />
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/10 to-background" />
       )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-black/10" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="-mt-16 md:-mt-20 mb-6">
-          <div className="flex items-end gap-4">
-            <div className="flex flex-col items-center gap-2">
-              {reviews.length > 0 && (
-                <div className="flex items-center gap-1 bg-background/95 backdrop-blur px-3 py-1.5 rounded-full shadow-lg" data-testid="rating-above-logo">
-                  <Star className="h-4 w-4 fill-primary text-primary" />
-                  <span className="text-sm font-semibold">
-                    {(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">({reviews.length})</span>
-                </div>
-              )}
+      <motion.div
+        className="relative z-10 h-full flex flex-col items-start justify-end px-6 sm:px-10 lg:px-16 pb-12 max-w-3xl"
+        initial="hidden"
+        animate="show"
+        variants={staggerContainer}
+      >
+        <motion.div variants={fadeUp} className="flex items-center gap-3 mb-3 text-xs font-medium text-white/80">
+          <span
+            className={`inline-flex items-center gap-1.5 ${isOpen ? "text-emerald-300" : "text-red-300"}`}
+            data-testid="badge-open-status"
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${isOpen ? "bg-emerald-300" : "bg-red-300"}`} />
+            {isOpen ? t("storefront.open") : t("storefront.closed")}
+          </span>
+          {todayHoursText && (
+            <span className="flex items-center gap-1" data-testid="text-today-hours">
+              <Clock className="h-3 w-3" />
+              {todayHoursText}
+            </span>
+          )}
+          {reviews.length > 0 && (
+            <span className="flex items-center gap-1" data-testid="rating-below-logo">
+              <Star className="h-3 w-3 fill-white text-white" />
+              {avgRating.toFixed(1)} ({reviews.length})
+            </span>
+          )}
+        </motion.div>
 
-              {restaurant.logoUrl ? (
-                <img
-                  src={restaurant.logoUrl}
-                  alt={restaurant.name}
-                  className="h-24 w-24 md:h-32 md:w-32 rounded-full object-cover bg-background border-4 border-background shadow-xl"
-                />
-              ) : (
-                <div className="h-24 w-24 md:h-32 md:w-32 rounded-full bg-background border-4 border-background shadow-xl flex items-center justify-center">
-                  <Store className="h-12 w-12 md:h-16 md:w-16 text-muted-foreground" />
-                </div>
-              )}
+        <motion.h1 variants={fadeUp} className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-[1.05]">
+          {restaurant.name}
+        </motion.h1>
 
-              {reviews.length > 0 && (
-                <div className="flex items-center gap-0.5" data-testid="rating-below-logo">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-4 w-4 ${
-                        i < Math.round(reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length)
-                          ? "fill-primary text-primary"
-                          : "text-muted-foreground"
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+        {restaurant.description && (
+          <motion.p variants={fadeUp} className="mt-4 max-w-xl text-white/80 text-base md:text-lg">
+            {restaurant.description}
+          </motion.p>
+        )}
 
-            <div className="pb-2 flex-1">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl md:text-3xl lg:text-4xl font-display font-bold">{restaurant.name}</h1>
-                <Badge
-                  variant={isOpen ? "default" : "secondary"}
-                  className={`text-sm px-3 py-1 ${isOpen ? 'bg-green-600 dark:bg-green-600 hover:bg-green-700 dark:hover:bg-green-700' : 'bg-red-600 dark:bg-red-600 hover:bg-red-700 dark:hover:bg-red-700'} text-white`}
-                  data-testid="badge-open-status"
-                >
-                  {isOpen ? t('storefront.open') : t('storefront.closed')}
-                </Badge>
-              </div>
-              {restaurant.description && (
-                <p className="text-muted-foreground mt-1 hidden sm:block">{restaurant.description}</p>
-              )}
-              {todayHoursText && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                  <Clock className="h-4 w-4" />
-                  <span data-testid="text-today-hours">{todayHoursText}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+        {shopHref && (
+          <motion.div variants={fadeUp} className="mt-7">
+            <Link href={shopHref}>
+              <Button size="lg" className="px-8" data-testid="button-hero-shop-now">
+                Shop now
+              </Button>
+            </Link>
+          </motion.div>
+        )}
+      </motion.div>
     </div>
   );
 }
