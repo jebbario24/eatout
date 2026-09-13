@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Star, Clock, Store } from "lucide-react";
+import { Star, Store } from "lucide-react";
 import type { StorefrontHeroProps } from "./HeroClassic";
 
 const fadeUp = {
@@ -46,27 +46,15 @@ export function HeroFresh({ restaurant, reviews, todayHoursText, isOpen, t }: St
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl md:text-2xl font-display font-bold truncate">{restaurant.name}</h1>
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-semibold text-white ${isOpen ? "bg-green-600" : "bg-red-600"}`}
-              data-testid="badge-open-status"
-            >
-              {isOpen ? t("storefront.open") : t("storefront.closed")}
-            </span>
           </div>
-          <div className="flex items-center gap-3 mt-1 flex-wrap text-sm text-muted-foreground">
-            {reviews.length > 0 && (
+          {reviews.length > 0 && (
+            <div className="flex items-center gap-3 mt-1 flex-wrap text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Star className="h-4 w-4 fill-primary text-primary" />
                 {avgRating.toFixed(1)} ({reviews.length})
               </span>
-            )}
-            {todayHoursText && (
-              <span className="flex items-center gap-1" data-testid="text-today-hours">
-                <Clock className="h-4 w-4" />
-                {todayHoursText}
-              </span>
-            )}
-          </div>
+            </div>
+          )}
           {restaurant.description && (
             <p className="text-sm text-muted-foreground mt-1 line-clamp-1 hidden sm:block">{restaurant.description}</p>
           )}

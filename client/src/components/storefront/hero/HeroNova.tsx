@@ -47,18 +47,12 @@ export function HeroNova({ restaurant, reviews, todayHoursText, isOpen, t, shopH
         animate="show"
         variants={staggerContainer}
       >
-        <motion.div variants={fadeUp} className="flex items-center gap-3 mb-5 font-mono text-[11px] uppercase tracking-[0.2em] text-white/80">
-          <span data-testid="badge-open-status">{isOpen ? t("storefront.open") : t("storefront.closed")}</span>
-          {reviews.length > 0 && (
-            <>
-              <span className="text-white/40">/</span>
-              <span className="flex items-center gap-1">
-                <Star className="h-3 w-3 fill-white text-white" />
-                {avgRating.toFixed(1)} ({reviews.length})
-              </span>
-            </>
-          )}
-        </motion.div>
+        {reviews.length > 0 && (
+          <motion.div variants={fadeUp} className="flex items-center gap-1 mb-5 font-mono text-[11px] uppercase tracking-[0.2em] text-white/80">
+            <Star className="h-3 w-3 fill-white text-white" />
+            {avgRating.toFixed(1)} ({reviews.length})
+          </motion.div>
+        )}
 
         <motion.h1
           variants={fadeUp}
@@ -71,12 +65,6 @@ export function HeroNova({ restaurant, reviews, todayHoursText, isOpen, t, shopH
           <motion.p variants={fadeUp} className="mt-5 max-w-xl text-white/70 text-base md:text-lg font-light">
             {restaurant.description}
           </motion.p>
-        )}
-
-        {todayHoursText && (
-          <motion.div variants={fadeUp} className="mt-4 font-mono text-xs uppercase tracking-widest text-white/50">
-            {todayHoursText}
-          </motion.div>
         )}
 
         {shopHref && (

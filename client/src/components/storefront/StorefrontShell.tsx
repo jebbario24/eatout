@@ -1,10 +1,12 @@
 import { ReactNode } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Store } from "lucide-react";
 import { useResolvedSlug } from "@/hooks/useResolvedSlug";
 import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
+import { StorefrontBrandStyle } from "@/components/storefront/StorefrontBrandStyle";
 
 export { useResolvedSlug };
 
@@ -58,6 +60,7 @@ export function StorefrontShell({
 
   return (
     <div className="min-h-screen bg-background">
+      <StorefrontBrandStyle restaurant={restaurant} themeId={restaurant?.themeSettings?.themeId} />
       {announcement?.enabled && announcement.text && (
         <div className="bg-primary text-primary-foreground text-center text-sm py-2 px-4" data-testid="announcement-bar">
           {announcement.text}
@@ -101,7 +104,14 @@ export function StorefrontShell({
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-10">{children}</main>
+      <motion.main
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="mx-auto max-w-3xl px-4 py-10"
+      >
+        {children}
+      </motion.main>
 
       {footerPages.some((p) => p.footerGroup) ? (
         <StorefrontFooter

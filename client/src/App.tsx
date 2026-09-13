@@ -7,7 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { TopBar } from "@/components/TopBar";
-import { DineInOnlyGuard } from "@/components/DineInOnlyGuard";
 import { SubscriptionGuard } from "@/components/SubscriptionGuard";
 import { RestaurantSetupGuard } from "@/components/RestaurantSetupGuard";
 import { useAuth } from "@/hooks/useAuth";
@@ -19,8 +18,6 @@ import Signup from "@/pages/Signup";
 import Dashboard from "@/pages/Dashboard";
 import Menu from "@/pages/Menu";
 import Orders from "@/pages/Orders";
-import Reservations from "@/pages/Reservations";
-import Tables from "@/pages/Tables";
 import Staff from "@/pages/Staff";
 import Inventory from "@/pages/Inventory";
 import Analytics from "@/pages/Analytics";
@@ -35,6 +32,8 @@ import StorefrontPage from "@/pages/storefront/StorefrontPage";
 import { StorefrontBlogIndex, StorefrontBlogPost } from "@/pages/storefront/StorefrontBlog";
 import ProductDetail from "@/pages/storefront/ProductDetail";
 import StorefrontShop from "@/pages/storefront/StorefrontShop";
+import StorefrontCollection from "@/pages/storefront/StorefrontCollection";
+import ThankYou from "@/pages/storefront/ThankYou";
 import { StorefrontCartProvider } from "@/contexts/StorefrontCartContext";
 import Subscribe from "@/pages/Subscribe";
 import OnlineStoreThemes from "@/pages/OnlineStoreThemes";
@@ -132,12 +131,6 @@ function AuthenticatedRouter() {
       <Route path="/menu" component={Menu} />
       <Route path="/collections" component={Collections} />
       <Route path="/orders" component={Orders} />
-      <Route path="/reservations">
-        <DineInOnlyGuard><Reservations /></DineInOnlyGuard>
-      </Route>
-      <Route path="/tables">
-        <DineInOnlyGuard><Tables /></DineInOnlyGuard>
-      </Route>
       <Route path="/staff" component={Staff} />
       <Route path="/inventory" component={Inventory} />
       <Route path="/analytics" component={Analytics} />
@@ -270,6 +263,8 @@ function StorefrontRouter() {
         <Route path="/store/:slug/pages/:handle" component={StorefrontPage} />
         <Route path="/store/:slug/products/:handle" component={ProductDetail} />
         <Route path="/store/:slug/shop" component={StorefrontShop} />
+        <Route path="/store/:slug/collections/:handle" component={StorefrontCollection} />
+        <Route path="/store/:slug/thank-you/:orderId" component={ThankYou} />
         <Route path="/account" component={CustomerAccount} />
         <Route path="/track" component={OrderTracking} />
         <Route path="/blog/:handle" component={StorefrontBlogPost} />
@@ -277,6 +272,8 @@ function StorefrontRouter() {
         <Route path="/pages/:handle" component={StorefrontPage} />
         <Route path="/products/:handle" component={ProductDetail} />
         <Route path="/shop" component={StorefrontShop} />
+        <Route path="/collections/:handle" component={StorefrontCollection} />
+        <Route path="/thank-you/:orderId" component={ThankYou} />
         <Route path="/" component={Storefront} />
         <Route path="/store/:slug" component={Storefront} />
         <Route component={Storefront} />

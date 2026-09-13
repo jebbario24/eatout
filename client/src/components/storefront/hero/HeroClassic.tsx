@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Star, Clock } from "lucide-react";
+import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Restaurant, CustomerReview } from "@shared/schema";
 
@@ -50,27 +50,12 @@ export function HeroClassic({ restaurant, reviews, todayHoursText, isOpen, t, sh
         animate="show"
         variants={staggerContainer}
       >
-        <motion.div variants={fadeUp} className="flex items-center gap-3 mb-3 text-xs font-medium text-white/80">
-          <span
-            className={`inline-flex items-center gap-1.5 ${isOpen ? "text-emerald-300" : "text-red-300"}`}
-            data-testid="badge-open-status"
-          >
-            <span className={`h-1.5 w-1.5 rounded-full ${isOpen ? "bg-emerald-300" : "bg-red-300"}`} />
-            {isOpen ? t("storefront.open") : t("storefront.closed")}
-          </span>
-          {todayHoursText && (
-            <span className="flex items-center gap-1" data-testid="text-today-hours">
-              <Clock className="h-3 w-3" />
-              {todayHoursText}
-            </span>
-          )}
-          {reviews.length > 0 && (
-            <span className="flex items-center gap-1" data-testid="rating-below-logo">
-              <Star className="h-3 w-3 fill-white text-white" />
-              {avgRating.toFixed(1)} ({reviews.length})
-            </span>
-          )}
-        </motion.div>
+        {reviews.length > 0 && (
+          <motion.div variants={fadeUp} className="flex items-center gap-1 mb-3 text-xs font-medium text-white/80" data-testid="rating-below-logo">
+            <Star className="h-3 w-3 fill-white text-white" />
+            {avgRating.toFixed(1)} ({reviews.length})
+          </motion.div>
+        )}
 
         <motion.h1 variants={fadeUp} className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-[1.05]">
           {restaurant.name}

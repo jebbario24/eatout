@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { MenuItem, MenuCategory, Table, Restaurant } from "@shared/schema";
+import type { MenuItem, MenuCategory, Restaurant } from "@shared/schema";
 import { getBusinessTypeConfig } from "@/lib/businessType";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,6 @@ export default function POS() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [orderType, setOrderType] = useState<string>("");
-  const [tableId, setTableId] = useState<string>("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
 
@@ -60,10 +59,6 @@ export default function POS() {
 
   const { data: items, isLoading } = useQuery<MenuItem[]>({
     queryKey: ["/api/menu/items"],
-  });
-
-  const { data: tables } = useQuery<Table[]>({
-    queryKey: ["/api/tables"],
   });
 
   const { data: restaurant } = useQuery<Restaurant>({
@@ -150,7 +145,6 @@ export default function POS() {
     mutationFn: async () => {
       return await apiRequest("/api/orders", "POST", {
         orderType: effectiveOrderType,
-        tableId: effectiveOrderType === "dine-in" ? tableId : null,
         customerName: customerName || null,
         customerPhone: customerPhone || null,
         items: cart.map((ci) => ({
@@ -172,7 +166,6 @@ export default function POS() {
       setCart([]);
       setCustomerName("");
       setCustomerPhone("");
-      setTableId("");
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -266,21 +259,6 @@ export default function POS() {
                 ))}
               </SelectContent>
             </Select>
-
-            {businessConfig.hasDineIn && effectiveOrderType === "dine-in" && (
-              <Select value={tableId} onValueChange={setTableId}>
-                <SelectTrigger data-testid="select-table">
-                  <SelectValue placeholder="Select table" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tables?.map((table) => (
-                    <SelectItem key={table.id} value={table.id}>
-                      Table {table.tableNumber}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
 
             <Input
               placeholder="Customer name (optional)"

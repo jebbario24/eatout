@@ -56,7 +56,10 @@ export const users = pgTable("users", {
 // Restaurants table - Multi-tenant core
 // Business types a merchant storefront can be. Drives catalog terminology/fields —
 // e.g. "Menu" vs "Products", and which vertical-specific catalog attributes apply.
-export const BUSINESS_TYPES = ['restaurant', 'grocery', 'pharmacy', 'flowers', 'retail'] as const;
+// "restaurant" was removed as a selectable vertical — this is a pure product-
+// ecommerce platform now. Any pre-existing row still stored as "restaurant"
+// degrades gracefully to "retail" via getBusinessTypeConfig's fallback.
+export const BUSINESS_TYPES = ['grocery', 'pharmacy', 'flowers', 'retail'] as const;
 export type BusinessType = typeof BUSINESS_TYPES[number];
 
 export const restaurants = pgTable("restaurants", {
@@ -65,7 +68,7 @@ export const restaurants = pgTable("restaurants", {
   name: varchar("name", { length: 255 }).notNull(),
   slug: varchar("slug", { length: 255 }).notNull().unique(),
   subdomain: varchar("subdomain", { length: 255 }).unique(),
-  businessType: varchar("business_type", { length: 50 }).notNull().default('restaurant'),
+  businessType: varchar("business_type", { length: 50 }).notNull().default('retail'),
   customDomain: varchar("custom_domain", { length: 255 }).unique(),
   description: text("description"),
   address: text("address"),

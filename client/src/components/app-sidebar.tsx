@@ -1,12 +1,10 @@
 import {
   LayoutDashboard,
   ShoppingCart,
-  CalendarCheck, 
-  Users, 
-  Package, 
+  Users,
+  Package,
   BarChart3,
   Settings,
-  ChefHat,
   Palette,
   CreditCard,
   Building2,
@@ -78,21 +76,6 @@ const marketingItems = [
     titleKey: "navigation.giftCards",
     url: "/marketing/gift-cards",
     icon: Gift,
-  },
-];
-
-// Operations section — dine-in items (Reservations, Tables) are prepended
-// only for restaurants; other verticals don't seat customers.
-const dineInOperationsItems = [
-  {
-    titleKey: "navigation.reservations",
-    url: "/reservations",
-    icon: CalendarCheck,
-  },
-  {
-    titleKey: "navigation.tables",
-    url: "/tables",
-    icon: ChefHat,
   },
 ];
 
@@ -232,9 +215,7 @@ export function getSearchableRoutes(businessConfig: ReturnType<typeof getBusines
     { titleKey: "navigation.collections", url: "/collections", icon: Layers },
     { titleKey: "navigation.inventory", url: "/inventory", icon: Package },
   ];
-  const operationsItems = businessConfig.hasDineIn
-    ? [...dineInOperationsItems, ...baseOperationsItems]
-    : baseOperationsItems;
+  const operationsItems = baseOperationsItems;
   return [
     ...coreItems,
     ...catalogItems,
@@ -281,11 +262,7 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
     },
   ];
 
-  // Dine-in tables/reservations only apply to restaurants — other verticals
-  // (grocery, pharmacy, flowers, retail) skip straight to fulfillment ops.
-  const operationsItems = businessConfig.hasDineIn
-    ? [...dineInOperationsItems, ...baseOperationsItems]
-    : baseOperationsItems;
+  const operationsItems = baseOperationsItems;
 
   const renderMenuGroup = (items: typeof coreItems, label?: string) => (
     <SidebarGroup>

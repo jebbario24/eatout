@@ -104,7 +104,7 @@ const defaultPaymentMethods: PaymentMethods = {
 };
 
 const restaurantSchema = z.object({
-  businessType: z.enum(["restaurant", "grocery", "pharmacy", "flowers", "retail"]),
+  businessType: z.enum(["grocery", "pharmacy", "flowers", "retail"]),
   name: z.string().min(1, "Business name is required"),
   slug: z.string().min(1, "URL slug is required").regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens allowed"),
   subdomain: z.string().regex(/^[a-z0-9-]*$/, "Only lowercase letters, numbers, and hyphens allowed").optional().or(z.literal("")),
@@ -249,13 +249,13 @@ export default function Settings() {
 
   const businessType = form.watch("businessType");
   const labels = businessType
-    ? BUSINESS_TYPE_CONFIG[businessType as keyof typeof BUSINESS_TYPE_CONFIG] || BUSINESS_TYPE_CONFIG.restaurant
+    ? BUSINESS_TYPE_CONFIG[businessType as keyof typeof BUSINESS_TYPE_CONFIG] || BUSINESS_TYPE_CONFIG.retail
     : { business: "Business", store: "business", catalog: "Products" };
 
   useEffect(() => {
     if (restaurant) {
       form.reset({
-        businessType: (restaurant.businessType as any) || "restaurant",
+        businessType: (restaurant.businessType as any) || "retail",
         name: restaurant.name || "",
         slug: restaurant.slug || "",
         subdomain: restaurant.subdomain || "",
@@ -462,7 +462,6 @@ export default function Settings() {
                       <SelectItem value="flowers">Flower Shop</SelectItem>
                       <SelectItem value="grocery">Grocery Store</SelectItem>
                       <SelectItem value="pharmacy">Pharmacy</SelectItem>
-                      <SelectItem value="restaurant">Restaurant</SelectItem>
                       <SelectItem value="retail">Retail Shop</SelectItem>
                     </SelectContent>
                   </Select>

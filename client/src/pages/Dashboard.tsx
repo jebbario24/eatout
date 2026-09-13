@@ -391,13 +391,6 @@ export default function Dashboard() {
                 Create New Order
               </Button>
             </Link>
-            {businessConfig.hasDineIn && (
-              <Link href="/reservations">
-                <Button variant="outline" className="w-full justify-start" data-testid="button-new-reservation">
-                  New Reservation
-                </Button>
-              </Link>
-            )}
             <Link href="/menu">
               <Button variant="outline" className="w-full justify-start" data-testid="button-manage-menu">
                 Manage {businessConfig.catalog}

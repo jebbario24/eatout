@@ -10,8 +10,6 @@ import {
   insertRestaurantSchema,
   insertMenuCategorySchema,
   insertMenuItemSchema,
-  insertTableSchema,
-  insertReservationSchema,
   insertStaffSchema,
   insertInventorySchema,
   BUSINESS_TYPES,
@@ -1813,211 +1811,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting market:", error);
       res.status(400).json({ message: "Failed to delete market" });
-    }
-  });
-
-  // Table routes
-  app.get('/api/tables', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.json([]);
-      }
-      const tables = await storage.getTables(restaurant.id);
-      res.json(tables);
-    } catch (error) {
-      console.error("Error fetching tables:", error);
-      res.status(500).json({ message: "Failed to fetch tables" });
-    }
-  });
-
-  app.post('/api/tables', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-      const data = insertTableSchema.parse({ ...req.body, restaurantId: restaurant.id });
-      const table = await storage.createTable(data);
-      res.json(table);
-    } catch (error) {
-      console.error("Error creating table:", error);
-      res.status(400).json({ message: "Failed to create table" });
-    }
-  });
-
-  app.put('/api/tables/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-      const { id } = req.params;
-      const data = insertTableSchema.partial().parse(req.body);
-      const table = await storage.updateTable(id, data);
-      res.json(table);
-    } catch (error) {
-      console.error("Error updating table:", error);
-      res.status(400).json({ message: "Failed to update table" });
-    }
-  });
-
-  app.delete('/api/tables/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-      
-      // Verify the table belongs to the user's restaurant
-      const table = await storage.getTable(req.params.id);
-      if (!table) {
-        return res.status(404).json({ message: "Table not found" });
-      }
-      if (table.restaurantId !== restaurant.id) {
-        return res.status(403).json({ message: "Unauthorized" });
-      }
-      
-      await storage.deleteTable(req.params.id);
-      res.json({ message: "Table deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting table:", error);
-      res.status(400).json({ message: "Failed to delete table" });
-    }
-  });
-
-  app.post('/api/tables/:id/duplicate', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-      
-      // Get the original table
-      const originalTable = await storage.getTable(req.params.id);
-      if (!originalTable) {
-        return res.status(404).json({ message: "Table not found" });
-      }
-      
-      // Verify the table belongs to the user's restaurant
-      if (originalTable.restaurantId !== restaurant.id) {
-        return res.status(403).json({ message: "Unauthorized" });
-      }
-      
-      // Create duplicate with " (Copy)" appended to table number
-      const duplicateData = {
-        tableNumber: `${originalTable.tableNumber} (Copy)`,
-        capacity: originalTable.capacity,
-        category: originalTable.category,
-        restaurantId: restaurant.id,
-      };
-      
-      const newTable = await storage.createTable(duplicateData);
-      res.json(newTable);
-    } catch (error) {
-      console.error("Error duplicating table:", error);
-      res.status(400).json({ message: "Failed to duplicate table" });
-    }
-  });
-
-  // Reservation routes
-  app.get('/api/reservations', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.json([]);
-      }
-      const reservations = await storage.getReservations(restaurant.id);
-      res.json(reservations);
-    } catch (error) {
-      console.error("Error fetching reservations:", error);
-      res.status(500).json({ message: "Failed to fetch reservations" });
-    }
-  });
-
-  app.post('/api/reservations', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-      const data = insertReservationSchema.parse({ 
-        ...req.body,
-        reservationDate: req.body.reservationDate ? new Date(req.body.reservationDate) : undefined,
-        restaurantId: restaurant.id,
-        status: 'pending'
-      });
-      const reservation = await storage.createReservation(data);
-      res.json(reservation);
-    } catch (error) {
-      console.error("Error creating reservation:", error);
-      res.status(400).json({ message: "Failed to create reservation" });
-    }
-  });
-
-  app.put('/api/reservations/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-      const data = insertReservationSchema.partial().parse({
-        ...req.body,
-        reservationDate: req.body.reservationDate ? new Date(req.body.reservationDate) : undefined,
-      });
-      const updatedReservation = await storage.updateReservation(req.params.id, data);
-      res.json(updatedReservation);
-    } catch (error) {
-      console.error("Error updating reservation:", error);
-      res.status(400).json({ message: "Failed to update reservation" });
-    }
-  });
-
-  app.delete('/api/reservations/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-      await storage.deleteReservation(req.params.id);
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting reservation:", error);
-      res.status(400).json({ message: "Failed to delete reservation" });
-    }
-  });
-
-  app.patch('/api/reservations/:id/status', isAuthenticated, async (req: any, res) => {
-    try {
-      const { id } = req.params;
-      const { status } = req.body;
-      const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
-      }
-      
-      // Verify reservation belongs to this restaurant
-      const reservation = await storage.getReservations(restaurant.id);
-      const targetReservation = reservation.find(r => r.id === id);
-      if (!targetReservation) {
-        return res.status(404).json({ message: "Reservation not found" });
-      }
-      
-      const updated = await storage.updateReservation(id, { status });
-      res.json(updated);
-    } catch (error) {
-      console.error("Error updating reservation status:", error);
-      res.status(400).json({ message: "Failed to update reservation status" });
     }
   });
 
@@ -3934,6 +3727,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/storefront/:slug/account/addresses/:id', requireStorefrontAuth, async (req: any, res) => {
     await storage.deleteCustomerAddress(req.params.id, req.storeCustomer.id);
     res.json({ ok: true });
+  });
+
+  // Public order confirmation — the id itself (an unguessable UUID, only known to
+  // whoever just placed the order) is the access control, same convention as
+  // every major checkout's "thank you" URL. Scoped to the restaurant so a bad
+  // slug/id pairing 404s instead of leaking another store's order.
+  app.get('/api/storefront/:slug/orders/:id/confirmation', async (req, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const withItems = await storage.getOrderWithItems(req.params.id);
+      if (!withItems || withItems.order.restaurantId !== restaurant.id) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+      res.json(withItems);
+    } catch (error) {
+      logError("Order confirmation lookup failed", error);
+      res.status(500).json({ message: "Could not load order confirmation" });
+    }
   });
 
   // Public order tracking — look up one order by number + the email or phone on it
@@ -5921,7 +5733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: restaurant.id,
           name: restaurant.name,
           subdomain: restaurant.subdomain,
-          businessType: restaurant.businessType || 'restaurant',
+          businessType: restaurant.businessType || 'retail',
           ownerEmail: owner?.email || 'Unknown',
           subscriptionStatus: owner?.subscriptionStatus || 'inactive',
           trialEndsAt: owner?.trialEndsAt || null,

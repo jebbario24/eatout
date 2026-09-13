@@ -62,13 +62,12 @@ export default function Bundles() {
   });
   const businessConfig = getBusinessTypeConfig(restaurant?.businessType);
   const bundleNamePlaceholders: Record<string, string> = {
-    restaurant: "Family Meal Deal",
     grocery: "Weekly Essentials Bundle",
     pharmacy: "Cold & Flu Care Pack",
     flowers: "Anniversary Bouquet Bundle",
     retail: "Starter Bundle",
   };
-  const bundleNamePlaceholder = bundleNamePlaceholders[restaurant?.businessType || "restaurant"] || bundleNamePlaceholders.restaurant;
+  const bundleNamePlaceholder = bundleNamePlaceholders[restaurant?.businessType || "retail"] || bundleNamePlaceholders.retail;
 
   // Fetch available menu items
   const { data: menuItems = [] } = useQuery<MenuItem[]>({

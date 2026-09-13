@@ -152,21 +152,18 @@ export default function Menu() {
     queryKey: ["/api/restaurants/me"],
   });
 
-  const businessType = restaurant?.businessType || 'restaurant';
+  const businessType = restaurant?.businessType || 'retail';
   const businessConfig = getBusinessTypeConfig(businessType);
   const catalogLabel = businessConfig.catalog;
   const itemLabel = businessConfig.item;
   const ItemIcon = businessConfig.icon;
   const itemNamePlaceholder: Record<string, string> = {
-    restaurant: 'e.g., Margherita Pizza',
     grocery: 'e.g., Organic Bananas (1kg)',
     pharmacy: 'e.g., Ibuprofen 200mg',
     flowers: 'e.g., Dozen Red Roses',
     retail: 'e.g., Classic White T-Shirt',
   };
-  const itemDescriptionPlaceholder = businessType === 'restaurant'
-    ? 'Describe your dish, its ingredients, and what makes it special...'
-    : `Describe this ${itemLabel.toLowerCase()} and what makes it special...`;
+  const itemDescriptionPlaceholder = `Describe this ${itemLabel.toLowerCase()} and what makes it special...`;
 
   const categoryForm = useForm({
     resolver: zodResolver(categorySchema),
@@ -785,7 +782,7 @@ export default function Menu() {
                             <FormControl>
                               <Input
                                 {...field}
-                                placeholder={itemNamePlaceholder[businessType] || itemNamePlaceholder.restaurant}
+                                placeholder={itemNamePlaceholder[businessType] || itemNamePlaceholder.retail}
                                 data-testid="input-item-name"
                               />
                             </FormControl>
@@ -831,10 +828,7 @@ export default function Menu() {
                           </FormDescription>
                           <FormControl>
                             <div className="flex flex-wrap gap-2" data-testid="input-item-tags">
-                              {(businessType === 'restaurant'
-                                ? ['Bestseller', 'New', 'Chef\'s Special', 'Popular', 'Spicy', 'Vegetarian', 'Vegan', 'Gluten-Free', 'Limited Time']
-                                : ['Bestseller', 'New', 'Popular', 'Limited Time']
-                              ).map((tagOption) => {
+                              {['Bestseller', 'New', 'Popular', 'Limited Time'].map((tagOption) => {
                                 const isSelected = field.value?.includes(tagOption) || false;
                                 return (
                                   <div
@@ -964,38 +958,10 @@ export default function Menu() {
                           </FormItem>
                         )}
                       />
-                      {businessType === 'restaurant' && (
-                        <FormField
-                          control={itemForm.control}
-                          name="prepTimeMinutes"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="flex items-center gap-2">
-                                <Clock className="h-4 w-4" />
-                                Preparation Time
-                              </FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Input
-                                    type="number"
-                                    placeholder="15"
-                                    {...field}
-                                    data-testid="input-item-prep-time"
-                                  />
-                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                                    minutes
-                                  </span>
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
                     </div>
                   </div>
 
-                  {businessType !== 'restaurant' && <Separator />}
+                  <Separator />
 
                   {businessType === 'pharmacy' && (
                     <div className="space-y-4">

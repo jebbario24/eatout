@@ -51,10 +51,9 @@ interface Restaurant {
   createdAt: string;
 }
 
-const BUSINESS_TYPES = ['restaurant', 'grocery', 'pharmacy', 'flowers', 'retail'] as const;
+const BUSINESS_TYPES = ['grocery', 'pharmacy', 'flowers', 'retail'] as const;
 
 const BUSINESS_TYPE_LABELS: Record<string, string> = {
-  restaurant: "Restaurant",
   grocery: "Grocery Store",
   pharmacy: "Pharmacy",
   flowers: "Flower Shop",
@@ -253,13 +252,13 @@ export default function AdminSubscriptions() {
   };
 
   const typeCounts = restaurants.reduce<Record<string, number>>((counts, r) => {
-    const type = r.businessType || 'restaurant';
+    const type = r.businessType || 'retail';
     counts[type] = (counts[type] || 0) + 1;
     return counts;
   }, {});
 
   const filteredRestaurants = restaurants.filter(r => {
-    const matchesType = typeFilter === "all" || (r.businessType || 'restaurant') === typeFilter;
+    const matchesType = typeFilter === "all" || (r.businessType || 'retail') === typeFilter;
     const matchesSearch =
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.subdomain.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -387,7 +386,7 @@ export default function AdminSubscriptions() {
                   <CardTitle className="text-lg flex items-center gap-2 flex-wrap">
                     {restaurant.name}
                     <Badge variant="secondary" className="no-default-hover-elevate font-normal text-xs">
-                      {BUSINESS_TYPE_LABELS[restaurant.businessType || 'restaurant'] || restaurant.businessType}
+                      {BUSINESS_TYPE_LABELS[restaurant.businessType || 'retail'] || restaurant.businessType}
                     </Badge>
                   </CardTitle>
                   <CardDescription>

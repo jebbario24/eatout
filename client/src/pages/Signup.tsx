@@ -68,7 +68,7 @@ export default function Signup() {
 
       // Carry the vertical picked on the landing page (?type=grocery, etc.)
       // through to onboarding so the business-type field is pre-selected
-      // instead of always defaulting back to "Restaurant".
+      // instead of always defaulting back to "Retail Shop".
       const preselectedType = new URLSearchParams(window.location.search).get("type");
       if (preselectedType) {
         sessionStorage.setItem("eatout_signup_business_type", preselectedType);

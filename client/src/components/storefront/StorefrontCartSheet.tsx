@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
+import { AnimatePresence, motion } from "framer-motion";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -71,36 +72,47 @@ export function StorefrontCartSheet({ open, onOpenChange, cart, setCart, formatP
           <>
             <ScrollArea className="flex-1 my-4">
               <div className="space-y-4 px-1">
-                {cart.map((c, index) => (
-                  <div key={index} className="flex gap-3 items-start" data-testid={`cart-sheet-item-${index}`}>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{c.menuItem?.name || c.bundle?.name}</p>
-                      {c.variantName && (
-                        <p className="text-xs text-muted-foreground">{c.variantName}</p>
-                      )}
-                      {(c.selectedOptions || []).map((group, gi) => (
-                        <p key={gi} className="text-xs text-muted-foreground">
-                          {group.choices.map((choice) => choice.label).join(", ")}
-                        </p>
-                      ))}
-                      <div className="flex items-center gap-2 mt-1">
-                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQty(index, -1)} data-testid={`button-decrease-${index}`}>
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <span className="text-sm w-4 text-center">{c.quantity}</span>
-                        <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQty(index, 1)} data-testid={`button-increase-${index}`}>
-                          <Plus className="h-3 w-3" />
+                <AnimatePresence initial={false} mode="popLayout">
+                  {cart.map((c, index) => (
+                    <motion.div
+                      key={`${c.menuItem?.id || c.bundle?.id || "item"}-${c.variantId || ""}-${index}`}
+                      layout
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, x: -24 }}
+                      transition={{ duration: 0.2 }}
+                      className="flex gap-3 items-start"
+                      data-testid={`cart-sheet-item-${index}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{c.menuItem?.name || c.bundle?.name}</p>
+                        {c.variantName && (
+                          <p className="text-xs text-muted-foreground">{c.variantName}</p>
+                        )}
+                        {(c.selectedOptions || []).map((group, gi) => (
+                          <p key={gi} className="text-xs text-muted-foreground">
+                            {group.choices.map((choice) => choice.label).join(", ")}
+                          </p>
+                        ))}
+                        <div className="flex items-center gap-2 mt-1">
+                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQty(index, -1)} data-testid={`button-decrease-${index}`}>
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="text-sm w-4 text-center">{c.quantity}</span>
+                          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQty(index, 1)} data-testid={`button-increase-${index}`}>
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="font-medium">{formatPrice(lineTotal(c))}</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(index)} data-testid={`button-remove-${index}`}>
+                          <X className="h-3 w-3" />
                         </Button>
                       </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="font-medium">{formatPrice(lineTotal(c))}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(index)} data-testid={`button-remove-${index}`}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
               </div>
             </ScrollArea>
 

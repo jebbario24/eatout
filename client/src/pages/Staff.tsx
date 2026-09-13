@@ -53,13 +53,12 @@ export default function Staff() {
     queryKey: ["/api/restaurants/me"],
   });
   const rolePlaceholders: Record<string, string> = {
-    restaurant: "e.g., Server, Chef, Manager",
     grocery: "e.g., Cashier, Stock Clerk, Manager",
     pharmacy: "e.g., Pharmacist, Technician, Manager",
     flowers: "e.g., Florist, Delivery, Manager",
     retail: "e.g., Sales Associate, Cashier, Manager",
   };
-  const rolePlaceholder = rolePlaceholders[restaurant?.businessType || "restaurant"] || rolePlaceholders.restaurant;
+  const rolePlaceholder = rolePlaceholders[restaurant?.businessType || "retail"] || rolePlaceholders.retail;
 
   const form = useForm({
     resolver: zodResolver(staffSchema),

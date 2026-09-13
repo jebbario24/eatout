@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, Link, useLocation } from "wouter";
+import { AnimatePresence, motion } from "framer-motion";
 import { useStorefrontCustomer } from "@/hooks/useStorefrontCustomer";
 import { usePreviewDraftOverrides } from "@/hooks/usePreviewDraftOverrides";
 import { CustomerAuthDialog } from "@/components/storefront/CustomerAuthDialog";
@@ -1164,10 +1165,6 @@ export default function Storefront() {
     },
     onSuccess: (data) => {
       if (data.paymentMethod === 'cash') {
-        const successMessage = orderType === 'pickup' 
-          ? t('storefront.orderSuccessPickup') || 'Order placed successfully! Pay when you pick up.'
-          : t('storefront.orderSuccess') || 'Order placed successfully! Pay cash on delivery.';
-        toast({ title: successMessage });
         setCart([]);
         setCustomerName("");
         setCustomerPhone("");
@@ -1179,14 +1176,15 @@ export default function Storefront() {
         setRedeemPoints(false);
         setUseStoreCredit(false);
         handleRemoveGiftCard();
+        setCartOpen(false);
         queryClient.invalidateQueries({ queryKey: [`/api/storefront/${sfSlug}/account/rewards`] });
+        setLocation(sfSlug ? `/store/${sfSlug}/thank-you/${data.orderId}` : `/thank-you/${data.orderId}`);
       } else if (data.paymentMethod === 'paypal') {
         setCurrentOrderId(data.orderId);
         renderPayPalButtons(data.orderId, displayTotal);
       } else if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       } else {
-        toast({ title: t('storefront.orderConfirmed') });
         setCart([]);
         setCustomerName("");
         setCustomerPhone("");
@@ -1195,6 +1193,8 @@ export default function Storefront() {
         setAppliedPromo(null);
         setPromoCode("");
         setPromoCodeError("");
+        setCartOpen(false);
+        setLocation(sfSlug ? `/store/${sfSlug}/thank-you/${data.orderId}` : `/thank-you/${data.orderId}`);
       }
     },
     onError: (error: any) => {
@@ -1263,16 +1263,17 @@ export default function Storefront() {
       onApprove: async (data: any) => {
         try {
           await apiRequest(`/api/storefront/${slug}/paypal-capture`, "POST", { orderId: data.orderID });
-          toast({ title: t('storefront.orderConfirmed') });
           setCart([]);
           setCustomerName("");
           setCustomerPhone("");
           setCustomerEmail("");
-          setCurrentOrderId(null);
           paypalRendered.current = false;
           setAppliedPromo(null);
           setPromoCode("");
           setPromoCodeError("");
+          setCartOpen(false);
+          setLocation(sfSlug ? `/store/${sfSlug}/thank-you/${orderId}` : `/thank-you/${orderId}`);
+          setCurrentOrderId(null);
         } catch (error) {
           toast({ title: t('storefront.orderError'), variant: "destructive" });
         }
@@ -1445,12 +1446,20 @@ export default function Storefront() {
               ) : (
                 <ScrollArea className="flex-1 my-4">
                   <div className="space-y-4 px-1">
+                    <AnimatePresence initial={false} mode="popLayout">
                       {cart.map((item, index) => {
                         if (item.bundle) {
                           // Render bundle item
                           const bundle = item.bundle;
                           return (
-                            <div key={`bundle-${bundle.id}-${index}`} className="flex gap-4 p-3 rounded-lg border bg-gradient-to-br from-primary/5 to-primary/10">
+                            <motion.div
+                              key={`bundle-${bundle.id}-${index}`}
+                              layout
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, x: -24 }}
+                              transition={{ duration: 0.2 }}
+                              className="flex gap-4 p-3 rounded-lg border bg-gradient-to-br from-primary/5 to-primary/10">
                               <div className="flex-1">
                                 <div className="flex items-start justify-between mb-1">
                                   <h4 className="font-medium">{bundle.name}</h4>
@@ -1498,7 +1507,7 @@ export default function Storefront() {
                                   </Button>
                                 </div>
                               </div>
-                            </div>
+                            </motion.div>
                           );
                         } else if (item.menuItem) {
                           // Render regular menu item
@@ -1508,9 +1517,16 @@ export default function Storefront() {
                             0
                           ) / 100;
                           const itemTotal = parseFloat(item.menuItem.price) + optionsTotal;
-                          
+
                           return (
-                          <div key={`${item.menuItem.id}-${index}`} className="flex gap-4 p-3 rounded-lg border">
+                          <motion.div
+                            key={`${item.menuItem.id}-${index}`}
+                            layout
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, x: -24 }}
+                            transition={{ duration: 0.2 }}
+                            className="flex gap-4 p-3 rounded-lg border">
                             {item.menuItem.imageUrl && (
                               <img
                                 src={item.menuItem.imageUrl}
@@ -1572,11 +1588,12 @@ export default function Storefront() {
                                 </Button>
                               </div>
                             </div>
-                          </div>
+                          </motion.div>
                           );
                         }
                         return null;
                       })}
+                    </AnimatePresence>
                     </div>
 
                     <div className="space-y-3 border-t pt-4">
@@ -2156,9 +2173,18 @@ export default function Storefront() {
           <div className="mb-12 space-y-10" data-testid="storefront-collections">
             {storefrontCollections.map((col: any) => (
               <div key={col.id} data-testid={`collection-${col.handle}`}>
-                <div className="mb-4">
-                  <h2 className="text-2xl font-bold">{col.title}</h2>
-                  {col.description && <p className="text-muted-foreground mt-1">{col.description}</p>}
+                <div className="mb-4 flex items-end justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold">{col.title}</h2>
+                    {col.description && <p className="text-muted-foreground mt-1">{col.description}</p>}
+                  </div>
+                  <Link
+                    href={sfSlug ? `/store/${sfSlug}/collections/${col.handle}` : `/collections/${col.handle}`}
+                    className="text-sm font-medium text-primary hover:underline whitespace-nowrap"
+                    data-testid={`link-view-collection-${col.handle}`}
+                  >
+                    View all
+                  </Link>
                 </div>
                 <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   {col.items.slice(0, 10).map((it: any) => (
@@ -2244,7 +2270,14 @@ export default function Storefront() {
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {group.items.map((item) => {
                     const translatedItem = getTranslatedMenuItem(item, t);
-                    return (<div key={item.id} className="space-y-4">
+                    return (<motion.div
+                      key={item.id}
+                      className="space-y-4"
+                      initial={{ opacity: 0, y: 16 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: "-40px" }}
+                      transition={{ duration: 0.4 }}
+                    >
                       <MenuItemCard
                         item={item}
                         displayName={translatedItem.name}
@@ -2293,7 +2326,7 @@ export default function Storefront() {
                           message={(restaurant.marketingSettings as any).upsellMessage}
                         />
                       )}
-                    </div>
+                    </motion.div>
                   );
                   })}
                 </div>
@@ -2305,7 +2338,14 @@ export default function Storefront() {
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filteredItems.map((item) => {
               const translatedItem = getTranslatedMenuItem(item, t);
-              return (<div key={item.id} className="space-y-4">
+              return (<motion.div
+                key={item.id}
+                className="space-y-4"
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.4 }}
+              >
                 <MenuItemCard
                   item={item}
                   displayName={translatedItem.name}
@@ -2354,7 +2394,7 @@ export default function Storefront() {
                     message={(restaurant.marketingSettings as any).upsellMessage}
                   />
                 )}
-              </div>
+              </motion.div>
               );
             })}
           </div>
@@ -2447,7 +2487,13 @@ export default function Storefront() {
       </div>
 
       {/* Contact Us Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-60px" }}
+        transition={{ duration: 0.4 }}
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t"
+      >
         <div className="max-w-2xl mx-auto">
           <h2 className="text-3xl font-bold mb-2 text-center">Contact Us</h2>
           <p className="text-muted-foreground mb-8 text-center">
@@ -2536,7 +2582,7 @@ export default function Storefront() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </motion.div>
 
       {/* Opening Hours - Footer */}
       {openingHours && (

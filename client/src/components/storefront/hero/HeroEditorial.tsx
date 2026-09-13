@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { Star, Clock } from "lucide-react";
+import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { StorefrontHeroProps } from "./HeroClassic";
 
@@ -38,22 +38,14 @@ export function HeroEditorial({ restaurant, reviews, todayHoursText, isOpen, t, 
         animate="show"
         variants={staggerContainer}
       >
-        <motion.div variants={fadeUp} className="flex items-center gap-2 mb-4">
-          <span
-            className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-white ${
-              isOpen ? "bg-green-600/90" : "bg-red-600/90"
-            }`}
-            data-testid="badge-open-status"
-          >
-            {isOpen ? t("storefront.open") : t("storefront.closed")}
-          </span>
-          {reviews.length > 0 && (
-            <span className="rounded-full px-4 py-1.5 text-xs font-semibold text-white bg-white/15 backdrop-blur flex items-center gap-1">
+        {reviews.length > 0 && (
+          <motion.div variants={fadeUp} className="mb-4">
+            <span className="rounded-full px-4 py-1.5 text-xs font-semibold text-white bg-white/15 backdrop-blur flex items-center gap-1 w-fit">
               <Star className="h-3.5 w-3.5 fill-white" />
               {avgRating.toFixed(1)} ({reviews.length})
             </span>
-          )}
-        </motion.div>
+          </motion.div>
+        )}
 
         <motion.h1
           variants={fadeUp}
@@ -66,13 +58,6 @@ export function HeroEditorial({ restaurant, reviews, todayHoursText, isOpen, t, 
           <motion.p variants={fadeUp} className="mt-4 max-w-xl text-white/80 text-base md:text-lg">
             {restaurant.description}
           </motion.p>
-        )}
-
-        {todayHoursText && (
-          <motion.div variants={fadeUp} className="mt-5 flex items-center gap-2 text-sm text-white/70">
-            <Clock className="h-4 w-4" />
-            <span data-testid="text-today-hours">{todayHoursText}</span>
-          </motion.div>
         )}
 
         {shopHref && (

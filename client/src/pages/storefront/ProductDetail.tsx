@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
+import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
@@ -174,9 +175,11 @@ export default function ProductDetail() {
           </Link>
 
           <div className="grid gap-10 md:grid-cols-2">
-            <ProductGallery images={galleryImages} alt={item.name} />
+            <motion.div initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}>
+              <ProductGallery images={galleryImages} alt={item.name} />
+            </motion.div>
 
-            <div className="space-y-6">
+            <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.1 }} className="space-y-6">
               <div>
                 <h1 className="text-2xl sm:text-3xl font-display font-bold" data-testid="text-product-name">{item.name}</h1>
                 {item.description && (
@@ -221,16 +224,18 @@ export default function ProductDetail() {
                 />
               )}
 
-              <Button
-                size="lg"
-                className="w-full"
-                disabled={!canAddToCart}
-                onClick={handleAddToCart}
-                data-testid="button-product-add-to-cart"
-              >
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                {t('storefront.addToCart') || 'Add to cart'}
-              </Button>
+              <motion.div whileTap={{ scale: 0.97 }} whileHover={canAddToCart ? { scale: 1.01 } : {}}>
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={!canAddToCart}
+                  onClick={handleAddToCart}
+                  data-testid="button-product-add-to-cart"
+                >
+                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  {t('storefront.addToCart') || 'Add to cart'}
+                </Button>
+              </motion.div>
 
               {relatedItems.length > 0 && (
                 <FrequentlyBoughtTogether
@@ -239,7 +244,7 @@ export default function ProductDetail() {
                   onAddToCart={addRelatedToCart}
                 />
               )}
-            </div>
+            </motion.div>
           </div>
         </div>
       )}

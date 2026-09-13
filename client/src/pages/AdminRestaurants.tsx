@@ -38,10 +38,9 @@ interface Restaurant {
   };
 }
 
-const BUSINESS_TYPES = ['restaurant', 'grocery', 'pharmacy', 'flowers', 'retail'] as const;
+const BUSINESS_TYPES = ['grocery', 'pharmacy', 'flowers', 'retail'] as const;
 
 const BUSINESS_TYPE_LABELS: Record<string, string> = {
-  restaurant: "Restaurant",
   grocery: "Grocery Store",
   pharmacy: "Pharmacy",
   flowers: "Flower Shop",
@@ -55,7 +54,7 @@ export default function AdminRestaurants() {
     name: "",
     subdomain: "",
     isActive: true,
-    businessType: "restaurant",
+    businessType: "retail",
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -67,7 +66,7 @@ export default function AdminRestaurants() {
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const r of restaurants || []) {
-      const type = r.businessType || 'restaurant';
+      const type = r.businessType || 'retail';
       counts[type] = (counts[type] || 0) + 1;
     }
     return counts;
@@ -75,7 +74,7 @@ export default function AdminRestaurants() {
 
   const filteredRestaurants = useMemo(() => {
     return (restaurants || []).filter((r) => {
-      const matchesType = typeFilter === "all" || (r.businessType || 'restaurant') === typeFilter;
+      const matchesType = typeFilter === "all" || (r.businessType || 'retail') === typeFilter;
       const q = searchQuery.trim().toLowerCase();
       const matchesSearch = !q ||
         r.name.toLowerCase().includes(q) ||
@@ -132,7 +131,7 @@ export default function AdminRestaurants() {
       name: restaurant.name,
       subdomain: restaurant.subdomain,
       isActive: restaurant.isActive,
-      businessType: restaurant.businessType || "restaurant",
+      businessType: restaurant.businessType || "retail",
     });
   };
 
@@ -163,7 +162,7 @@ export default function AdminRestaurants() {
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">All Merchants</h1>
-        <p className="text-muted-foreground">Manage all merchants on the platform — restaurants, grocery, pharmacy, flowers, and retail</p>
+        <p className="text-muted-foreground">Manage all merchants on the platform — grocery, pharmacy, flowers, and retail</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -207,7 +206,7 @@ export default function AdminRestaurants() {
                     <CardTitle className="flex items-center gap-2 flex-wrap">
                       <span data-testid={`text-restaurant-name-${restaurant.id}`}>{restaurant.name}</span>
                       <Badge variant="secondary" className="no-default-hover-elevate font-normal">
-                        {BUSINESS_TYPE_LABELS[restaurant.businessType || 'restaurant'] || restaurant.businessType}
+                        {BUSINESS_TYPE_LABELS[restaurant.businessType || 'retail'] || restaurant.businessType}
                       </Badge>
                       {restaurant.isActive ? (
                         <Badge variant="default" className="no-default-hover-elevate">Active</Badge>
