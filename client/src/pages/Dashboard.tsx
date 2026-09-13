@@ -20,7 +20,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RestaurantPWAPrompt } from "@/components/RestaurantPWAPrompt";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { RestaurantNotificationHeader } from "@/components/RestaurantNotificationHeader";
 import { getBusinessTypeConfig } from "@/lib/businessType";
@@ -184,8 +183,6 @@ export default function Dashboard() {
     <div className="p-6 space-y-6">
       {/* PWA Features */}
       <OfflineIndicator />
-      
-      <RestaurantPWAPrompt />
 
       {/* Subscription Status Banner */}
       {subscriptionStatus?.isTrialActive && trialDaysLeft <= 3 && (
@@ -222,8 +219,8 @@ export default function Dashboard() {
       )}
 
       <div>
-        <h1 className="text-3xl font-display font-bold">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-sm font-semibold">Dashboard</h1>
+        <p className="text-xs text-muted-foreground mt-1">
           Welcome back, {restaurant.name}
         </p>
       </div>
