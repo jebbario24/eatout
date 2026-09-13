@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Store } from "lucide-react";
 import { useResolvedSlug } from "@/hooks/useResolvedSlug";
-import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
+import { StorefrontFooter, SocialLinksRow } from "@/components/storefront/StorefrontFooter";
 import { StorefrontBrandStyle } from "@/components/storefront/StorefrontBrandStyle";
 
 export { useResolvedSlug };
@@ -49,10 +49,11 @@ export function StorefrontShell({
     switch (item.type) {
       case "home": return base || "/";
       case "menu": return base || "/";
-      case "collection": return `${base}/c/${item.value || ""}`;
+      case "collection": return `${base}/collections/${item.value || ""}`;
       case "page": return `${base}/pages/${item.value || ""}`;
       case "blog": return `${base}/blog`;
       case "shop": return `${base}/shop`;
+      case "contact": return `${base}/contact`;
       case "url": return item.value || "#";
       default: return "#";
     }
@@ -119,16 +120,20 @@ export function StorefrontShell({
           hrefFor={(p) => `${base}/pages/${p.handle}`}
           enabledPaymentMethods={restaurant?.paymentMethods}
           restaurantName={restaurant?.name}
+          socialLinks={restaurant?.socialLinks}
         />
       ) : (
         <footer className="border-t">
           <div className="mx-auto max-w-5xl px-4 py-8 text-sm text-muted-foreground">
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              <Link href={base || "/"} className="hover:text-foreground">{restaurant?.name || "Home"}</Link>
-              {footerPages.map((p) => (
-                <Link key={p.id} href={`${base}/pages/${p.handle}`} className="hover:text-foreground">{p.title}</Link>
-              ))}
-              <Link href={`${base}/blog`} className="hover:text-foreground">Blog</Link>
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                <Link href={base || "/"} className="hover:text-foreground">{restaurant?.name || "Home"}</Link>
+                {footerPages.map((p) => (
+                  <Link key={p.id} href={`${base}/pages/${p.handle}`} className="hover:text-foreground">{p.title}</Link>
+                ))}
+                <Link href={`${base}/blog`} className="hover:text-foreground">Blog</Link>
+              </div>
+              <SocialLinksRow socialLinks={restaurant?.socialLinks} />
             </div>
             <p className="mt-4 text-xs">© {new Date().getFullYear()} {restaurant?.name}. Powered by EatOut.</p>
           </div>

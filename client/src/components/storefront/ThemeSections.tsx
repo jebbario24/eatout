@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { apiRequest } from "@/lib/queryClient";
 import type { ThemeSection, ThemeColorScheme } from "@/lib/themeSections";
 
 function colorSchemeClasses(scheme: ThemeColorScheme | undefined): string {
@@ -207,9 +209,10 @@ function RichTextSection({ section }: { section: ThemeSection }) {
   );
 }
 
-function NewsletterSection({ section }: { section: ThemeSection }) {
+function NewsletterSection({ section, slug }: { section: ThemeSection; slug?: string }) {
   const s = section.settings;
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   return (
     <div className={`${colorSchemeClasses(s.colorScheme)} py-12`}>
       <div className="max-w-md mx-auto px-4 text-center space-y-4">
@@ -217,14 +220,24 @@ function NewsletterSection({ section }: { section: ThemeSection }) {
         {s.text && <p className="opacity-90">{s.text}</p>}
         <form
           className="flex gap-2"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            toast({ title: "Thanks for subscribing!" });
-            e.currentTarget.reset();
+            const email = (new FormData(e.currentTarget).get("email") as string) || "";
+            if (!slug || !email) return;
+            setIsSubmitting(true);
+            try {
+              await apiRequest(`/api/storefront/${slug}/newsletter`, "POST", { email });
+              toast({ title: "Thanks for subscribing!" });
+              e.currentTarget.reset();
+            } catch {
+              toast({ variant: "destructive", title: "Something went wrong", description: "Please try again." });
+            } finally {
+              setIsSubmitting(false);
+            }
           }}
         >
-          <Input type="email" placeholder="Enter your email" required className="bg-background text-foreground" />
-          <Button type="submit">Subscribe</Button>
+          <Input name="email" type="email" placeholder="Enter your email" required className="bg-background text-foreground" />
+          <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Subscribing…" : "Subscribe"}</Button>
         </form>
       </div>
     </div>
@@ -256,7 +269,26 @@ function TestimonialsSection({ section }: { section: ThemeSection }) {
   );
 }
 
-export function ThemeSections({ sections }: { sections: ThemeSection[] }) {
+function FaqSection({ section }: { section: ThemeSection }) {
+  const s = section.settings;
+  return (
+    <div className={`${colorSchemeClasses(s.colorScheme)} py-12`}>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        {s.heading && <h2 className="text-2xl md:text-3xl font-display font-bold text-center">{s.heading}</h2>}
+        <Accordion type="single" collapsible>
+          {section.blocks.map((block) => (
+            <AccordionItem key={block.id} value={block.id}>
+              <AccordionTrigger className="text-left">{block.settings.question}</AccordionTrigger>
+              <AccordionContent className="text-muted-foreground">{block.settings.answer}</AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
+    </div>
+  );
+}
+
+export function ThemeSections({ sections, slug }: { sections: ThemeSection[]; slug?: string }) {
   return (
     <>
       {sections.filter((section) => section.enabled !== false).map((section) => {
@@ -270,9 +302,11 @@ export function ThemeSections({ sections }: { sections: ThemeSection[] }) {
           case "rich-text":
             return <RichTextSection key={section.id} section={section} />;
           case "newsletter":
-            return <NewsletterSection key={section.id} section={section} />;
+            return <NewsletterSection key={section.id} section={section} slug={slug} />;
           case "testimonials":
             return <TestimonialsSection key={section.id} section={section} />;
+          case "faq":
+            return <FaqSection key={section.id} section={section} />;
           default:
             return null;
         }

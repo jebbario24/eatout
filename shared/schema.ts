@@ -111,10 +111,16 @@ export const restaurants = pgTable("restaurants", {
   seoDescription: varchar("seo_description", { length: 500 }),
   seoImageUrl: text("seo_image_url"),
   // Storefront CMS (Tier 7)
-  // storefrontNav: { items: [{ id, label, type: 'home'|'menu'|'collection'|'page'|'blog'|'shop'|'url', value?, external? }] }
+  // storefrontNav: { items: [{ id, label, type: 'home'|'menu'|'collection'|'page'|'blog'|'shop'|'contact'|'url', value?, external? }] }
   storefrontNav: jsonb("storefront_nav"),
   // announcement: { enabled, text, linkLabel?, linkUrl? }
   announcement: jsonb("announcement"),
+  // socialLinks: { instagram?, facebook?, tiktok?, twitter?, youtube?, pinterest? }
+  socialLinks: jsonb("social_links"),
+  // brandProfile: { description, targetAudience?, targetMarket?, stylePreference? } —
+  // the free-text brief given to the AI store builder; kept so re-running
+  // "Optimize My Store" can start from the merchant's last brief instead of blank.
+  brandProfile: jsonb("brand_profile"),
   // Manual Access Override (Platform Admin)
   manuallyGrantedAccess: boolean("manually_granted_access").default(false),
   accessGrantedBy: varchar("access_granted_by"), // Admin user ID who granted access
@@ -337,6 +343,49 @@ export const blogPosts = pgTable("blog_posts", {
 }, (table) => [
   index("idx_blog_posts_restaurant").on(table.restaurantId),
   unique("blog_posts_restaurant_handle_unique").on(table.restaurantId, table.handle),
+]);
+
+// Storefront CMS — messages submitted through a merchant's public Contact page.
+export const contactMessages = pgTable("contact_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  name: varchar("name", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  subject: varchar("subject", { length: 255 }),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_contact_messages_restaurant").on(table.restaurantId),
+]);
+
+// AI store builder — one row per generate/optimize run. `blueprint`/`copy` hold the
+// full proposed change-set so the merchant can review, come back later, and apply
+// only once approved; nothing here touches the live storefront until `applied`.
+export const storeGenerations = pgTable("store_generations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  kind: varchar("kind", { length: 20 }).notNull().default('initial'), // 'initial' | 'optimize'
+  brief: jsonb("brief"),
+  blueprint: jsonb("blueprint").notNull(),
+  copy: jsonb("copy"),
+  status: varchar("status", { length: 20 }).notNull().default('proposed'), // 'proposed' | 'applied' | 'discarded'
+  createdAt: timestamp("created_at").defaultNow(),
+  appliedAt: timestamp("applied_at"),
+}, (table) => [
+  index("idx_store_generations_restaurant").on(table.restaurantId),
+]);
+
+// Real capture behind the storefront's Newsletter section (previously the signup
+// form only showed a toast and discarded the email).
+export const newsletterSubscribers = pgTable("newsletter_subscribers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
+  email: varchar("email", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("idx_newsletter_subscribers_restaurant").on(table.restaurantId),
+  unique("newsletter_subscribers_restaurant_email_unique").on(table.restaurantId, table.email),
 ]);
 
 // Tables
@@ -1696,6 +1745,33 @@ export const insertBlogPostSchema = createInsertSchema(blogPosts).omit({
 });
 export type InsertBlogPost = z.infer<typeof insertBlogPostSchema>;
 export type BlogPost = typeof blogPosts.$inferSelect;
+
+export const insertContactMessageSchema = createInsertSchema(contactMessages).omit({
+  id: true,
+  restaurantId: true,
+  isRead: true,
+  createdAt: true,
+});
+export type InsertContactMessage = z.infer<typeof insertContactMessageSchema>;
+export type ContactMessage = typeof contactMessages.$inferSelect;
+
+export const insertStoreGenerationSchema = createInsertSchema(storeGenerations).omit({
+  id: true,
+  restaurantId: true,
+  status: true,
+  createdAt: true,
+  appliedAt: true,
+});
+export type InsertStoreGeneration = z.infer<typeof insertStoreGenerationSchema>;
+export type StoreGeneration = typeof storeGenerations.$inferSelect;
+
+export const insertNewsletterSubscriberSchema = createInsertSchema(newsletterSubscribers).omit({
+  id: true,
+  restaurantId: true,
+  createdAt: true,
+});
+export type InsertNewsletterSubscriber = z.infer<typeof insertNewsletterSubscriberSchema>;
+export type NewsletterSubscriber = typeof newsletterSubscribers.$inferSelect;
 
 export const insertProductVariantSchema = createInsertSchema(productVariants).omit({
   id: true,

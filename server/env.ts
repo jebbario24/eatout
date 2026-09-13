@@ -25,7 +25,11 @@ interface EnvConfig {
   // Google Maps API (for delivery tracking and route optimization)
   GOOGLE_MAPS_API_KEY?: string;
   GOOGLE_MAPS_API_KEY_SERVER?: string;
-  
+
+  // Anthropic API (optional — powers AI store builder copywriting; the builder's
+  // structural decisions work without it, copy just falls back to templates)
+  ANTHROPIC_API_KEY?: string;
+
   // Server config
   PORT: string;
   NODE_ENV: string;
@@ -54,6 +58,7 @@ const OPTIONAL_ENV_VARS = [
   'GOOGLE_CLIENT_SECRET',
   'GOOGLE_MAPS_API_KEY',
   'GOOGLE_MAPS_API_KEY_SERVER',
+  'ANTHROPIC_API_KEY',
 ] as const;
 
 export function validateEnv(): EnvConfig {
@@ -114,6 +119,7 @@ export function validateEnv(): EnvConfig {
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
     GOOGLE_MAPS_API_KEY_SERVER: process.env.GOOGLE_MAPS_API_KEY_SERVER || process.env.GOOGLE_MAPS_API_KEY,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     PORT: process.env.PORT || '5000',
     NODE_ENV: process.env.NODE_ENV || 'development',
     PRIVATE_OBJECT_DIR: process.env.PRIVATE_OBJECT_DIR || 'private',

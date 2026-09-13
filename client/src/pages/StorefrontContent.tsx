@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, FileText, Newspaper } from "lucide-react";
+import { Plus, FileText, Newspaper, Mail } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Markdown } from "@/components/Markdown";
 
@@ -249,6 +249,53 @@ function BlogTab() {
   );
 }
 
+/* --------------------------- Messages tab --------------------------- */
+
+function MessagesTab() {
+  const { toast } = useToast();
+  const { data: messages = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/contact-messages"] });
+
+  const toggleRead = useMutation({
+    mutationFn: async ({ id, isRead }: { id: string; isRead: boolean }) => apiRequest(`/api/contact-messages/${id}`, "PATCH", { isRead }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/contact-messages"] }),
+  });
+  const del = useMutation({
+    mutationFn: async (id: string) => apiRequest(`/api/contact-messages/${id}`, "DELETE"),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/contact-messages"] }); toast({ title: "Deleted" }); },
+  });
+
+  return (
+    <Card><CardContent className="pt-6">
+      {isLoading ? (
+        <p className="py-6 text-center text-muted-foreground">Loading…</p>
+      ) : messages.length === 0 ? (
+        <p className="py-8 text-center text-muted-foreground">No messages yet. Submissions from your storefront's Contact page will show up here.</p>
+      ) : (
+        <div className="space-y-3">
+          {messages.map((m) => (
+            <div key={m.id} className={`rounded-md border p-4 ${m.isRead ? "" : "bg-accent/40"}`} data-testid={`row-message-${m.id}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{m.subject || "(no subject)"}</p>
+                  <p className="text-sm text-muted-foreground">{m.name} &lt;{m.email}&gt; · {new Date(m.createdAt).toLocaleString()}</p>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  {!m.isRead && <Badge variant="outline">New</Badge>}
+                  <Button size="sm" variant="outline" onClick={() => toggleRead.mutate({ id: m.id, isRead: !m.isRead })}>
+                    {m.isRead ? "Mark unread" : "Mark read"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => window.confirm("Delete this message?") && del.mutate(m.id)}>Delete</Button>
+                </div>
+              </div>
+              <p className="mt-2 whitespace-pre-wrap text-sm">{m.message}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </CardContent></Card>
+  );
+}
+
 /* ------------------------------ Page ------------------------------ */
 
 export default function StorefrontContent() {
@@ -262,9 +309,11 @@ export default function StorefrontContent() {
         <TabsList>
           <TabsTrigger value="pages"><FileText className="mr-1.5 h-4 w-4" />Pages</TabsTrigger>
           <TabsTrigger value="blog"><Newspaper className="mr-1.5 h-4 w-4" />Blog</TabsTrigger>
+          <TabsTrigger value="messages"><Mail className="mr-1.5 h-4 w-4" />Messages</TabsTrigger>
         </TabsList>
         <TabsContent value="pages" className="mt-4"><PagesTab /></TabsContent>
         <TabsContent value="blog" className="mt-4"><BlogTab /></TabsContent>
+        <TabsContent value="messages" className="mt-4"><MessagesTab /></TabsContent>
       </Tabs>
     </div>
   );

@@ -36,6 +36,7 @@ import {
   Plus,
   Save,
   Smartphone,
+  Sparkles,
   Tablet,
   Trash2,
   Upload,
@@ -68,7 +69,7 @@ function extractErrorMessage(error: unknown, fallback: string): string {
 interface NavItem {
   id: string;
   label: string;
-  type: "home" | "blog" | "page" | "collection" | "shop" | "url";
+  type: "home" | "blog" | "page" | "collection" | "shop" | "contact" | "url";
   value?: string;
   external?: boolean;
 }
@@ -385,6 +386,14 @@ export default function OnlineStoreCustomize() {
               <Smartphone className="h-3.5 w-3.5" />
             </Button>
           </div>
+          <Button
+            variant="outline"
+            onClick={() => { window.location.href = "/online-store/build?mode=optimize"; }}
+            data-testid="button-optimize-store"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Optimize My Store
+          </Button>
           <Button variant="outline" onClick={() => window.open(storefrontUrl, "_blank")} data-testid="button-preview-storefront">
             <ExternalLink className="h-4 w-4 mr-2" />
             Preview
@@ -732,6 +741,7 @@ export default function OnlineStoreCustomize() {
                             <SelectItem value="page">A page</SelectItem>
                             <SelectItem value="collection">A collection</SelectItem>
                             <SelectItem value="shop">Shop page</SelectItem>
+                            <SelectItem value="contact">Contact page</SelectItem>
                             <SelectItem value="url">External URL</SelectItem>
                           </SelectContent>
                         </Select>
@@ -781,10 +791,10 @@ export default function OnlineStoreCustomize() {
               <Accordion type="multiple" className="w-full">
               {draft.sections.map((section, i) => {
                     const s = section.settings;
-                    const hasHeadingText = section.type !== "multicolumn" && section.type !== "testimonials";
+                    const hasHeadingText = section.type !== "multicolumn" && section.type !== "testimonials" && section.type !== "faq";
                     const hasButton = section.type === "image-banner" || section.type === "image-with-text" || section.type === "rich-text";
                     const hasImage = section.type === "image-banner" || section.type === "image-with-text";
-                    const hasBlocks = section.type === "multicolumn" || section.type === "testimonials" || section.type === "image-banner";
+                    const hasBlocks = section.type === "multicolumn" || section.type === "testimonials" || section.type === "image-banner" || section.type === "faq";
                     return (
                       <AccordionItem key={section.id} value={section.id} className={section.enabled === false ? "opacity-50" : undefined}>
                         <div className="flex items-center">
@@ -859,6 +869,13 @@ export default function OnlineStoreCustomize() {
                         )}
 
                         {section.type === "testimonials" && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Heading</Label>
+                            <Input value={s.heading || ""} onChange={(e) => updateSectionSettings(i, { heading: e.target.value })} />
+                          </div>
+                        )}
+
+                        {section.type === "faq" && (
                           <div className="space-y-1.5">
                             <Label className="text-xs">Heading</Label>
                             <Input value={s.heading || ""} onChange={(e) => updateSectionSettings(i, { heading: e.target.value })} />
@@ -973,7 +990,7 @@ export default function OnlineStoreCustomize() {
                         {hasBlocks && (
                           <div className="space-y-2 pt-2 border-t">
                             <Label className="text-xs">
-                              {section.type === "multicolumn" ? "Columns" : section.type === "testimonials" ? "Testimonials" : "Slides"}
+                              {section.type === "multicolumn" ? "Columns" : section.type === "testimonials" ? "Testimonials" : section.type === "faq" ? "Questions" : "Slides"}
                             </Label>
                             {section.blocks.map((block, bi) => (
                               <div key={block.id} className="rounded-md border p-2 space-y-2" data-testid={`block-${i}-${bi}`}>
@@ -1059,7 +1076,7 @@ export default function OnlineStoreCustomize() {
                                       {block.settings.imageUrl ? "Change image" : "Upload image (optional)"}
                                     </ObjectUploader>
                                   </>
-                                ) : (
+                                ) : section.type === "testimonials" ? (
                                   <>
                                     <Input
                                       value={block.settings.customerName || ""}
@@ -1081,7 +1098,21 @@ export default function OnlineStoreCustomize() {
                                       </SelectContent>
                                     </Select>
                                   </>
-                                )}
+                                ) : section.type === "faq" ? (
+                                  <>
+                                    <Input
+                                      value={block.settings.question || ""}
+                                      onChange={(e) => updateBlock(i, bi, { question: e.target.value })}
+                                      placeholder="Question"
+                                    />
+                                    <Textarea
+                                      rows={2}
+                                      value={block.settings.answer || ""}
+                                      onChange={(e) => updateBlock(i, bi, { answer: e.target.value })}
+                                      placeholder="Answer"
+                                    />
+                                  </>
+                                ) : null}
                                 <div className="flex justify-end gap-1">
                                   <Button size="icon" variant="ghost" onClick={() => moveBlock(i, bi, -1)}><ArrowUp className="h-4 w-4" /></Button>
                                   <Button size="icon" variant="ghost" onClick={() => moveBlock(i, bi, 1)}><ArrowDown className="h-4 w-4" /></Button>
@@ -1091,7 +1122,7 @@ export default function OnlineStoreCustomize() {
                             ))}
                             <Button size="sm" variant="outline" onClick={() => addBlock(i)}>
                               <Plus className="mr-2 h-4 w-4" />
-                              {section.type === "multicolumn" ? "Add column" : section.type === "testimonials" ? "Add testimonial" : "Add slide"}
+                              {section.type === "multicolumn" ? "Add column" : section.type === "testimonials" ? "Add testimonial" : section.type === "faq" ? "Add question" : "Add slide"}
                             </Button>
                           </div>
                         )}

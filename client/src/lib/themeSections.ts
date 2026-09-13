@@ -4,7 +4,8 @@ export type ThemeSectionType =
   | "multicolumn"
   | "rich-text"
   | "newsletter"
-  | "testimonials";
+  | "testimonials"
+  | "faq";
 
 export type ThemeColorScheme = "default" | "primary" | "secondary" | "accent";
 
@@ -29,6 +30,7 @@ export const SECTION_LABELS: Record<ThemeSectionType, string> = {
   "rich-text": "Rich text",
   newsletter: "Newsletter",
   testimonials: "Testimonials",
+  faq: "FAQ",
 };
 
 export const SECTION_TYPES: ThemeSectionType[] = [
@@ -38,6 +40,7 @@ export const SECTION_TYPES: ThemeSectionType[] = [
   "rich-text",
   "newsletter",
   "testimonials",
+  "faq",
 ];
 
 const genId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()));
@@ -62,6 +65,13 @@ export function createDefaultBlock(sectionType: ThemeSectionType): ThemeBlock {
       id: genId(),
       type: "slide",
       settings: { imageUrl: "", heading: "", text: "", buttonLabel: "", buttonUrl: "" },
+    };
+  }
+  if (sectionType === "faq") {
+    return {
+      id: genId(),
+      type: "question",
+      settings: { question: "What is your return policy?", answer: "Answer this question here." },
     };
   }
   return { id: genId(), type: "block", settings: {} };
@@ -133,6 +143,12 @@ export function createDefaultSection(type: ThemeSectionType): ThemeSection {
       return {
         ...base,
         settings: { heading: "What customers are saying", colorScheme: "default" },
+        blocks: [createDefaultBlock(type), createDefaultBlock(type)],
+      };
+    case "faq":
+      return {
+        ...base,
+        settings: { heading: "Frequently asked questions", colorScheme: "default" },
         blocks: [createDefaultBlock(type), createDefaultBlock(type)],
       };
   }

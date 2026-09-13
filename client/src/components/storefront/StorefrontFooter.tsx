@@ -1,4 +1,4 @@
-import { SiPaypal } from "react-icons/si";
+import { SiPaypal, SiInstagram, SiFacebook, SiTiktok, SiX, SiYoutube, SiPinterest } from "react-icons/si";
 import { Banknote } from "lucide-react";
 
 export interface StorefrontFooterPage {
@@ -8,18 +8,55 @@ export interface StorefrontFooterPage {
   footerGroup?: string | null;
 }
 
+export interface SocialLinks {
+  instagram?: string;
+  facebook?: string;
+  tiktok?: string;
+  twitter?: string;
+  youtube?: string;
+  pinterest?: string;
+}
+
 export interface StorefrontFooterProps {
   pages: StorefrontFooterPage[];
   hrefFor: (page: StorefrontFooterPage) => string;
   enabledPaymentMethods?: { paypal?: boolean; cash?: boolean } | null;
   restaurantName?: string;
+  socialLinks?: SocialLinks | null;
+}
+
+const SOCIAL_ICONS: Record<keyof SocialLinks, typeof SiInstagram> = {
+  instagram: SiInstagram,
+  facebook: SiFacebook,
+  tiktok: SiTiktok,
+  twitter: SiX,
+  youtube: SiYoutube,
+  pinterest: SiPinterest,
+};
+
+export function SocialLinksRow({ socialLinks }: { socialLinks?: SocialLinks | null }) {
+  if (!socialLinks) return null;
+  const entries = (Object.keys(SOCIAL_ICONS) as (keyof SocialLinks)[]).filter((k) => socialLinks[k]);
+  if (entries.length === 0) return null;
+  return (
+    <div className="flex items-center gap-3">
+      {entries.map((k) => {
+        const Icon = SOCIAL_ICONS[k];
+        return (
+          <a key={k} href={socialLinks[k]} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" data-testid={`footer-social-${k}`}>
+            <Icon className="h-4 w-4" />
+          </a>
+        );
+      })}
+    </div>
+  );
 }
 
 // Grouped-columns footer — rendered only once a merchant assigns at least one page
 // to a footerGroup (each consumer keeps its own original flat single-row footer,
 // unchanged, for the common case of zero groups, so nothing regresses for
 // merchants who never touch this feature).
-export function StorefrontFooter({ pages, hrefFor, enabledPaymentMethods, restaurantName }: StorefrontFooterProps) {
+export function StorefrontFooter({ pages, hrefFor, enabledPaymentMethods, restaurantName, socialLinks }: StorefrontFooterProps) {
   const groups = new Map<string, StorefrontFooterPage[]>();
   const ungrouped: StorefrontFooterPage[] = [];
   for (const p of pages) {
@@ -59,6 +96,12 @@ export function StorefrontFooter({ pages, hrefFor, enabledPaymentMethods, restau
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+        {socialLinks && Object.values(socialLinks).some(Boolean) && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Follow us</h3>
+            <SocialLinksRow socialLinks={socialLinks} />
           </div>
         )}
       </div>

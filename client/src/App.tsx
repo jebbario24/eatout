@@ -33,6 +33,7 @@ import { StorefrontBlogIndex, StorefrontBlogPost } from "@/pages/storefront/Stor
 import ProductDetail from "@/pages/storefront/ProductDetail";
 import StorefrontShop from "@/pages/storefront/StorefrontShop";
 import StorefrontCollection from "@/pages/storefront/StorefrontCollection";
+import StorefrontContact from "@/pages/storefront/StorefrontContact";
 import ThankYou from "@/pages/storefront/ThankYou";
 import { StorefrontCartProvider } from "@/contexts/StorefrontCartContext";
 import Subscribe from "@/pages/Subscribe";
@@ -57,6 +58,7 @@ import GiftCards from "@/pages/marketing/GiftCards";
 import Campaigns from "@/pages/marketing/Campaigns";
 import Collections from "@/pages/Collections";
 import StorefrontContent from "@/pages/StorefrontContent";
+import StoreBuilder from "@/pages/StoreBuilder";
 import Customers from "@/pages/Customers";
 import Boosts from "@/pages/marketing/Boosts";
 import Upsells from "@/pages/marketing/Upsells";
@@ -252,6 +254,35 @@ function ThemeEditorPage() {
   );
 }
 
+// Full-screen, like ThemeEditorPage above — the review step's iframe preview
+// needs the same tight-layout headroom the theme editor already claimed.
+function StoreBuilderPage() {
+  const { isAuthenticated, isLoading } = useAuth();
+  usePlatformLanguage();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+  return (
+    <SubscriptionGuard>
+      <RestaurantSetupGuard>
+        <div className="h-screen w-full overflow-hidden">
+          <StoreBuilder />
+        </div>
+      </RestaurantSetupGuard>
+    </SubscriptionGuard>
+  );
+}
+
 function StorefrontRouter() {
   return (
     <StorefrontCartProvider>
@@ -264,6 +295,7 @@ function StorefrontRouter() {
         <Route path="/store/:slug/products/:handle" component={ProductDetail} />
         <Route path="/store/:slug/shop" component={StorefrontShop} />
         <Route path="/store/:slug/collections/:handle" component={StorefrontCollection} />
+        <Route path="/store/:slug/contact" component={StorefrontContact} />
         <Route path="/store/:slug/thank-you/:orderId" component={ThankYou} />
         <Route path="/account" component={CustomerAccount} />
         <Route path="/track" component={OrderTracking} />
@@ -273,6 +305,7 @@ function StorefrontRouter() {
         <Route path="/products/:handle" component={ProductDetail} />
         <Route path="/shop" component={StorefrontShop} />
         <Route path="/collections/:handle" component={StorefrontCollection} />
+        <Route path="/contact" component={StorefrontContact} />
         <Route path="/thank-you/:orderId" component={ThankYou} />
         <Route path="/" component={Storefront} />
         <Route path="/store/:slug" component={Storefront} />
@@ -286,6 +319,7 @@ function App() {
   const currentPath = window.location.pathname;
   const isStorefrontPath = currentPath.startsWith('/store/');
   const isThemeEditorPath = currentPath.startsWith('/online-store/customize');
+  const isStoreBuilderPath = currentPath.startsWith('/online-store/build');
 
   const hostname = window.location.hostname;
   const parts = hostname.split('.');
@@ -311,6 +345,17 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <ThemeEditorPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  if (isStoreBuilderPath) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <StoreBuilderPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

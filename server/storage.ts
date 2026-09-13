@@ -17,6 +17,9 @@ import {
   collectionItems,
   storefrontPages,
   blogPosts,
+  contactMessages,
+  storeGenerations,
+  newsletterSubscribers,
   productVariants,
   customerSegments,
   segmentMembers,
@@ -72,6 +75,9 @@ import {
   type CollectionItem,
   type StorefrontPage,
   type BlogPost,
+  type ContactMessage,
+  type StoreGeneration,
+  type NewsletterSubscriber,
   type ProductVariant,
   type CustomerSegment,
   type Campaign,
@@ -1914,6 +1920,120 @@ export class DatabaseStorage implements IStorage {
   }
   async deletePost(id: string, restaurantId: string): Promise<void> {
     await db.delete(blogPosts).where(and(eq(blogPosts.id, id), eq(blogPosts.restaurantId, restaurantId)));
+  }
+
+  async listContactMessages(restaurantId: string): Promise<ContactMessage[]> {
+    return db.select().from(contactMessages).where(eq(contactMessages.restaurantId, restaurantId))
+      .orderBy(desc(contactMessages.createdAt));
+  }
+  async createContactMessage(restaurantId: string, data: { name: string; email: string; subject?: string | null; message: string }): Promise<ContactMessage> {
+    const [created] = await db.insert(contactMessages).values({
+      restaurantId,
+      name: data.name.slice(0, 255),
+      email: data.email.slice(0, 255),
+      subject: data.subject ? data.subject.slice(0, 255) : null,
+      message: data.message,
+    }).returning();
+    return created;
+  }
+  async markContactMessageRead(id: string, restaurantId: string, isRead: boolean): Promise<ContactMessage | undefined> {
+    const [updated] = await db.update(contactMessages).set({ isRead })
+      .where(and(eq(contactMessages.id, id), eq(contactMessages.restaurantId, restaurantId))).returning();
+    return updated;
+  }
+  async deleteContactMessage(id: string, restaurantId: string): Promise<void> {
+    await db.delete(contactMessages).where(and(eq(contactMessages.id, id), eq(contactMessages.restaurantId, restaurantId)));
+  }
+
+  // Gives a brand-new store a working header menu, footer menu, and standard
+  // page set on day one instead of launching completely empty. Only ever runs
+  // once, right after a restaurant row is first created — never touches an
+  // existing account's pages or nav.
+  async seedDefaultStorefrontContent(restaurantId: string, restaurantName: string): Promise<void> {
+    const storeName = restaurantName || "our store";
+    const pages: Array<{ title: string; handle: string; body: string; footerGroup: string }> = [
+      {
+        title: "About Us",
+        handle: "about-us",
+        footerGroup: "Company",
+        body: `# About Us\n\nWelcome to ${storeName}! We're glad you're here.\n\n_This is a starter page — edit it any time from Settings → Pages & Blog to tell customers your story: how you started, what you sell, and what makes you different._`,
+      },
+      {
+        title: "Privacy Policy",
+        handle: "privacy-policy",
+        footerGroup: "Legal",
+        body: `# Privacy Policy\n\nThis Privacy Policy describes how ${storeName} collects, uses, and protects the personal information you share with us.\n\n## Information We Collect\nWhen you place an order, we collect the information needed to fulfill it — your name, email address, shipping address, and payment details.\n\n## How We Use Your Information\nWe use this information to process your orders, communicate with you about your purchases, and improve our store. We do not sell your personal information to third parties.\n\n## Contact\nQuestions about this policy can be sent to us through our Contact page.\n\n_This is a starter template — review and customize it (or have a legal professional review it) before relying on it._`,
+      },
+      {
+        title: "Terms of Service",
+        handle: "terms-of-service",
+        footerGroup: "Legal",
+        body: `# Terms of Service\n\nBy using ${storeName} and placing an order, you agree to the following terms.\n\n## Orders\nAll orders are subject to availability and confirmation of the order price.\n\n## Pricing\nPrices for products are as displayed on the store at the time of your order and may change without notice.\n\n## Limitation of Liability\n${storeName} is not liable for any indirect or consequential loss arising from use of this store.\n\n_This is a starter template — review and customize it (or have a legal professional review it) before relying on it._`,
+      },
+      {
+        title: "Refund Policy",
+        handle: "refund-policy",
+        footerGroup: "Legal",
+        body: `# Refund Policy\n\nWe want you to be happy with your purchase from ${storeName}.\n\n## Returns\nIf something isn't right, contact us through our Contact page and let us know your order number and the issue — we'll work with you on a return, replacement, or refund.\n\n## Damaged or Incorrect Items\nIf your order arrives damaged or incorrect, contact us as soon as possible so we can make it right.\n\n_This is a starter template — replace the details above (return window, condition requirements, who pays return shipping, etc.) with your store's actual policy._`,
+      },
+    ];
+    for (const p of pages) {
+      await db.insert(storefrontPages).values({
+        restaurantId,
+        title: p.title,
+        handle: p.handle,
+        body: p.body,
+        isPublished: true,
+        showInFooter: true,
+        footerGroup: p.footerGroup,
+      });
+    }
+    await db.update(restaurants).set({
+      storefrontNav: {
+        items: [
+          { id: "home", label: "Home", type: "home" },
+          { id: "shop", label: "Shop", type: "shop" },
+          { id: "about", label: "About Us", type: "page", value: "about-us" },
+          { id: "contact", label: "Contact", type: "contact" },
+        ],
+      },
+    }).where(eq(restaurants.id, restaurantId));
+  }
+
+  // ---- AI store builder ----
+
+  async createStoreGeneration(restaurantId: string, data: { kind: string; brief: any; blueprint: any; copy: any }): Promise<StoreGeneration> {
+    const [created] = await db.insert(storeGenerations).values({
+      restaurantId,
+      kind: data.kind,
+      brief: data.brief ?? null,
+      blueprint: data.blueprint,
+      copy: data.copy ?? null,
+    }).returning();
+    return created;
+  }
+  async listStoreGenerations(restaurantId: string): Promise<StoreGeneration[]> {
+    return db.select().from(storeGenerations).where(eq(storeGenerations.restaurantId, restaurantId))
+      .orderBy(desc(storeGenerations.createdAt));
+  }
+  async getStoreGeneration(id: string): Promise<StoreGeneration | undefined> {
+    const [g] = await db.select().from(storeGenerations).where(eq(storeGenerations.id, id)).limit(1);
+    return g;
+  }
+  async markStoreGenerationStatus(id: string, restaurantId: string, status: 'applied' | 'discarded'): Promise<StoreGeneration | undefined> {
+    const [updated] = await db.update(storeGenerations)
+      .set({ status, appliedAt: status === 'applied' ? new Date() : undefined })
+      .where(and(eq(storeGenerations.id, id), eq(storeGenerations.restaurantId, restaurantId)))
+      .returning();
+    return updated;
+  }
+
+  async addNewsletterSubscriber(restaurantId: string, email: string): Promise<NewsletterSubscriber> {
+    const [existing] = await db.select().from(newsletterSubscribers)
+      .where(and(eq(newsletterSubscribers.restaurantId, restaurantId), eq(newsletterSubscribers.email, email))).limit(1);
+    if (existing) return existing;
+    const [created] = await db.insert(newsletterSubscribers).values({ restaurantId, email }).returning();
+    return created;
   }
 
   // ---- Marketing: segments, campaigns, abandoned carts, boosts (Tier 6) ----

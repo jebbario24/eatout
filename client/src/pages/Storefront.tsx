@@ -65,7 +65,7 @@ import { SpecStrip } from "@/components/storefront/theme/SpecStrip";
 import { StorefrontHeader } from "@/components/storefront/StorefrontHeader";
 import { VariantPicker } from "@/components/storefront/VariantPicker";
 import { ItemOptionsForm } from "@/components/storefront/ItemOptionsForm";
-import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
+import { StorefrontFooter, SocialLinksRow } from "@/components/storefront/StorefrontFooter";
 import { StorefrontBrandStyle } from "@/components/storefront/StorefrontBrandStyle";
 import { useStorefrontCart, type CartItem } from "@/hooks/useStorefrontCart";
 
@@ -2031,8 +2031,9 @@ export default function Storefront() {
                   item.type === "home" || item.type === "menu" ? (sfSlug ? `/store/${sfSlug}` : "/")
                   : item.type === "blog" ? (sfSlug ? `/store/${sfSlug}/blog` : "/blog")
                   : item.type === "page" ? (sfSlug ? `/store/${sfSlug}/pages/${item.value || ""}` : `/pages/${item.value || ""}`)
-                  : item.type === "collection" ? (sfSlug ? `/store/${sfSlug}/c/${item.value || ""}` : `/c/${item.value || ""}`)
+                  : item.type === "collection" ? (sfSlug ? `/store/${sfSlug}/collections/${item.value || ""}` : `/collections/${item.value || ""}`)
                   : item.type === "shop" ? (sfSlug ? `/store/${sfSlug}/shop` : "/shop")
+                  : item.type === "contact" ? (sfSlug ? `/store/${sfSlug}/contact` : "/contact")
                   : item.value || "#";
                 return (
                   <a key={item.id || idx} href={href}
@@ -2079,7 +2080,7 @@ export default function Storefront() {
 
       {/* Merchant-configurable marketing sections */}
       {Array.isArray((restaurant as any)?.themeSettings?.sections) && (
-        <ThemeSections sections={(restaurant as any).themeSettings.sections as ThemeSection[]} />
+        <ThemeSections sections={(restaurant as any).themeSettings.sections as ThemeSection[]} slug={sfSlug} />
       )}
 
       {/* Categories - Horizontal Pills (full catalog layout only — curated mode
@@ -2608,26 +2609,36 @@ export default function Storefront() {
 
       {/* CMS footer links (Tier 7). Grouped columns once a merchant assigns any page
           to a footerGroup; otherwise today's exact flat row, unchanged. */}
-      {footerPages.length > 0 && (
+      {footerPages.length > 0 ? (
         footerPages.some((p: any) => p.footerGroup) ? (
           <StorefrontFooter
             pages={footerPages}
             hrefFor={(p) => (sfSlug ? `/store/${sfSlug}/pages/${p.handle}` : `/pages/${p.handle}`)}
             enabledPaymentMethods={enabledPaymentMethods}
             restaurantName={restaurant?.name}
+            socialLinks={(restaurant as any)?.socialLinks}
           />
         ) : (
           <div className="border-t">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-              {footerPages.map((p: any) => (
-                <a key={p.id} href={sfSlug ? `/store/${sfSlug}/pages/${p.handle}` : `/pages/${p.handle}`} className="hover:text-foreground">
-                  {p.title}
-                </a>
-              ))}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm text-muted-foreground">
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                {footerPages.map((p: any) => (
+                  <a key={p.id} href={sfSlug ? `/store/${sfSlug}/pages/${p.handle}` : `/pages/${p.handle}`} className="hover:text-foreground">
+                    {p.title}
+                  </a>
+                ))}
+              </div>
+              <SocialLinksRow socialLinks={(restaurant as any)?.socialLinks} />
             </div>
           </div>
         )
-      )}
+      ) : (restaurant as any)?.socialLinks && Object.values((restaurant as any).socialLinks).some(Boolean) ? (
+        <div className="border-t">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex justify-center">
+            <SocialLinksRow socialLinks={(restaurant as any).socialLinks} />
+          </div>
+        </div>
+      ) : null}
 
       {/* Write a Review Dialog */}
       <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>

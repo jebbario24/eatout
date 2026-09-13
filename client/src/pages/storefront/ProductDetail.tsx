@@ -57,16 +57,7 @@ export default function ProductDetail() {
       return r.json();
     },
   });
-  const item = itemQ.data as (MenuItem & { variants?: any[] }) | null | undefined;
-
-  const { data: allItems = [] } = useQuery<MenuItem[]>({
-    queryKey: [`/api/storefront/${slug}/items`],
-    enabled: !!slug,
-    queryFn: async () => {
-      const r = await fetch(`/api/storefront/${slug}/items`);
-      return r.ok ? r.json() : [];
-    },
-  });
+  const item = itemQ.data as (MenuItem & { variants?: any[]; relatedItems?: MenuItem[] }) | null | undefined;
 
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<SelectedOption[]>([]);
@@ -137,11 +128,7 @@ export default function ProductDetail() {
     );
   }
 
-  const relatedIds = [
-    ...((item?.crossSellItemIds as string[]) || []),
-    ...((item?.upsellItemIds as string[]) || []),
-  ];
-  const relatedItems = allItems.filter((i) => relatedIds.includes(i.id) && i.isAvailable);
+  const relatedItems = item?.relatedItems || [];
 
   const galleryImages = item
     ? [item.imageUrl, ...((item.variants || []).map((v: any) => v.imageUrl))].filter(

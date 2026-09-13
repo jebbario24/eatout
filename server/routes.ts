@@ -12,8 +12,12 @@ import {
   insertMenuItemSchema,
   insertStaffSchema,
   insertInventorySchema,
+  insertContactMessageSchema,
   BUSINESS_TYPES,
 } from "@shared/schema";
+import { backfillRelatedItems } from "./services/productRecommendations";
+import { buildStoreBlueprint, type StoreBrief } from "./services/storeIntelligence";
+import { generateStoreCopy, applyCopyToSections } from "./services/storeCopywriter";
 import { z } from "zod";
 import Stripe from "stripe";
 import { 
@@ -1041,6 +1045,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       data.slug = slug;
       
       const restaurant = await storage.createRestaurant(data);
+      try {
+        await storage.seedDefaultStorefrontContent(restaurant.id, restaurant.name);
+      } catch (seedError) {
+        logError("Seeding default storefront content failed (non-critical)", seedError);
+      }
       res.json(restaurant);
     } catch (error) {
       console.error("Error creating restaurant:", error);
@@ -2865,6 +2874,176 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ ok: true });
   });
 
+  app.get('/api/contact-messages', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.json([]);
+    res.json(await storage.listContactMessages(restaurant.id));
+  });
+  app.patch('/api/contact-messages/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const updated = await storage.markContactMessageRead(req.params.id, restaurant.id, !!req.body?.isRead);
+    if (!updated) return res.status(404).json({ message: "Message not found" });
+    res.json(updated);
+  });
+  app.delete('/api/contact-messages/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    await storage.deleteContactMessage(req.params.id, restaurant.id);
+    res.json({ ok: true });
+  });
+
+  // ==========================================
+  // AI STORE BUILDER
+  // ==========================================
+
+  app.post('/api/store-builder/generate', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const kind: 'initial' | 'optimize' = req.body?.kind === 'optimize' ? 'optimize' : 'initial';
+      const brief: StoreBrief | undefined = req.body?.brief;
+
+      const [items, categories, reviews, collectionsList] = await Promise.all([
+        storage.getMenuItems(restaurant.id),
+        storage.getMenuCategories(restaurant.id),
+        storage.getCustomerReviews(restaurant.id),
+        storage.listCollections(restaurant.id),
+      ]);
+
+      const existingSectionTypes = (((restaurant.themeSettings as any)?.sections) || []).map((s: any) => s.type);
+      const hasCustomNav = Array.isArray((restaurant.storefrontNav as any)?.items) && (restaurant.storefrontNav as any).items.length > 0;
+      // On a fresh store, colors are still platform defaults — safe to propose a
+      // palette. On "optimize" against an already-live store, never silently
+      // suggest overwriting colors the merchant may have deliberately chosen;
+      // the merchant can still opt in from the review screen if they want.
+      const hasCustomColors = kind === 'optimize';
+
+      const blueprint = buildStoreBlueprint({
+        restaurant, items, reviews, collections: collectionsList,
+        existingSectionTypes, brief, hasCustomNav, hasCustomColors,
+      });
+
+      const copy = await generateStoreCopy(restaurant, blueprint, brief, items.slice(0, 8), categories.map((c) => c.name));
+      blueprint.newSections = applyCopyToSections(blueprint.newSections, copy);
+
+      const generation = await storage.createStoreGeneration(restaurant.id, {
+        kind, brief: brief ?? null, blueprint, copy,
+      });
+
+      // Persist the brief so a later "Optimize My Store" run can prefill it.
+      if (brief) {
+        await storage.updateRestaurant(restaurant.id, { brandProfile: brief } as any);
+      }
+
+      res.json(generation);
+    } catch (error) {
+      logError("Store builder generate failed", error);
+      res.status(500).json({ message: "Failed to generate store proposal" });
+    }
+  });
+
+  app.get('/api/store-builder/proposals', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.json([]);
+    res.json(await storage.listStoreGenerations(restaurant.id));
+  });
+
+  app.get('/api/store-builder/proposals/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const generation = await storage.getStoreGeneration(req.params.id);
+    if (!generation || generation.restaurantId !== restaurant.id) return res.status(404).json({ message: "Proposal not found" });
+    res.json(generation);
+  });
+
+  app.post('/api/store-builder/proposals/:id/discard', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const updated = await storage.markStoreGenerationStatus(req.params.id, restaurant.id, 'discarded');
+    if (!updated) return res.status(404).json({ message: "Proposal not found" });
+    res.json(updated);
+  });
+
+  app.post('/api/store-builder/proposals/:id/apply', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const generation = await storage.getStoreGeneration(req.params.id);
+      if (!generation || generation.restaurantId !== restaurant.id) return res.status(404).json({ message: "Proposal not found" });
+      if (generation.status !== 'proposed') return res.status(400).json({ message: "This proposal was already applied or discarded" });
+
+      const blueprint: any = generation.blueprint;
+      const approved = req.body?.approved || {};
+      const wants = (key: string, defaultValue = true) => approved[key] === undefined ? defaultValue : !!approved[key];
+      const sectionTypesToAdd: string[] = approved.sectionTypes ?? blueprint.newSections.map((s: any) => s.type);
+      const collectionTitlesToCreate: string[] = approved.collectionTitles ?? blueprint.collectionsToCreate.map((c: any) => c.title);
+
+      const patch: any = {};
+
+      if (wants("palette", generation.kind === 'initial') && blueprint.palette) {
+        patch.primaryColor = blueprint.palette.value.primaryColor;
+        patch.secondaryColor = blueprint.palette.value.secondaryColor;
+        patch.accentColor = blueprint.palette.value.accentColor;
+      }
+
+      const currentThemeSettings = (restaurant.themeSettings as any) || {};
+      const currentSections: any[] = Array.isArray(currentThemeSettings.sections) ? currentThemeSettings.sections : [];
+      const sectionsToAppend = blueprint.newSections
+        .filter((s: any) => sectionTypesToAdd.includes(s.type))
+        .map((s: any) => ({
+          id: crypto.randomUUID(),
+          type: s.type,
+          settings: s.settings,
+          blocks: s.blocks.map((b: any) => ({ id: crypto.randomUUID(), type: b.type, settings: b.settings })),
+          enabled: true,
+        }));
+      if (sectionsToAppend.length > 0 || wants("theme") || wants("cardStyle") || wants("homepageLayout")) {
+        patch.themeSettings = {
+          ...currentThemeSettings,
+          themeId: wants("theme") ? blueprint.themeId.value : currentThemeSettings.themeId,
+          cardStyle: wants("cardStyle") ? blueprint.cardStyle.value : currentThemeSettings.cardStyle,
+          homepageLayout: wants("homepageLayout") ? blueprint.homepageLayout.value : currentThemeSettings.homepageLayout,
+          sections: [...currentSections, ...sectionsToAppend],
+        };
+      }
+
+      if (wants("nav") && blueprint.navPlan) {
+        patch.storefrontNav = { items: blueprint.navPlan.value };
+      }
+
+      if (Object.keys(patch).length > 0) {
+        await storage.updateRestaurant(restaurant.id, patch);
+      }
+
+      for (const plan of blueprint.collectionsToCreate) {
+        if (!collectionTitlesToCreate.includes(plan.title)) continue;
+        const created = await storage.createCollection(restaurant.id, { title: plan.title, showOnStorefront: true, isActive: true });
+        await storage.setCollectionItems(created.id, plan.menuItemIds);
+      }
+
+      const updated = await storage.markStoreGenerationStatus(req.params.id, restaurant.id, 'applied');
+      res.json(updated);
+    } catch (error) {
+      logError("Store builder apply failed", error);
+      res.status(500).json({ message: "Failed to apply store proposal" });
+    }
+  });
+
+  app.post('/api/storefront/:slug/newsletter', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const email = String(req.body?.email || "").trim().toLowerCase();
+      if (!email || !email.includes("@")) return res.status(400).json({ message: "A valid email is required" });
+      await storage.addNewsletterSubscriber(restaurant.id, email);
+      res.json({ ok: true });
+    } catch (error) {
+      logError("Newsletter signup failed", error);
+      res.status(500).json({ message: "Failed to subscribe" });
+    }
+  });
+
   // ==========================================
   // MARKETING — segments, campaigns, abandoned carts, boosts (Tier 6)
   // ==========================================
@@ -3886,6 +4065,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(post);
   });
 
+  // Storefront: public Contact page submission. Always persisted so the merchant
+  // never silently loses an inquiry; best-effort emailed too when SMTP is configured.
+  app.post('/api/storefront/:slug/contact', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await storage.getRestaurantBySlug(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const parsed = insertContactMessageSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0]?.message || "Invalid submission" });
+      const created = await storage.createContactMessage(restaurant.id, parsed.data);
+      if (restaurant.email) {
+        const { sendEmail } = await import("./services/messaging");
+        sendEmail({
+          to: restaurant.email,
+          subject: `New contact message: ${parsed.data.subject || "(no subject)"}`,
+          body: `From: ${parsed.data.name} <${parsed.data.email}>\n\n${parsed.data.message}`,
+          fromName: restaurant.name,
+        }).catch((e) => logError("Contact message email failed", e));
+      }
+      res.json({ ok: true, id: created.id });
+    } catch (error) {
+      logError("Storefront contact submission failed", error);
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
   // Storefront: abandoned-cart snapshot (Tier 6). The client debounces this while
   // the shopper builds a cart; checkout marks the matching row recovered.
   app.post('/api/storefront/:slug/cart', storefrontLimiter, async (req: any, res) => {
@@ -3924,7 +4128,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!restaurant) return res.status(404).json({ message: "Store not found" });
       const item = await storage.getMenuItemByHandle(restaurant.id, req.params.handle);
       if (!item || !item.isAvailable || !(item as any).visibleOnline) return res.status(404).json({ message: "Product not found" });
-      res.json(item);
+      const allItems = await storage.getMenuItems(restaurant.id);
+      const manuallyRelatedIds = [...(item.crossSellItemIds || []), ...(item.upsellItemIds || [])];
+      const relatedItems = backfillRelatedItems(item, manuallyRelatedIds, allItems);
+      res.json({ ...item, relatedItems });
     } catch (error) {
       logError("Storefront item by handle failed", error);
       res.status(500).json({ message: "Failed to load product" });
