@@ -1,22 +1,12 @@
 import { ReactNode } from "react";
-import { Link, useParams } from "wouter";
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Store } from "lucide-react";
+import { useResolvedSlug } from "@/hooks/useResolvedSlug";
+import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
 
-export function useResolvedSlug() {
-  const params = useParams();
-  const paramSlug = (params as any).slug as string | undefined;
-  const { data } = useQuery<{ slug: string } | null>({
-    queryKey: ["/api/storefront/by-hostname"],
-    enabled: !paramSlug,
-    queryFn: async () => {
-      const r = await fetch("/api/storefront/by-hostname");
-      return r.ok ? r.json() : null;
-    },
-  });
-  return paramSlug || data?.slug;
-}
+export { useResolvedSlug };
 
 type NavItem = { id?: string; label: string; type: string; value?: string; external?: boolean };
 
@@ -60,6 +50,7 @@ export function StorefrontShell({
       case "collection": return `${base}/c/${item.value || ""}`;
       case "page": return `${base}/pages/${item.value || ""}`;
       case "blog": return `${base}/blog`;
+      case "shop": return `${base}/shop`;
       case "url": return item.value || "#";
       default: return "#";
     }
@@ -112,18 +103,27 @@ export function StorefrontShell({
 
       <main className="mx-auto max-w-3xl px-4 py-10">{children}</main>
 
-      <footer className="border-t">
-        <div className="mx-auto max-w-5xl px-4 py-8 text-sm text-muted-foreground">
-          <div className="flex flex-wrap gap-x-6 gap-y-2">
-            <Link href={base || "/"} className="hover:text-foreground">{restaurant?.name || "Home"}</Link>
-            {footerPages.map((p) => (
-              <Link key={p.id} href={`${base}/pages/${p.handle}`} className="hover:text-foreground">{p.title}</Link>
-            ))}
-            <Link href={`${base}/blog`} className="hover:text-foreground">Blog</Link>
+      {footerPages.some((p) => p.footerGroup) ? (
+        <StorefrontFooter
+          pages={footerPages}
+          hrefFor={(p) => `${base}/pages/${p.handle}`}
+          enabledPaymentMethods={restaurant?.paymentMethods}
+          restaurantName={restaurant?.name}
+        />
+      ) : (
+        <footer className="border-t">
+          <div className="mx-auto max-w-5xl px-4 py-8 text-sm text-muted-foreground">
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <Link href={base || "/"} className="hover:text-foreground">{restaurant?.name || "Home"}</Link>
+              {footerPages.map((p) => (
+                <Link key={p.id} href={`${base}/pages/${p.handle}`} className="hover:text-foreground">{p.title}</Link>
+              ))}
+              <Link href={`${base}/blog`} className="hover:text-foreground">Blog</Link>
+            </div>
+            <p className="mt-4 text-xs">© {new Date().getFullYear()} {restaurant?.name}. Powered by EatOut.</p>
           </div>
-          <p className="mt-4 text-xs">© {new Date().getFullYear()} {restaurant?.name}. Powered by EatOut.</p>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   );
 }

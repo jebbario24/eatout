@@ -179,7 +179,7 @@ export default function AdminOrders() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="shipping">Shipping</SelectItem>
-                <SelectItem value="dine_in">Dine In</SelectItem>
+                <SelectItem value="dine-in">Dine In</SelectItem>
                 <SelectItem value="pickup">Pickup</SelectItem>
               </SelectContent>
             </Select>

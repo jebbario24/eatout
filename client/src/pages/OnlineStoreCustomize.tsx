@@ -68,7 +68,7 @@ function extractErrorMessage(error: unknown, fallback: string): string {
 interface NavItem {
   id: string;
   label: string;
-  type: "home" | "blog" | "page" | "collection" | "url";
+  type: "home" | "blog" | "page" | "collection" | "shop" | "url";
   value?: string;
   external?: boolean;
 }
@@ -91,6 +91,7 @@ interface CustomizerDraft {
   seoImageUrl: string;
   sections: ThemeSection[];
   cardStyle: "standard" | "bordered";
+  homepageLayout: "full" | "curated";
   themeId?: StorefrontThemeId;
 }
 
@@ -107,6 +108,9 @@ const defaultDraft: CustomizerDraft = {
   // Existing merchants who never touched this setting keep today's boxed-card look —
   // "standard" only ever appears via an explicit preset pick or toggle here.
   cardStyle: "bordered",
+  // Existing merchants who never touch this keep today's full grid on the homepage —
+  // "curated" only ever appears via an explicit toggle here.
+  homepageLayout: "full",
 };
 
 function draftFromRestaurant(restaurant: any): CustomizerDraft {
@@ -121,6 +125,7 @@ function draftFromRestaurant(restaurant: any): CustomizerDraft {
     seoImageUrl: restaurant.seoImageUrl || "",
     sections: restaurant.themeSettings?.sections || [],
     cardStyle: restaurant.themeSettings?.cardStyle === "standard" ? "standard" : "bordered",
+    homepageLayout: restaurant.themeSettings?.homepageLayout === "curated" ? "curated" : "full",
     themeId: restaurant.themeSettings?.themeId || undefined,
   };
 }
@@ -137,7 +142,7 @@ function draftToRestaurantPatch(draft: CustomizerDraft) {
     seoTitle: draft.seoTitle,
     seoDescription: draft.seoDescription,
     seoImageUrl: draft.seoImageUrl,
-    themeSettings: { sections: draft.sections, cardStyle: draft.cardStyle, themeId: draft.themeId },
+    themeSettings: { sections: draft.sections, cardStyle: draft.cardStyle, homepageLayout: draft.homepageLayout, themeId: draft.themeId },
   };
 }
 
@@ -516,6 +521,22 @@ export default function OnlineStoreCustomize() {
                       Standard is a cleaner, more editorial look with no card borders or shadows. Bordered is the classic boxed-card style.
                     </p>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="homepageLayout">Homepage layout</Label>
+                    <Select value={draft.homepageLayout} onValueChange={(v) => updateDraft({ homepageLayout: v as "full" | "curated" })}>
+                      <SelectTrigger id="homepageLayout" data-testid="select-homepage-layout">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full">Full catalog (today's default)</SelectItem>
+                        <SelectItem value="curated">Curated (bestsellers + "Shop all")</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Full catalog shows every product on the homepage. Curated shows a bestsellers strip (tag items "Bestseller" or "Popular" to feature them) with a link to the full shop page instead.
+                    </p>
+                  </div>
                 </AccordionContent>
               </AccordionItem>
 
@@ -710,6 +731,7 @@ export default function OnlineStoreCustomize() {
                             <SelectItem value="blog">Blog</SelectItem>
                             <SelectItem value="page">A page</SelectItem>
                             <SelectItem value="collection">A collection</SelectItem>
+                            <SelectItem value="shop">Shop page</SelectItem>
                             <SelectItem value="url">External URL</SelectItem>
                           </SelectContent>
                         </Select>
@@ -762,7 +784,7 @@ export default function OnlineStoreCustomize() {
                     const hasHeadingText = section.type !== "multicolumn" && section.type !== "testimonials";
                     const hasButton = section.type === "image-banner" || section.type === "image-with-text" || section.type === "rich-text";
                     const hasImage = section.type === "image-banner" || section.type === "image-with-text";
-                    const hasBlocks = section.type === "multicolumn" || section.type === "testimonials";
+                    const hasBlocks = section.type === "multicolumn" || section.type === "testimonials" || section.type === "image-banner";
                     return (
                       <AccordionItem key={section.id} value={section.id} className={section.enabled === false ? "opacity-50" : undefined}>
                         <div className="flex items-center">
@@ -942,12 +964,70 @@ export default function OnlineStoreCustomize() {
                           </Select>
                         </div>
 
+                        {section.type === "image-banner" && (
+                          <p className="text-xs text-muted-foreground">
+                            The image above is always shown first — add more slides below to auto-rotate.
+                          </p>
+                        )}
+
                         {hasBlocks && (
                           <div className="space-y-2 pt-2 border-t">
-                            <Label className="text-xs">{section.type === "multicolumn" ? "Columns" : "Testimonials"}</Label>
+                            <Label className="text-xs">
+                              {section.type === "multicolumn" ? "Columns" : section.type === "testimonials" ? "Testimonials" : "Slides"}
+                            </Label>
                             {section.blocks.map((block, bi) => (
                               <div key={block.id} className="rounded-md border p-2 space-y-2" data-testid={`block-${i}-${bi}`}>
-                                {section.type === "multicolumn" ? (
+                                {section.type === "image-banner" ? (
+                                  <>
+                                    {block.settings.imageUrl ? (
+                                      <div className="space-y-2">
+                                        <img src={block.settings.imageUrl} alt="" className="h-20 w-full object-cover rounded-md" />
+                                        <ObjectUploader
+                                          maxNumberOfFiles={1}
+                                          maxFileSize={5242880}
+                                          onGetUploadParameters={handleGetUploadParameters}
+                                          onComplete={handleBlockImageComplete(i, bi)}
+                                          buttonClassName="w-full"
+                                        >
+                                          Change image
+                                        </ObjectUploader>
+                                      </div>
+                                    ) : (
+                                      <ObjectUploader
+                                        maxNumberOfFiles={1}
+                                        maxFileSize={5242880}
+                                        onGetUploadParameters={handleGetUploadParameters}
+                                        onComplete={handleBlockImageComplete(i, bi)}
+                                        buttonClassName="w-full"
+                                      >
+                                        Upload image
+                                      </ObjectUploader>
+                                    )}
+                                    <Input
+                                      value={block.settings.heading || ""}
+                                      onChange={(e) => updateBlock(i, bi, { heading: e.target.value })}
+                                      placeholder="Heading"
+                                    />
+                                    <Textarea
+                                      rows={2}
+                                      value={block.settings.text || ""}
+                                      onChange={(e) => updateBlock(i, bi, { text: e.target.value })}
+                                      placeholder="Text"
+                                    />
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <Input
+                                        value={block.settings.buttonLabel || ""}
+                                        onChange={(e) => updateBlock(i, bi, { buttonLabel: e.target.value })}
+                                        placeholder="Button label"
+                                      />
+                                      <Input
+                                        value={block.settings.buttonUrl || ""}
+                                        onChange={(e) => updateBlock(i, bi, { buttonUrl: e.target.value })}
+                                        placeholder="Button URL"
+                                      />
+                                    </div>
+                                  </>
+                                ) : section.type === "multicolumn" ? (
                                   <>
                                     <div className="flex gap-2">
                                       <Input
@@ -1011,7 +1091,7 @@ export default function OnlineStoreCustomize() {
                             ))}
                             <Button size="sm" variant="outline" onClick={() => addBlock(i)}>
                               <Plus className="mr-2 h-4 w-4" />
-                              {section.type === "multicolumn" ? "Add column" : "Add testimonial"}
+                              {section.type === "multicolumn" ? "Add column" : section.type === "testimonials" ? "Add testimonial" : "Add slide"}
                             </Button>
                           </div>
                         )}

@@ -430,6 +430,13 @@ export class DatabaseStorage implements IStorage {
       .from(menuItems)
       .where(and(eq(menuItems.restaurantId, restaurantId), eq(menuItems.handle, handle)))
       .limit(1);
+    if (!item) return item;
+    // Match getStorefrontMenuItems' convention: attach the variant list so the
+    // product detail page has what it needs in one request, no second round-trip.
+    if ((item as any).hasVariants) {
+      const variants = await this.listVariants(item.id);
+      return { ...item, variants: variants.filter((v) => v.isActive) } as any;
+    }
     return item;
   }
 
@@ -1835,6 +1842,7 @@ export class DatabaseStorage implements IStorage {
       body: data.body ?? null,
       isPublished: data.isPublished ?? false,
       showInFooter: data.showInFooter ?? false,
+      footerGroup: data.footerGroup || null,
       sortOrder: data.sortOrder ?? 0,
       seoTitle: data.seoTitle ?? null,
       seoDescription: data.seoDescription ?? null,
@@ -1843,7 +1851,7 @@ export class DatabaseStorage implements IStorage {
   }
   async updatePage(id: string, restaurantId: string, data: any): Promise<StorefrontPage | undefined> {
     const patch: any = { updatedAt: new Date() };
-    for (const k of ["title", "body", "isPublished", "showInFooter", "sortOrder", "seoTitle", "seoDescription"] as const) {
+    for (const k of ["title", "body", "isPublished", "showInFooter", "footerGroup", "sortOrder", "seoTitle", "seoDescription"] as const) {
       if (data[k] !== undefined) patch[k] = data[k];
     }
     if (data.handle !== undefined) patch.handle = await this.uniquePageHandle(restaurantId, data.handle, id);

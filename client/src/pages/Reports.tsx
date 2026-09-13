@@ -39,7 +39,15 @@ export default function Reports() {
     queryKey: ["/api/customers"],
   });
 
-  const completedOrders = orders.filter(o => o.status === 'completed' || o.status === 'delivered');
+  // Real sales = any order that actually happened — every status from 'pending'
+  // through 'completed'/'shipped' represents real money, not just the final
+  // 'completed' state. Previously this only counted 'completed'/'delivered'
+  // ('delivered' isn't even a status this app ever sets — see Orders.tsx's status
+  // list), so Total Revenue showed $0.00 for a merchant's entire order queue until
+  // each order was manually marked completed, while Top Selling Items (below, driven
+  // by allOrderItems with no status filter) already counted them — an inconsistency
+  // on the same page. Only 'draft' (not yet a real order) and 'cancelled' are excluded.
+  const completedOrders = orders.filter(o => o.status !== 'draft' && o.status !== 'cancelled');
   
   const itemSales = allOrderItems.reduce((acc, item) => {
     const itemName = item.menuItem?.name || item.bundle?.name || 'Unknown Item';
@@ -136,7 +144,7 @@ export default function Reports() {
                       ${totalRevenue.toFixed(2)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      From {completedOrders.length} completed orders
+                      From {completedOrders.length} orders
                     </p>
                   </CardContent>
                 </Card>

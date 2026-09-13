@@ -12,6 +12,8 @@ export type BusinessType = "restaurant" | "grocery" | "pharmacy" | "flowers" | "
 export interface BusinessTypeConfig {
   /** Human label for the business itself, e.g. "Flower Shop" */
   business: string;
+  /** Short generic noun used in lowercase copy, e.g. "your {store} profile" */
+  store: string;
   /** Nav/section label for the catalog, e.g. "Menu" vs "Products" */
   catalog: string;
   /** Singular label for one catalog entry, e.g. "Dish" vs "Product" */
@@ -26,18 +28,23 @@ export interface BusinessTypeConfig {
 export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
   restaurant: {
     business: "Restaurant",
+    store: "restaurant",
     catalog: "Menu",
     item: "Item",
     icon: ChefHat,
     hasDineIn: true,
     orderTypes: [
       { value: "dine-in", label: "Dine-in" },
-      { value: "takeout", label: "Takeout" },
+      // "Takeout" is the natural restaurant term, but the real fulfillment value
+      // everywhere server-side (storefront checkout, draft/POS orders) is "pickup" —
+      // there is no separate "takeout" order type anywhere in the backend.
+      { value: "pickup", label: "Takeout" },
       { value: "shipping", label: "Shipping" },
     ],
   },
   grocery: {
     business: "Grocery Store",
+    store: "store",
     catalog: "Products",
     item: "Product",
     icon: ShoppingBasket,
@@ -49,6 +56,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
   },
   pharmacy: {
     business: "Pharmacy",
+    store: "pharmacy",
     catalog: "Products",
     item: "Product",
     icon: Pill,
@@ -60,6 +68,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
   },
   flowers: {
     business: "Flower Shop",
+    store: "shop",
     catalog: "Products",
     item: "Arrangement",
     icon: Flower2,
@@ -71,6 +80,7 @@ export const BUSINESS_TYPE_CONFIG: Record<BusinessType, BusinessTypeConfig> = {
   },
   retail: {
     business: "Retail Shop",
+    store: "shop",
     catalog: "Products",
     item: "Product",
     icon: Store,

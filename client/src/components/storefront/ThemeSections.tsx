@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel";
 import type { ThemeSection, ThemeColorScheme } from "@/lib/themeSections";
 
 function colorSchemeClasses(scheme: ThemeColorScheme | undefined): string {
@@ -35,24 +37,83 @@ const positionClasses: Record<string, string> = {
   "bottom-right": "items-end justify-end text-right",
 };
 
-function ImageBannerSection({ section }: { section: ThemeSection }) {
-  const s = section.settings;
+interface BannerSlide {
+  imageUrl?: string;
+  heading?: string;
+  text?: string;
+  buttonLabel?: string;
+  buttonUrl?: string;
+}
+
+function BannerSlideContent({ slide, height }: { slide: BannerSlide; height: string }) {
   return (
     <div
-      className={`relative w-full ${heightClasses[s.height] || heightClasses.medium} bg-cover bg-center flex ${positionClasses[s.contentPosition] || positionClasses["middle-center"]}`}
-      style={s.imageUrl ? { backgroundImage: `url(${s.imageUrl})` } : { background: "linear-gradient(135deg, hsl(var(--primary)/0.2), hsl(var(--primary)/0.05))" }}
+      className={`relative w-full ${heightClasses[height] || heightClasses.medium} bg-cover bg-center flex items-center justify-center text-center`}
+      style={slide.imageUrl ? { backgroundImage: `url(${slide.imageUrl})` } : { background: "linear-gradient(135deg, hsl(var(--primary)/0.2), hsl(var(--primary)/0.05))" }}
     >
-      {s.imageUrl && <div className="absolute inset-0 bg-black/30" />}
-      <div className={`relative z-10 max-w-lg p-8 space-y-4 ${s.imageUrl ? "text-white" : ""}`}>
-        {s.heading && <h2 className="text-3xl md:text-4xl font-display font-bold">{s.heading}</h2>}
-        {s.text && <p className="text-base md:text-lg opacity-90">{s.text}</p>}
-        {s.buttonLabel && (
-          <a href={s.buttonUrl || "#"}>
-            <Button size="lg">{s.buttonLabel}</Button>
+      {slide.imageUrl && <div className="absolute inset-0 bg-black/30" />}
+      <div className={`relative z-10 max-w-lg p-8 space-y-4 ${slide.imageUrl ? "text-white" : ""}`}>
+        {slide.heading && <h2 className="text-3xl md:text-4xl font-display font-bold">{slide.heading}</h2>}
+        {slide.text && <p className="text-base md:text-lg opacity-90">{slide.text}</p>}
+        {slide.buttonLabel && (
+          <a href={slide.buttonUrl || "#"}>
+            <Button size="lg">{slide.buttonLabel}</Button>
           </a>
         )}
       </div>
     </div>
+  );
+}
+
+function ImageBannerSection({ section }: { section: ThemeSection }) {
+  const s = section.settings;
+  const slides: BannerSlide[] = [
+    { imageUrl: s.imageUrl, heading: s.heading, text: s.text, buttonLabel: s.buttonLabel, buttonUrl: s.buttonUrl },
+    ...section.blocks.filter((b) => b.type === "slide").map((b) => b.settings as BannerSlide),
+  ];
+
+  const [api, setApi] = useState<CarouselApi>();
+
+  useEffect(() => {
+    if (!api || slides.length <= 1) return;
+    const interval = setInterval(() => api.scrollNext(), 5000);
+    return () => clearInterval(interval);
+  }, [api, slides.length]);
+
+  // Single slide (every current merchant, until they add more): identical markup to
+  // before this feature existed — same positioned layout, no Carousel wrapper.
+  if (slides.length <= 1) {
+    return (
+      <div
+        className={`relative w-full ${heightClasses[s.height] || heightClasses.medium} bg-cover bg-center flex ${positionClasses[s.contentPosition] || positionClasses["middle-center"]}`}
+        style={s.imageUrl ? { backgroundImage: `url(${s.imageUrl})` } : { background: "linear-gradient(135deg, hsl(var(--primary)/0.2), hsl(var(--primary)/0.05))" }}
+      >
+        {s.imageUrl && <div className="absolute inset-0 bg-black/30" />}
+        <div className={`relative z-10 max-w-lg p-8 space-y-4 ${s.imageUrl ? "text-white" : ""}`}>
+          {s.heading && <h2 className="text-3xl md:text-4xl font-display font-bold">{s.heading}</h2>}
+          {s.text && <p className="text-base md:text-lg opacity-90">{s.text}</p>}
+          {s.buttonLabel && (
+            <a href={s.buttonUrl || "#"}>
+              <Button size="lg">{s.buttonLabel}</Button>
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Carousel setApi={setApi} opts={{ loop: true }} className="relative">
+      <CarouselContent className="ml-0">
+        {slides.map((slide, i) => (
+          <CarouselItem key={i} className="pl-0">
+            <BannerSlideContent slide={slide} height={s.height} />
+          </CarouselItem>
+        ))}
+      </CarouselContent>
+      <CarouselPrevious className="left-4" />
+      <CarouselNext className="right-4" />
+    </Carousel>
   );
 }
 

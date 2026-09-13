@@ -33,6 +33,9 @@ import CustomerAccount from "@/pages/storefront/CustomerAccount";
 import OrderTracking from "@/pages/storefront/OrderTracking";
 import StorefrontPage from "@/pages/storefront/StorefrontPage";
 import { StorefrontBlogIndex, StorefrontBlogPost } from "@/pages/storefront/StorefrontBlog";
+import ProductDetail from "@/pages/storefront/ProductDetail";
+import StorefrontShop from "@/pages/storefront/StorefrontShop";
+import { StorefrontCartProvider } from "@/contexts/StorefrontCartContext";
 import Subscribe from "@/pages/Subscribe";
 import OnlineStoreThemes from "@/pages/OnlineStoreThemes";
 import OnlineStoreCustomize from "@/pages/OnlineStoreCustomize";
@@ -228,21 +231,27 @@ function AppContent() {
 
 function StorefrontRouter() {
   return (
-    <Switch>
-      <Route path="/store/:slug/account" component={CustomerAccount} />
-      <Route path="/store/:slug/track" component={OrderTracking} />
-      <Route path="/store/:slug/blog/:handle" component={StorefrontBlogPost} />
-      <Route path="/store/:slug/blog" component={StorefrontBlogIndex} />
-      <Route path="/store/:slug/pages/:handle" component={StorefrontPage} />
-      <Route path="/account" component={CustomerAccount} />
-      <Route path="/track" component={OrderTracking} />
-      <Route path="/blog/:handle" component={StorefrontBlogPost} />
-      <Route path="/blog" component={StorefrontBlogIndex} />
-      <Route path="/pages/:handle" component={StorefrontPage} />
-      <Route path="/" component={Storefront} />
-      <Route path="/store/:slug" component={Storefront} />
-      <Route component={Storefront} />
-    </Switch>
+    <StorefrontCartProvider>
+      <Switch>
+        <Route path="/store/:slug/account" component={CustomerAccount} />
+        <Route path="/store/:slug/track" component={OrderTracking} />
+        <Route path="/store/:slug/blog/:handle" component={StorefrontBlogPost} />
+        <Route path="/store/:slug/blog" component={StorefrontBlogIndex} />
+        <Route path="/store/:slug/pages/:handle" component={StorefrontPage} />
+        <Route path="/store/:slug/products/:handle" component={ProductDetail} />
+        <Route path="/store/:slug/shop" component={StorefrontShop} />
+        <Route path="/account" component={CustomerAccount} />
+        <Route path="/track" component={OrderTracking} />
+        <Route path="/blog/:handle" component={StorefrontBlogPost} />
+        <Route path="/blog" component={StorefrontBlogIndex} />
+        <Route path="/pages/:handle" component={StorefrontPage} />
+        <Route path="/products/:handle" component={ProductDetail} />
+        <Route path="/shop" component={StorefrontShop} />
+        <Route path="/" component={Storefront} />
+        <Route path="/store/:slug" component={Storefront} />
+        <Route component={Storefront} />
+      </Switch>
+    </StorefrontCartProvider>
   );
 }
 

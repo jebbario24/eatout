@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useStorefrontCustomer } from "@/hooks/useStorefrontCustomer";
 import { usePreviewDraftOverrides } from "@/hooks/usePreviewDraftOverrides";
 import { CustomerAuthDialog } from "@/components/storefront/CustomerAuthDialog";
@@ -35,8 +35,8 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Plus, Minus, Trash2, Store, Clock, CreditCard, Banknote, Star, Mail, Phone, MessageSquare, Send, AlertCircle, Users, UserRound, PackageSearch, Gift } from "lucide-react";
-import { SiPaypal, SiApple, SiGoogle } from "react-icons/si";
+import { ShoppingCart, Plus, Minus, Trash2, Store, Clock, Banknote, Star, Mail, Phone, MessageSquare, Send, AlertCircle, Users, UserRound, PackageSearch, Gift } from "lucide-react";
+import { SiPaypal } from "react-icons/si";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -47,7 +47,6 @@ import { LivePurchaseNotifications } from "@/components/marketing/LivePurchaseNo
 import { PixelScripts, trackViewContent, trackAddToCart, trackInitiateCheckout, trackPurchase } from "@/components/PixelScripts";
 import { BundlesSection } from "@/components/marketing/storefront/BundlesSection";
 import { ActivePromosBanner } from "@/components/marketing/storefront/ActivePromosBanner";
-import { ReferralCTA } from "@/components/marketing/storefront/ReferralCTA";
 import { BoostedItemsBadge } from "@/components/marketing/storefront/BoostedItemsBadge";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { MarketingTriggersModal } from "@/components/marketing/MarketingTriggersModal";
@@ -60,6 +59,11 @@ import { StorefrontHero } from "@/components/storefront/hero/StorefrontHero";
 import { MarqueeBanner } from "@/components/storefront/theme/MarqueeBanner";
 import { CategoryIconGrid } from "@/components/storefront/theme/CategoryIconGrid";
 import { ProductTabsCarousel } from "@/components/storefront/theme/ProductTabsCarousel";
+import { StorefrontHeader } from "@/components/storefront/StorefrontHeader";
+import { VariantPicker } from "@/components/storefront/VariantPicker";
+import { ItemOptionsForm } from "@/components/storefront/ItemOptionsForm";
+import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
+import { useStorefrontCart, type CartItem } from "@/hooks/useStorefrontCart";
 
 interface StorefrontPromo {
   id: string;
@@ -69,27 +73,6 @@ interface StorefrontPromo {
   description: string | null;
   expiresAt: Date | null;
   isActive: boolean;
-}
-
-interface CartItem {
-  menuItem?: MenuItem;
-  bundle?: {
-    id: string;
-    name: string;
-    items: string[];
-    regularPrice: number;
-    bundlePrice: number;
-  };
-  quantity: number;
-  selectedOptions?: Array<{
-    optionGroupLabel: string;
-    choices: Array<{ label: string; priceCents: number }>;
-  }>;
-  // Tier 8 — the specific variant purchased, when menuItem.hasVariants. menuItem.price
-  // is already overridden to the variant's price so existing subtotal/checkout math
-  // (which reads menuItem.price) needs no other changes.
-  variantId?: string;
-  variantName?: string;
 }
 
 interface OpeningHours {
@@ -154,8 +137,9 @@ export default function Storefront() {
   const { toast } = useToast();
   const { t, i18n } = useTranslation();
   const [authOpen, setAuthOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [, setLocation] = useLocation();
   const [saveAddress, setSaveAddress] = useState(true);
-  const [cart, setCart] = useState<CartItem[]>([]);
   // Stable per-browser id so abandoned-cart snapshots update one row (Tier 6)
   const [cartSessionId] = useState(() => {
     try {
@@ -233,14 +217,6 @@ export default function Storefront() {
   } | null>(null);
   const [skipMarketingTriggersForCurrentItem, setSkipMarketingTriggersForCurrentItem] = useState(false);
 
-  const mockReferral = {
-    referralLink: `${window.location.origin}/store/${slug}?ref=USER123`,
-    referrerReward: '$10 credit',
-    refereeReward: '$5 off',
-    totalReferrals: 8,
-    referralRevenue: 80.00,
-  };
-
   // Try hostname-based lookup first, fallback to slug
   const { data: fetchedRestaurant, isLoading: restaurantLoading } = useQuery<Restaurant>({
     queryKey: slug ? ["/api/storefront/restaurant", slug] : ["/api/storefront/by-hostname"],
@@ -267,6 +243,7 @@ export default function Storefront() {
     (restaurant as any)?.themeSettings?.cardStyle === "standard" ? "standard" : "bordered";
 
   const sfSlug = slug || restaurant?.slug || undefined;
+  const { cart, setCart } = useStorefrontCart(sfSlug);
   const { customer: sfCustomer } = useStorefrontCustomer(sfSlug);
   const accountHref = slug ? `/store/${slug}/account` : "/account";
   const trackHref = slug ? `/store/${slug}/track` : "/track";
@@ -644,6 +621,16 @@ export default function Storefront() {
       })).filter(group => group.items.length > 0)
     : null;
 
+  // Opt-in homepage layout (Part 2 of the storefront expansion) — default 'full' is
+  // today's exact grid, unchanged. 'curated' trims the homepage to a bestsellers
+  // strip (via the existing tags field) plus a link to the full /shop catalog page.
+  const homepageLayout: "full" | "curated" =
+    (restaurant as any)?.themeSettings?.homepageLayout === "curated" ? "curated" : "full";
+  const bestSellerItems = (items || []).filter(
+    (i) => i.isAvailable && i.tags?.some((tag) => tag === "Bestseller" || tag === "Popular")
+  ).slice(0, 8);
+  const shopHref = sfSlug ? `/store/${sfSlug}/shop` : "/shop";
+
   // Compute today's hours text
   const todayHoursText = useMemo(() => {
     if (!restaurant?.openingHours) return '';
@@ -761,6 +748,17 @@ export default function Storefront() {
       setCart([...cart, { menuItem: item, quantity: 1 }]);
     }
     toast({ title: `${item.name} added to cart` });
+  };
+
+  // Clicking a product card: items with a handle (Tier 5 SEO deep links) go to their
+  // dedicated product page; legacy items without one keep today's exact quick-add.
+  const handleItemSelect = (item: MenuItem) => {
+    if (!item.isAvailable) return;
+    if ((item as any).handle) {
+      setLocation(sfSlug ? `/store/${sfSlug}/products/${(item as any).handle}` : `/products/${(item as any).handle}`);
+      return;
+    }
+    addToCart(item);
   };
 
   // Confirm a variant choice and add that variant to the cart (Tier 8).
@@ -1152,7 +1150,11 @@ export default function Storefront() {
           cartSessionId,
           visitorId: getOrCreateVisitorId(),
         }),
-      }).then((res) => res.json());
+      }).then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body?.message || "Failed to place order");
+        return body;
+      });
     },
     onSuccess: (data) => {
       if (data.paymentMethod === 'cash') {
@@ -1189,8 +1191,12 @@ export default function Storefront() {
         setPromoCodeError("");
       }
     },
-    onError: () => {
-      toast({ title: t('storefront.orderError'), variant: "destructive" });
+    onError: (error: any) => {
+      toast({
+        title: t('storefront.orderError'),
+        description: error?.message && error.message !== "Failed to place order" ? error.message : undefined,
+        variant: "destructive",
+      });
     },
   });
 
@@ -1499,72 +1505,20 @@ export default function Storefront() {
         </div>
       )}
 
-      {/* Sticky Header with Cart */}
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {restaurant.logoUrl && (
-              <img 
-                src={restaurant.logoUrl} 
-                alt={restaurant.name}
-                className="h-10 w-10 rounded-full object-cover"
-              />
-            )}
-            <span className="font-display font-bold text-lg">{restaurant.name}</span>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {markets.length > 0 && (
-              <Select value={selectedMarketName ?? "__default__"} onValueChange={handleSelectMarket}>
-                <SelectTrigger className="w-auto h-9 gap-1.5" data-testid="select-market">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__default__">{restaurant.currency || 'USD'}</SelectItem>
-                  {markets.map((m: any) => (
-                    <SelectItem key={m.name} value={m.name}>{m.name} ({m.currency})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+      <StorefrontHeader
+        restaurant={restaurant}
+        markets={markets}
+        selectedMarketName={selectedMarketName}
+        onSelectMarket={handleSelectMarket}
+        sfCustomer={sfCustomer}
+        accountHref={accountHref}
+        trackHref={trackHref}
+        cartItemCount={cartItemCount}
+        onOpenAuth={() => setAuthOpen(true)}
+        onOpenCart={() => setCartOpen(true)}
+      />
 
-            <LanguageSelector
-              enabledLanguages={restaurant?.enabledLanguages || ['en']}
-              restaurantId={restaurant?.id}
-            />
-
-            <Link href={trackHref}>
-              <Button variant="ghost" size="icon" title="Track an order" data-testid="button-track-order">
-                <PackageSearch className="h-5 w-5" />
-              </Button>
-            </Link>
-
-            {sfCustomer ? (
-              <Link href={accountHref}>
-                <Button variant="ghost" size="sm" data-testid="button-account">
-                  <UserRound className="h-4 w-4 mr-1.5" />
-                  {sfCustomer.name ? sfCustomer.name.split(" ")[0] : "Account"}
-                </Button>
-              </Link>
-            ) : (
-              <Button variant="ghost" size="sm" onClick={() => setAuthOpen(true)} data-testid="button-signin">
-                <UserRound className="h-4 w-4 mr-1.5" />
-                Sign in
-              </Button>
-            )}
-
-            <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="default" className="relative" data-testid="button-cart">
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                {t('storefront.cart')}
-                {cartItemCount > 0 && (
-                  <Badge className="absolute -top-2 -right-2 h-6 w-6 flex items-center justify-center p-0 rounded-full" data-testid="cart-count">
-                    {cartItemCount}
-                  </Badge>
-                )}
-              </Button>
-            </SheetTrigger>
+      <Sheet open={cartOpen} onOpenChange={setCartOpen}>
             <SheetContent className="w-full sm:max-w-lg flex flex-col">
               <SheetHeader>
                 <SheetTitle>{t('storefront.cart')} ({cartItemCount} {t('storefront.items')})</SheetTitle>
@@ -2053,63 +2007,12 @@ export default function Storefront() {
 
                     <div className="w-full space-y-3">
                       <Label className="text-sm font-medium">{t('storefront.paymentMethod')}</Label>
-                      
-                      <div className="grid grid-cols-2 gap-2">
-                        {enabledPaymentMethods?.stripe && (
-                          <Button
-                            variant="outline"
-                            className="h-16 bg-black hover:bg-black/90 text-white border-black flex flex-col items-center justify-center gap-1"
-                            disabled={!customerName || !customerPhone || (orderType === 'shipping' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
-                            onClick={() => {
-                              setPaymentMethod('apple');
-                              setCurrentOrderId(null);
-                              paypalRendered.current = false;
-                              checkoutMutation.mutate();
-                            }}
-                            data-testid="button-apple-pay"
-                          >
-                            <SiApple className="h-6 w-6" />
-                            <span className="text-xs font-medium">{t('storefront.applePay')}</span>
-                          </Button>
-                        )}
-                        
-                        {enabledPaymentMethods?.stripe && (
-                          <Button
-                            variant="outline"
-                            className="h-16 bg-white hover:bg-gray-50 text-gray-800 border-gray-300 flex flex-col items-center justify-center gap-1"
-                            disabled={!customerName || !customerPhone || (orderType === 'shipping' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
-                            onClick={() => {
-                              setPaymentMethod('google');
-                              setCurrentOrderId(null);
-                              paypalRendered.current = false;
-                              checkoutMutation.mutate();
-                            }}
-                            data-testid="button-google-pay"
-                          >
-                            <SiGoogle className="h-5 w-5" />
-                            <span className="text-xs font-medium">{t('storefront.googlePay')}</span>
-                          </Button>
-                        )}
-                      </div>
-                      
-                      {enabledPaymentMethods?.stripe && (
-                        <Button
-                          variant="outline"
-                          className="w-full h-16 bg-black hover:bg-black/90 text-white border-black flex items-center justify-center gap-2"
-                          disabled={!customerName || !customerPhone || (orderType === 'shipping' && (!deliveryCountry || !deliveryCity || !homeAddress || !deliveryAvailable)) || checkoutMutation.isPending}
-                          onClick={() => {
-                            setPaymentMethod('stripe');
-                            setCurrentOrderId(null);
-                            paypalRendered.current = false;
-                            checkoutMutation.mutate();
-                          }}
-                          data-testid="button-credit-card"
-                        >
-                          <CreditCard className="h-5 w-5" />
-                          <span className="font-medium">{t('storefront.creditDebitCard')}</span>
-                        </Button>
-                      )}
-                      
+
+                      {/* Card payments (Stripe/Apple Pay/Google Pay) aren't implemented
+                          anywhere in the backend yet — deliberately not offered here so a
+                          customer never hits a checkout option that always fails after
+                          they've filled in their details. Cash and PayPal are real. */}
+
                       {enabledPaymentMethods?.paypal && (
                         <Button
                           variant="outline"
@@ -2156,7 +2059,7 @@ export default function Storefront() {
                           method yet — applies to both pickup and delivery, otherwise a
                           delivery checkout with no Stripe/PayPal/Cash enabled is a dead end:
                           the customer fills in their address and has no way to submit. */}
-                      {!enabledPaymentMethods?.stripe && !enabledPaymentMethods?.paypal && !enabledPaymentMethods?.cash && (orderType === 'pickup' || orderType === 'shipping') && (
+                      {!enabledPaymentMethods?.paypal && !enabledPaymentMethods?.cash && (orderType === 'pickup' || orderType === 'shipping') && (
                         <div className="space-y-3">
                           <div className="bg-muted/50 rounded-lg p-3 text-center">
                             <p className="text-sm text-muted-foreground">
@@ -2188,8 +2091,7 @@ export default function Storefront() {
               )}
             </SheetContent>
           </Sheet>
-          </div>
-        </div>
+
         {/* CMS navigation (Tier 7) */}
         {Array.isArray((restaurant as any)?.storefrontNav?.items) && (restaurant as any).storefrontNav.items.length > 0 && (
           <div className="border-t">
@@ -2200,6 +2102,7 @@ export default function Storefront() {
                   : item.type === "blog" ? (sfSlug ? `/store/${sfSlug}/blog` : "/blog")
                   : item.type === "page" ? (sfSlug ? `/store/${sfSlug}/pages/${item.value || ""}` : `/pages/${item.value || ""}`)
                   : item.type === "collection" ? (sfSlug ? `/store/${sfSlug}/c/${item.value || ""}` : `/c/${item.value || ""}`)
+                  : item.type === "shop" ? (sfSlug ? `/store/${sfSlug}/shop` : "/shop")
                   : item.value || "#";
                 return (
                   <a key={item.id || idx} href={href}
@@ -2214,7 +2117,6 @@ export default function Storefront() {
             </div>
           </div>
         )}
-      </div>
 
       {/* Hero — swaps by restaurant.themeSettings.themeId; no themeId = today's exact hero */}
       <StorefrontHero
@@ -2238,7 +2140,7 @@ export default function Storefront() {
         <ProductTabsCarousel
           items={items}
           formatPrice={formatPrice}
-          onSelect={(item) => addToCart(item)}
+          onSelect={(item) => handleItemSelect(item)}
           onAddToCart={(item) => addToCart(item)}
         />
       )}
@@ -2248,34 +2150,37 @@ export default function Storefront() {
         <ThemeSections sections={(restaurant as any).themeSettings.sections as ThemeSection[]} />
       )}
 
-      {/* Categories - Horizontal Pills */}
-      <div className="bg-background border-b sticky top-16 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <ScrollArea className="w-full">
-            <div className="flex gap-2 pb-2">
-              <Badge
-                variant={selectedCategory === null ? "default" : "outline"}
-                className="px-4 py-2 text-sm cursor-pointer whitespace-nowrap hover-elevate"
-                onClick={() => setSelectedCategory(null)}
-                data-testid="category-all"
-              >
-                All
-              </Badge>
-              {categories?.map((category) => (
+      {/* Categories - Horizontal Pills (full catalog layout only — curated mode
+          browses via the dedicated /shop page instead) */}
+      {homepageLayout === "full" && (
+        <div className="bg-background border-b sticky top-16 z-40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <ScrollArea className="w-full">
+              <div className="flex gap-2 pb-2">
                 <Badge
-                  key={category.id}
-                  variant={selectedCategory === category.id ? "default" : "outline"}
+                  variant={selectedCategory === null ? "default" : "outline"}
                   className="px-4 py-2 text-sm cursor-pointer whitespace-nowrap hover-elevate"
-                  onClick={() => setSelectedCategory(category.id)}
-                  data-testid={`category-${category.name.toLowerCase()}`}
+                  onClick={() => setSelectedCategory(null)}
+                  data-testid="category-all"
                 >
-                  {category.name}
+                  All
                 </Badge>
-              ))}
-            </div>
-          </ScrollArea>
+                {categories?.map((category) => (
+                  <Badge
+                    key={category.id}
+                    variant={selectedCategory === category.id ? "default" : "outline"}
+                    className="px-4 py-2 text-sm cursor-pointer whitespace-nowrap hover-elevate"
+                    onClick={() => setSelectedCategory(category.id)}
+                    data-testid={`category-${category.name.toLowerCase()}`}
+                  >
+                    {category.name}
+                  </Badge>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Menu Items Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -2345,7 +2250,7 @@ export default function Storefront() {
                     <Card
                       key={it.id}
                       className="overflow-hidden hover-elevate cursor-pointer"
-                      onClick={() => it.isAvailable && addToCart(it)}
+                      onClick={() => handleItemSelect(it)}
                       data-testid={`collection-item-${it.id}`}
                     >
                       <div className="relative aspect-square bg-muted">
@@ -2369,7 +2274,44 @@ export default function Storefront() {
           </div>
         )}
 
-        {itemsByCategory ? (
+        {homepageLayout === "curated" ? (
+          <div className="space-y-6" data-testid="curated-homepage-section">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-2xl font-bold">Bestsellers</h2>
+              <Link href={shopHref}>
+                <Button variant="outline" data-testid="button-shop-all">Shop all</Button>
+              </Link>
+            </div>
+            {bestSellerItems.length > 0 ? (
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {bestSellerItems.map((item) => {
+                  const translatedItem = getTranslatedMenuItem(item, t);
+                  return (
+                    <MenuItemCard
+                      key={item.id}
+                      item={item}
+                      displayName={translatedItem.name}
+                      displayDescription={translatedItem.description}
+                      cardStyle={cardStyle}
+                      theme={(restaurant as any)?.themeSettings?.themeId}
+                      formattedPrice={formatPrice(item.price)}
+                      isBoosted={isItemBoosted(item.name)}
+                      onSelect={() => handleItemSelect(item)}
+                      onAddToCart={(e) => {
+                        e.stopPropagation();
+                        addToCart(item);
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-muted-foreground">
+                Tag products "Bestseller" or "Popular" in the Menu editor to feature them here.
+              </p>
+            )}
+          </div>
+        ) : itemsByCategory ? (
           // Showing all items grouped by category
           <div className="space-y-12">
             {itemsByCategory.map((group) => (
@@ -2418,7 +2360,7 @@ export default function Storefront() {
                               }
                             : null
                         }
-                        onSelect={() => item.isAvailable && addToCart(item)}
+                        onSelect={() => handleItemSelect(item)}
                         onAddToCart={(e) => {
                           e.stopPropagation();
                           addToCart(item);
@@ -2478,7 +2420,7 @@ export default function Storefront() {
                         }
                       : null
                   }
-                  onSelect={() => item.isAvailable && addToCart(item)}
+                  onSelect={() => handleItemSelect(item)}
                   onAddToCart={(e) => {
                     e.stopPropagation();
                     addToCart(item);
@@ -2511,11 +2453,6 @@ export default function Storefront() {
         enabled={(restaurant?.marketingSettings as any)?.enableLiveNotifications || false}
         restaurantId={restaurant?.id}
       />
-
-      {/* Marketing: Referral Program */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <ReferralCTA referralData={mockReferral} enabled={true} />
-      </div>
 
       {/* Customer Reviews Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 mt-12 border-t">
@@ -2705,17 +2642,27 @@ export default function Storefront() {
         </div>
       )}
 
-      {/* CMS footer links (Tier 7) */}
+      {/* CMS footer links (Tier 7). Grouped columns once a merchant assigns any page
+          to a footerGroup; otherwise today's exact flat row, unchanged. */}
       {footerPages.length > 0 && (
-        <div className="border-t">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
-            {footerPages.map((p: any) => (
-              <a key={p.id} href={sfSlug ? `/store/${sfSlug}/pages/${p.handle}` : `/pages/${p.handle}`} className="hover:text-foreground">
-                {p.title}
-              </a>
-            ))}
+        footerPages.some((p: any) => p.footerGroup) ? (
+          <StorefrontFooter
+            pages={footerPages}
+            hrefFor={(p) => (sfSlug ? `/store/${sfSlug}/pages/${p.handle}` : `/pages/${p.handle}`)}
+            enabledPaymentMethods={enabledPaymentMethods}
+            restaurantName={restaurant?.name}
+          />
+        ) : (
+          <div className="border-t">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+              {footerPages.map((p: any) => (
+                <a key={p.id} href={sfSlug ? `/store/${sfSlug}/pages/${p.handle}` : `/pages/${p.handle}`} className="hover:text-foreground">
+                  {p.title}
+                </a>
+              ))}
+            </div>
           </div>
-        </div>
+        )
       )}
 
       {/* Write a Review Dialog */}
@@ -2799,33 +2746,12 @@ export default function Storefront() {
             <DialogTitle>{variantPickerItem?.name}</DialogTitle>
             <DialogDescription>Choose an option</DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            {((variantPickerItem as any)?.variants || [])
-              .filter((v: any) => v.isActive)
-              .map((v: any) => {
-                const outOfStock = v.stockCount != null && v.stockCount <= 0;
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    disabled={outOfStock}
-                    onClick={() => setSelectedVariantId(v.id)}
-                    className={`flex w-full items-center justify-between rounded-md border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                      selectedVariantId === v.id ? "border-primary bg-primary/5" : "hover:bg-accent"
-                    }`}
-                    data-testid={`variant-option-${v.id}`}
-                  >
-                    <span className="font-medium">{v.name}</span>
-                    <span className="flex items-center gap-2 text-sm">
-                      {outOfStock ? <Badge variant="destructive">Out of stock</Badge> : v.stockCount != null && v.stockCount <= 5 ? (
-                        <Badge variant="outline" className="text-amber-600">Only {v.stockCount} left</Badge>
-                      ) : null}
-                      <span className="text-muted-foreground">{formatPrice(v.priceCents / 100)}</span>
-                    </span>
-                  </button>
-                );
-              })}
-          </div>
+          <VariantPicker
+            variants={(variantPickerItem as any)?.variants || []}
+            selectedVariantId={selectedVariantId}
+            onSelect={setSelectedVariantId}
+            formatPrice={formatPrice}
+          />
           <DialogFooter>
             <Button variant="outline" onClick={() => setVariantPickerItem(null)}>Cancel</Button>
             <Button onClick={confirmVariantAddToCart} disabled={!selectedVariantId} data-testid="button-confirm-variant">
@@ -2858,104 +2784,12 @@ export default function Storefront() {
                 {formatPrice(selectedItem.price)}
               </div>
               
-              {((selectedItem.options as any) || []).map((optionGroup: any, optionIndex: number) => (
-                <div key={optionIndex} className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">{optionGroup.label}</h3>
-                    {optionGroup.required && (
-                      <Badge variant="destructive" className="text-xs">Required</Badge>
-                    )}
-                  </div>
-                  
-                  {optionGroup.type === 'single' ? (
-                    <RadioGroup
-                      value={
-                        selectedItemOptions.find(o => o.optionGroupLabel === optionGroup.label)?.choices[0]?.label || ""
-                      }
-                      onValueChange={(value) => {
-                        const choice = optionGroup.choices.find((c: any) => c.label === value);
-                        if (choice) {
-                          setSelectedItemOptions(prev => [
-                            ...prev.filter(o => o.optionGroupLabel !== optionGroup.label),
-                            {
-                              optionGroupLabel: optionGroup.label,
-                              choices: [choice]
-                            }
-                          ]);
-                        }
-                      }}
-                    >
-                      {optionGroup.choices.map((choice: any, choiceIndex: number) => (
-                        <div key={choiceIndex} className="flex items-center space-x-2 border rounded-lg p-3 hover-elevate">
-                          <RadioGroupItem value={choice.label} id={`option-${optionIndex}-${choiceIndex}`} />
-                          <label 
-                            htmlFor={`option-${optionIndex}-${choiceIndex}`} 
-                            className="flex-1 cursor-pointer flex items-center justify-between"
-                          >
-                            <span>{choice.label}</span>
-                            {choice.priceCents > 0 && (
-                              <span className="text-sm text-muted-foreground">
-                                +{formatPrice((choice.priceCents / 100).toFixed(2))}
-                              </span>
-                            )}
-                          </label>
-                        </div>
-                      ))}
-                    </RadioGroup>
-                  ) : (
-                    <div className="space-y-2">
-                      {optionGroup.choices.map((choice: any, choiceIndex: number) => {
-                        const selectedGroup = selectedItemOptions.find(o => o.optionGroupLabel === optionGroup.label);
-                        const isSelected = selectedGroup?.choices.some(c => c.label === choice.label);
-                        
-                        return (
-                          <div key={choiceIndex} className="flex items-center space-x-2 border rounded-lg p-3 hover-elevate">
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedItemOptions(prev => {
-                                    const existing = prev.find(o => o.optionGroupLabel === optionGroup.label);
-                                    if (existing) {
-                                      return prev.map(o => 
-                                        o.optionGroupLabel === optionGroup.label
-                                          ? { ...o, choices: [...o.choices, choice] }
-                                          : o
-                                      );
-                                    } else {
-                                      return [...prev, { optionGroupLabel: optionGroup.label, choices: [choice] }];
-                                    }
-                                  });
-                                } else {
-                                  setSelectedItemOptions(prev => 
-                                    prev.map(o => 
-                                      o.optionGroupLabel === optionGroup.label
-                                        ? { ...o, choices: o.choices.filter(c => c.label !== choice.label) }
-                                        : o
-                                    ).filter(o => o.choices.length > 0)
-                                  );
-                                }
-                              }}
-                              id={`option-${optionIndex}-${choiceIndex}`}
-                            />
-                            <label 
-                              htmlFor={`option-${optionIndex}-${choiceIndex}`} 
-                              className="flex-1 cursor-pointer flex items-center justify-between"
-                            >
-                              <span>{choice.label}</span>
-                              {choice.priceCents > 0 && (
-                                <span className="text-sm text-muted-foreground">
-                                  +{formatPrice((choice.priceCents / 100).toFixed(2))}
-                                </span>
-                              )}
-                            </label>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
+              <ItemOptionsForm
+                options={(selectedItem.options as any) || []}
+                selectedOptions={selectedItemOptions}
+                onChange={setSelectedItemOptions}
+                formatPrice={formatPrice}
+              />
             </div>
           )}
           

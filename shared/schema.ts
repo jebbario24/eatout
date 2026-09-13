@@ -108,7 +108,7 @@ export const restaurants = pgTable("restaurants", {
   seoDescription: varchar("seo_description", { length: 500 }),
   seoImageUrl: text("seo_image_url"),
   // Storefront CMS (Tier 7)
-  // storefrontNav: { items: [{ id, label, type: 'home'|'menu'|'collection'|'page'|'blog'|'url', value?, external? }] }
+  // storefrontNav: { items: [{ id, label, type: 'home'|'menu'|'collection'|'page'|'blog'|'shop'|'url', value?, external? }] }
   storefrontNav: jsonb("storefront_nav"),
   // announcement: { enabled, text, linkLabel?, linkUrl? }
   announcement: jsonb("announcement"),
@@ -301,6 +301,9 @@ export const storefrontPages = pgTable("storefront_pages", {
   body: text("body"),
   isPublished: boolean("is_published").notNull().default(false),
   showInFooter: boolean("show_in_footer").notNull().default(false),
+  // Optional footer column label (e.g. "Help", "Company", "Legal"). null/unset =
+  // today's single flat footer row — fully backward compatible.
+  footerGroup: varchar("footer_group", { length: 100 }),
   sortOrder: integer("sort_order").notNull().default(0),
   seoTitle: varchar("seo_title", { length: 255 }),
   seoDescription: varchar("seo_description", { length: 500 }),

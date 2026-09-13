@@ -864,10 +864,8 @@ export default function Orders() {
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="dine-in">Dine-in</SelectItem>
-                  <SelectItem value="takeout">Takeout</SelectItem>
                   <SelectItem value="pickup">Pickup</SelectItem>
                   <SelectItem value="shipping">Shipping</SelectItem>
-                  <SelectItem value="online">Online</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -881,6 +879,7 @@ export default function Orders() {
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="preparing">Preparing</SelectItem>
                   <SelectItem value="ready">Ready</SelectItem>
+                  <SelectItem value="shipped">Shipped</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>

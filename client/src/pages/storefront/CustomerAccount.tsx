@@ -14,20 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft, Package, MapPin, User as UserIcon, LogOut, Plus, Trash2, Loader2, RotateCcw, Star, Gift,
 } from "lucide-react";
-
-function useResolvedSlug() {
-  const params = useParams();
-  const paramSlug = (params as any).slug as string | undefined;
-  const { data } = useQuery<{ slug: string } | null>({
-    queryKey: ["/api/storefront/by-hostname"],
-    enabled: !paramSlug,
-    queryFn: async () => {
-      const r = await fetch("/api/storefront/by-hostname");
-      return r.ok ? r.json() : null;
-    },
-  });
-  return paramSlug || data?.slug;
-}
+import { useResolvedSlug } from "@/hooks/useResolvedSlug";
 
 const money = (n: string | number) => `$${Number(n).toFixed(2)}`;
 const statusColor: Record<string, string> = {

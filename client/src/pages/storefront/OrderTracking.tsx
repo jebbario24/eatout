@@ -7,20 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, PackageSearch, CheckCircle2, Circle, Truck } from "lucide-react";
-
-function useResolvedSlug() {
-  const params = useParams();
-  const paramSlug = (params as any).slug as string | undefined;
-  const { data } = useQuery<{ slug: string } | null>({
-    queryKey: ["/api/storefront/by-hostname"],
-    enabled: !paramSlug,
-    queryFn: async () => {
-      const r = await fetch("/api/storefront/by-hostname");
-      return r.ok ? r.json() : null;
-    },
-  });
-  return paramSlug || data?.slug;
-}
+import { useResolvedSlug } from "@/hooks/useResolvedSlug";
 
 const STEPS = ["pending", "confirmed", "preparing", "ready", "shipped", "completed"];
 const LABELS: Record<string, string> = {

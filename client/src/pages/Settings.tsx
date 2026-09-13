@@ -51,14 +51,6 @@ import { isUnauthorizedError } from "@/lib/authUtils";
 import { cn } from "@/lib/utils";
 import { CURRENCIES, COUNTRIES, TIMEZONES } from "@/lib/countries-currencies";
 
-const BUSINESS_TYPE_LABELS: Record<string, { business: string; store: string; catalog: string }> = {
-  restaurant: { business: "Restaurant", store: "restaurant", catalog: "Menu" },
-  grocery: { business: "Grocery Store", store: "store", catalog: "Products" },
-  pharmacy: { business: "Pharmacy", store: "pharmacy", catalog: "Products" },
-  flowers: { business: "Flower Shop", store: "shop", catalog: "Products" },
-  retail: { business: "Retail Shop", store: "shop", catalog: "Products" },
-};
-
 const LANGUAGES = [
   { code: "en", name: "English" },
   { code: "es", name: "Spanish (Español)" },
@@ -257,7 +249,7 @@ export default function Settings() {
 
   const businessType = form.watch("businessType");
   const labels = businessType
-    ? (BUSINESS_TYPE_LABELS[businessType] || BUSINESS_TYPE_LABELS.restaurant)
+    ? BUSINESS_TYPE_CONFIG[businessType as keyof typeof BUSINESS_TYPE_CONFIG] || BUSINESS_TYPE_CONFIG.restaurant
     : { business: "Business", store: "business", catalog: "Products" };
 
   useEffect(() => {
@@ -521,7 +513,7 @@ export default function Settings() {
                   <FormLabel>Subdomain</FormLabel>
                   <FormControl>
                     <div className="flex items-center gap-2">
-                      <Input {...field} placeholder="myrestaurant" data-testid="input-subdomain" className="flex-1" />
+                      <Input {...field} placeholder={`my${labels.store}`} data-testid="input-subdomain" className="flex-1" />
                       <span className="text-sm text-muted-foreground whitespace-nowrap">.eatout.app</span>
                     </div>
                   </FormControl>
@@ -947,7 +939,7 @@ export default function Settings() {
                       </Command>
                     </PopoverContent>
                   </Popover>
-                  <p className="text-xs text-muted-foreground">Language for customer-facing menu</p>
+                  <p className="text-xs text-muted-foreground">Language for your customer-facing {labels.catalog.toLowerCase()}</p>
                 </div>
               </div>
 
@@ -1124,15 +1116,17 @@ export default function Settings() {
               <CardDescription>Choose which payment methods to show on your online store</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between" data-testid="payment-method-stripe">
+              <div className="flex items-center justify-between opacity-60" data-testid="payment-method-stripe">
                 <div className="space-y-0.5">
-                  <Label htmlFor="enable-stripe">Stripe</Label>
-                  <p className="text-sm text-muted-foreground">Accept credit/debit card payments online</p>
+                  <Label htmlFor="enable-stripe">Stripe (Coming soon)</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Card payment processing isn't built yet — online orders complete via Cash on Delivery or PayPal today.
+                  </p>
                 </div>
                 <Switch
                   id="enable-stripe"
-                  checked={paymentMethods.stripe}
-                  onCheckedChange={(checked) => setPaymentMethods(prev => ({ ...prev, stripe: checked }))}
+                  checked={false}
+                  disabled
                   data-testid="switch-stripe"
                 />
               </div>
@@ -1164,7 +1158,7 @@ export default function Settings() {
               </div>
 
               <Button
-                onClick={() => paymentMethodsMutation.mutate(paymentMethods)}
+                onClick={() => paymentMethodsMutation.mutate({ ...paymentMethods, stripe: false })}
                 disabled={paymentMethodsMutation.isPending}
                 data-testid="button-save-payment-methods"
               >

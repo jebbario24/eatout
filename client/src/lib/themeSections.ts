@@ -57,6 +57,13 @@ export function createDefaultBlock(sectionType: ThemeSectionType): ThemeBlock {
       settings: { customerName: "Happy customer", quote: "This shop is fantastic!", rating: 5 },
     };
   }
+  if (sectionType === "image-banner") {
+    return {
+      id: genId(),
+      type: "slide",
+      settings: { imageUrl: "", heading: "", text: "", buttonLabel: "", buttonUrl: "" },
+    };
+  }
   return { id: genId(), type: "block", settings: {} };
 }
 

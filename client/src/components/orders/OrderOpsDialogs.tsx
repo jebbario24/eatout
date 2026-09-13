@@ -173,7 +173,7 @@ export function DraftBuilderDialog({
                 <SelectContent>
                   <SelectItem value="pickup">Pickup</SelectItem>
                   <SelectItem value="shipping">Shipping</SelectItem>
-                  <SelectItem value="dine_in">Dine-in</SelectItem>
+                  <SelectItem value="dine-in">Dine-in</SelectItem>
                 </SelectContent>
               </Select>
             </div>

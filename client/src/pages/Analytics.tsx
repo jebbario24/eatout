@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, DollarSign, ShoppingCart, Star, Calendar } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, Star, Calendar } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -38,9 +38,11 @@ export default function Analytics() {
     popularItemsCount: number;
     popularItems: Array<{ name: string; orders: number; revenue: string }>;
     dineInRevenue: string;
-    takeoutRevenue: string;
-    deliveryRevenue: string;
-    onlineRevenue: string;
+    pickupRevenue: string;
+    shippingRevenue: string;
+    revenueChangePercent: number | null;
+    ordersChangePercent: number | null;
+    averageOrderChangePercent: number | null;
   }>({
     queryKey: ["/api/analytics/detailed", dateFilter],
     queryFn: async () => {
@@ -67,34 +69,47 @@ export default function Analytics() {
     );
   }
 
+  // Real period-over-period change from the server, comparing to the same-length
+  // window immediately before the selected range. null = no prior-period orders to
+  // compare against (a new business, or a slow period) — shown as "New", never as a
+  // fabricated or divide-by-zero percentage.
+  const formatChange = (pct: number | null): { label: string; trend: "up" | "down" | "neutral" } => {
+    if (pct === null) return { label: "New", trend: "neutral" };
+    if (pct === 0) return { label: "No change", trend: "neutral" };
+    return { label: `${pct > 0 ? "+" : ""}${pct}%`, trend: pct > 0 ? "up" : "down" };
+  };
+  const revenueChange = formatChange(stats?.revenueChangePercent ?? null);
+  const ordersChange = formatChange(stats?.ordersChangePercent ?? null);
+  const avgOrderChange = formatChange(stats?.averageOrderChangePercent ?? null);
+
   const metrics = [
     {
       title: "Total Revenue",
       value: stats?.totalRevenue ? `$${stats.totalRevenue}` : "$0",
       icon: DollarSign,
-      change: "+15.3%",
-      trend: "up",
+      change: revenueChange.label,
+      trend: revenueChange.trend,
     },
     {
       title: "Total Orders",
       value: stats?.totalOrders || "0",
       icon: ShoppingCart,
-      change: "+8.2%",
-      trend: "up",
+      change: ordersChange.label,
+      trend: ordersChange.trend,
     },
     {
       title: "Average Order",
       value: stats?.averageOrder ? `$${stats.averageOrder}` : "$0",
       icon: TrendingUp,
-      change: "+3.1%",
-      trend: "up",
+      change: avgOrderChange.label,
+      trend: avgOrderChange.trend,
     },
     {
       title: "Popular Items",
       value: stats?.popularItemsCount || "0",
       icon: Star,
-      change: "5 items",
-      trend: "neutral",
+      change: `${stats?.popularItemsCount || 0} items`,
+      trend: "neutral" as const,
     },
   ];
 
@@ -140,7 +155,9 @@ export default function Analytics() {
               </div>
               <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                 {metric.trend === "up" && <TrendingUp className="h-3 w-3 text-green-500" />}
-                {metric.change} from last month
+                {metric.trend === "down" && <TrendingDown className="h-3 w-3 text-red-500" />}
+                {metric.change}
+                {metric.title !== "Popular Items" && " vs. previous period"}
               </p>
             </CardContent>
           </Card>
@@ -178,21 +195,19 @@ export default function Analytics() {
             <CardTitle>Revenue Breakdown</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {parseFloat(stats?.dineInRevenue || "0") > 0 && (
+              <div className="flex justify-between items-center p-3 border rounded-lg">
+                <span>Dine-in</span>
+                <span className="font-semibold">${stats?.dineInRevenue || "0"}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center p-3 border rounded-lg">
-              <span>Dine-in</span>
-              <span className="font-semibold">${stats?.dineInRevenue || "0"}</span>
+              <span>Pickup</span>
+              <span className="font-semibold">${stats?.pickupRevenue || "0"}</span>
             </div>
             <div className="flex justify-between items-center p-3 border rounded-lg">
-              <span>Takeout</span>
-              <span className="font-semibold">${stats?.takeoutRevenue || "0"}</span>
-            </div>
-            <div className="flex justify-between items-center p-3 border rounded-lg">
-              <span>Delivery</span>
-              <span className="font-semibold">${stats?.deliveryRevenue || "0"}</span>
-            </div>
-            <div className="flex justify-between items-center p-3 border rounded-lg">
-              <span>Online Orders</span>
-              <span className="font-semibold">${stats?.onlineRevenue || "0"}</span>
+              <span>Shipping</span>
+              <span className="font-semibold">${stats?.shippingRevenue || "0"}</span>
             </div>
           </CardContent>
         </Card>

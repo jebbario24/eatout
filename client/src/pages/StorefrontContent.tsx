@@ -25,7 +25,7 @@ function extractErrorMessage(error: unknown, fallback: string): string {
 
 /* --------------------------- Pages tab --------------------------- */
 
-const blankPage = { title: "", handle: "", body: "", isPublished: false, showInFooter: false, seoTitle: "", seoDescription: "" };
+const blankPage = { title: "", handle: "", body: "", isPublished: false, showInFooter: false, footerGroup: "", seoTitle: "", seoDescription: "" };
 
 function PagesTab() {
   const { toast } = useToast();
@@ -41,6 +41,7 @@ function PagesTab() {
       setForm({
         title: editDetail.title, handle: editDetail.handle, body: editDetail.body || "",
         isPublished: editDetail.isPublished, showInFooter: editDetail.showInFooter,
+        footerGroup: editDetail.footerGroup || "",
         seoTitle: editDetail.seoTitle || "", seoDescription: editDetail.seoDescription || "",
       });
     }
@@ -113,6 +114,17 @@ function PagesTab() {
               <label className="flex items-center gap-2 text-sm"><Switch checked={form.isPublished} onCheckedChange={(v) => setForm({ ...form, isPublished: v })} data-testid="switch-page-published" />Published</label>
               <label className="flex items-center gap-2 text-sm"><Switch checked={form.showInFooter} onCheckedChange={(v) => setForm({ ...form, showInFooter: v })} data-testid="switch-page-footer" />Link in footer</label>
             </div>
+            {form.showInFooter && (
+              <div className="space-y-1.5">
+                <Label>Footer column (optional)</Label>
+                <Input
+                  value={form.footerGroup}
+                  onChange={(e) => setForm({ ...form, footerGroup: e.target.value })}
+                  placeholder="e.g. Help, Company, Legal"
+                  data-testid="input-page-footer-group"
+                />
+              </div>
+            )}
             <details className="rounded-md border p-3 text-sm">
               <summary className="cursor-pointer font-medium">Search engine listing</summary>
               <div className="mt-3 space-y-3">

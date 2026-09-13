@@ -2244,7 +2244,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     selectedOptions: z.any().nullable().optional(),
   });
   const draftOrderSchema = z.object({
-    orderType: z.enum(["pickup", "shipping", "dine_in"]).default("pickup"),
+    // "dine-in" (hyphen) is the value POS.tsx/businessType.ts actually send —
+    // this previously required "dine_in" (underscore), which no client ever sends,
+    // so every dine-in POS order failed zod validation before reaching the DB.
+    orderType: z.enum(["pickup", "shipping", "dine-in"]).default("pickup"),
     customerName: z.string().nullable().optional(),
     customerPhone: z.string().nullable().optional(),
     customerEmail: z.string().nullable().optional(),
@@ -3493,51 +3496,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { startDate, endDate } = resolveDateFilter(dateFilter);
 
       const allOrders = await storage.getOrders(restaurant.id);
-      
+
       // Filter orders by date range
       const orders = allOrders.filter(order => {
         if (!order.createdAt) return false;
         const orderDate = new Date(order.createdAt);
-        
+
         if (endDate) {
           // For date ranges with both start and end (like last-month)
           return orderDate >= startDate && orderDate <= endDate;
         }
-        
+
         // For date ranges with only start date (like year, this-month, last-7-days)
         return orderDate >= startDate;
       });
-      
-      // Calculate revenue metrics and breakdown in a single pass
+
+      // Calculate revenue metrics and breakdown in a single pass. Real order-type
+      // values used across checkout/POS/draft-orders are 'dine-in', 'pickup', and
+      // 'shipping' (businessType.ts's canonical convention — hyphen, not underscore)
+      // — this previously matched 'dine-in'(*)/'takeout'/'delivery'/'online', where
+      // only the *unhyphenated* dine-in case would ever have matched, so the
+      // breakdown showed $0 for takeout/delivery/online for every restaurant.
       let totalRevenue = 0;
       let dineInRevenue = 0;
-      let takeoutRevenue = 0;
-      let deliveryRevenue = 0;
-      let onlineRevenue = 0;
-      
+      let pickupRevenue = 0;
+      let shippingRevenue = 0;
+
       for (const order of orders) {
         const orderTotal = parseFloat(order.total);
         totalRevenue += orderTotal;
-        
+
         switch (order.orderType) {
           case 'dine-in':
             dineInRevenue += orderTotal;
             break;
-          case 'takeout':
-            takeoutRevenue += orderTotal;
+          case 'pickup':
+            pickupRevenue += orderTotal;
             break;
-          case 'delivery':
-            deliveryRevenue += orderTotal;
-            break;
-          case 'online':
-            onlineRevenue += orderTotal;
+          case 'shipping':
+            shippingRevenue += orderTotal;
             break;
         }
       }
-      
-      const averageOrder = orders.length > 0 
+
+      const averageOrder = orders.length > 0
         ? (totalRevenue / orders.length).toFixed(2)
         : "0";
+
+      // Real period-over-period comparison — same-length window immediately
+      // preceding the selected range. null (not 0/Infinity) when the previous
+      // window has no orders to compare against, so the client can honestly
+      // show "New" instead of a fabricated or divide-by-zero percentage.
+      const periodEnd = endDate ?? new Date();
+      const periodMs = periodEnd.getTime() - startDate.getTime();
+      const prevStart = new Date(startDate.getTime() - periodMs);
+      const prevEnd = new Date(startDate.getTime() - 1);
+      const prevOrders = allOrders.filter(order => {
+        if (!order.createdAt) return false;
+        const orderDate = new Date(order.createdAt);
+        return orderDate >= prevStart && orderDate <= prevEnd;
+      });
+      const prevRevenue = prevOrders.reduce((sum, o) => sum + parseFloat(o.total), 0);
+      const prevAverageOrder = prevOrders.length > 0 ? prevRevenue / prevOrders.length : 0;
+      const pctChange = (current: number, previous: number): number | null =>
+        previous > 0 ? Math.round(((current - previous) / previous) * 1000) / 10 : null;
+      const revenueChangePercent = pctChange(totalRevenue, prevRevenue);
+      const ordersChangePercent = pctChange(orders.length, prevOrders.length);
+      const averageOrderChangePercent = pctChange(parseFloat(averageOrder), prevAverageOrder);
       
       // Fetch all order items in one batched query
       const allOrderItems = await storage.getAllOrderItems(restaurant.id);
@@ -3596,9 +3621,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         popularItemsCount: popularItems.length,
         popularItems,
         dineInRevenue: dineInRevenue.toFixed(2),
-        takeoutRevenue: takeoutRevenue.toFixed(2),
-        deliveryRevenue: deliveryRevenue.toFixed(2),
-        onlineRevenue: onlineRevenue.toFixed(2),
+        pickupRevenue: pickupRevenue.toFixed(2),
+        shippingRevenue: shippingRevenue.toFixed(2),
+        revenueChangePercent,
+        ordersChangePercent,
+        averageOrderChangePercent,
       });
     } catch (error) {
       console.error("Error fetching detailed analytics:", error);
@@ -4022,7 +4049,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const restaurant = await storage.getRestaurantBySlug(req.params.slug);
     if (!restaurant) return res.status(404).json({ message: "Store not found" });
     const pages = (await storage.listPages(restaurant.id)).filter((p) => p.isPublished);
-    res.json(pages.map((p) => ({ id: p.id, title: p.title, handle: p.handle, showInFooter: p.showInFooter, sortOrder: p.sortOrder })));
+    res.json(pages.map((p) => ({ id: p.id, title: p.title, handle: p.handle, showInFooter: p.showInFooter, footerGroup: p.footerGroup, sortOrder: p.sortOrder })));
   });
   app.get('/api/storefront/:slug/pages/:handle', async (req, res) => {
     const restaurant = await storage.getRestaurantBySlug(req.params.slug);
@@ -4084,7 +4111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const restaurant = await storage.getRestaurantBySlug(req.params.slug);
       if (!restaurant) return res.status(404).json({ message: "Store not found" });
       const item = await storage.getMenuItemByHandle(restaurant.id, req.params.handle);
-      if (!item || !item.isAvailable) return res.status(404).json({ message: "Product not found" });
+      if (!item || !item.isAvailable || !(item as any).visibleOnline) return res.status(404).json({ message: "Product not found" });
       res.json(item);
     } catch (error) {
       logError("Storefront item by handle failed", error);
@@ -4454,6 +4481,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const data = onlineOrderSchema.parse(req.body);
+
+      // Card payments (Stripe/Apple Pay/Google Pay) aren't implemented anywhere in this
+      // codebase yet — reject before any order/promo/loyalty work happens, rather than
+      // creating an order the merchant will never get paid for. The storefront no longer
+      // offers these as checkout options; this is a defense-in-depth guard against stale
+      // clients or other API callers.
+      if (data.paymentMethod === 'stripe' || data.paymentMethod === 'apple' || data.paymentMethod === 'google') {
+        return res.status(503).json({
+          message: "Online card payments aren't available yet. Please choose Cash on Delivery or PayPal.",
+        });
+      }
+
       const orderNumber = await generateOrderNumber(restaurant.id, 'WEB');
       const subtotalNum = parseFloat(data.subtotal || "0");
       const deliveryFeeNum = parseFloat(data.deliveryFee || "0");
@@ -4757,31 +4796,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         logInfo('PayPal payment flow initiated', { orderId: order.id });
         res.json({ orderId: order.id, paymentMethod: 'paypal' });
-      } else if (data.paymentMethod === 'apple' || data.paymentMethod === 'google' || data.paymentMethod === 'stripe') {
-        // Apple Pay, Google Pay, or Stripe payment - all use Stripe
-        if (!stripe) {
-          logError(`${data.paymentMethod} payment requested but Stripe is not configured`);
-          return res.status(503).json({ 
-            message: "Online payments are not available. Please contact the restaurant or use cash on delivery." 
-          });
-        }
-        
-        logWarn(`${data.paymentMethod} payment flow not fully implemented`, { orderId: order.id });
-        // TODO: Create Stripe checkout session or PaymentIntent
-        res.json({ 
-          orderId: order.id, 
-          paymentMethod: data.paymentMethod,
-          checkoutUrl: null,
-          message: 'Payment processing not yet implemented. Please use cash on delivery.' 
-        });
       } else {
-        // Unknown payment method
-        logWarn('Unknown payment method requested', { 
-          paymentMethod: data.paymentMethod, 
-          orderId: order.id 
+        // Unknown payment method — stripe/apple/google are already rejected earlier,
+        // before order creation, so reaching here means a genuinely unrecognized value.
+        logWarn('Unknown payment method requested', {
+          paymentMethod: data.paymentMethod,
+          orderId: order.id
         });
-        res.status(400).json({ 
-          message: `Payment method '${data.paymentMethod}' is not supported. Please use cash, stripe, or paypal.` 
+        res.status(400).json({
+          message: `Payment method '${data.paymentMethod}' is not supported. Please use cash or paypal.`
         });
       }
     } catch (error) {
