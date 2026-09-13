@@ -63,6 +63,7 @@ import { StorefrontHeader } from "@/components/storefront/StorefrontHeader";
 import { VariantPicker } from "@/components/storefront/VariantPicker";
 import { ItemOptionsForm } from "@/components/storefront/ItemOptionsForm";
 import { StorefrontFooter } from "@/components/storefront/StorefrontFooter";
+import { StorefrontBrandStyle } from "@/components/storefront/StorefrontBrandStyle";
 import { useStorefrontCart, type CartItem } from "@/hooks/useStorefrontCart";
 
 interface StorefrontPromo {
@@ -241,6 +242,7 @@ export default function Storefront() {
   );
   const cardStyle: "standard" | "bordered" =
     (restaurant as any)?.themeSettings?.cardStyle === "standard" ? "standard" : "bordered";
+  const themeId = (restaurant as any)?.themeSettings?.themeId as string | undefined;
 
   const sfSlug = slug || restaurant?.slug || undefined;
   const { cart, setCart } = useStorefrontCart(sfSlug);
@@ -1384,103 +1386,10 @@ export default function Storefront() {
     return convertAndFormatPrice(numPrice, restaurant.currency || 'USD', selectedMarket);
   };
 
-  // Helper function to convert hex to HSL
-  const hexToHSL = (hex: string): { h: number; s: number; l: number; hslString: string } => {
-    // Remove # if present
-    hex = hex.replace(/^#/, '');
-    
-    // Convert hex to RGB
-    const r = parseInt(hex.substring(0, 2), 16) / 255;
-    const g = parseInt(hex.substring(2, 4), 16) / 255;
-    const b = parseInt(hex.substring(4, 6), 16) / 255;
-    
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    let h = 0, s = 0, l = (max + min) / 2;
-    
-    if (max !== min) {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      
-      switch (max) {
-        case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-        case g: h = ((b - r) / d + 2) / 6; break;
-        case b: h = ((r - g) / d + 4) / 6; break;
-      }
-    }
-    
-    return {
-      h: Math.round(h * 360),
-      s: Math.round(s * 100),
-      l: Math.round(l * 100),
-      hslString: `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`
-    };
-  };
-
-  // Calculate relative luminance for WCAG contrast
-  const getLuminance = (r: number, g: number, b: number): number => {
-    const [rs, gs, bs] = [r, g, b].map(val => {
-      val = val / 255;
-      return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4);
-    });
-    return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
-  };
-
-  // Calculate contrast ratio between two colors
-  const getContrastRatio = (lum1: number, lum2: number): number => {
-    const lighter = Math.max(lum1, lum2);
-    const darker = Math.min(lum1, lum2);
-    return (lighter + 0.05) / (darker + 0.05);
-  };
-
-  // Get best foreground color (black or white) for WCAG AA compliance (4.5:1)
-  const getForegroundFromHex = (hex: string): string => {
-    // Remove # if present
-    hex = hex.replace(/^#/, '');
-    
-    // Convert hex to RGB
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-    
-    const bgLuminance = getLuminance(r, g, b);
-    const whiteLuminance = 1; // White has luminance of 1
-    const blackLuminance = 0; // Black has luminance of 0
-    
-    const whiteContrast = getContrastRatio(whiteLuminance, bgLuminance);
-    const blackContrast = getContrastRatio(bgLuminance, blackLuminance);
-    
-    // Return white if it has better contrast, otherwise black
-    // Ensure minimum 4.5:1 ratio for WCAG AA compliance
-    return whiteContrast >= blackContrast ? '0 0% 100%' : '0 0% 10%';
-  };
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Inject custom brand colors */}
-      {restaurant && (restaurant.primaryColor || restaurant.secondaryColor || restaurant.accentColor) && (() => {
-        const primaryHex = restaurant.primaryColor || '#f97316';
-        const secondaryHex = restaurant.secondaryColor || '#fb923c';
-        const accentHex = restaurant.accentColor || '#fdba74';
-        
-        const primary = hexToHSL(primaryHex);
-        const secondary = hexToHSL(secondaryHex);
-        const accent = hexToHSL(accentHex);
-        
-        return (
-          <style>{`
-            :root {
-              --primary: ${primary.hslString};
-              --primary-foreground: ${getForegroundFromHex(primaryHex)};
-              --secondary: ${secondary.hslString};
-              --secondary-foreground: ${getForegroundFromHex(secondaryHex)};
-              --accent: ${accent.hslString};
-              --accent-foreground: ${getForegroundFromHex(accentHex)};
-              --ring: ${primary.hslString};
-            }
-          `}</style>
-        );
-      })()}
+      {/* Inject custom brand colors + per-theme overrides */}
+      <StorefrontBrandStyle restaurant={restaurant} themeId={themeId} />
       
       {/* Pixel Tracking Scripts */}
       {restaurant && (
@@ -2125,18 +2034,19 @@ export default function Storefront() {
         todayHoursText={todayHoursText}
         isOpen={isRestaurantOpen(restaurant.openingHours as OpeningHours)}
         t={t}
-        themeId={(restaurant as any)?.themeSettings?.themeId}
+        themeId={themeId as any}
+        shopHref={shopHref}
       />
 
       {/* Full-theme content block — one per theme, lives above the merchant's own
           ThemeSections content so switching themes never touches it */}
-      {(restaurant as any)?.themeSettings?.themeId === "editorial" && (
+      {themeId === "editorial" && (
         <MarqueeBanner restaurant={restaurant} />
       )}
-      {(restaurant as any)?.themeSettings?.themeId === "fresh" && categories && (
+      {themeId === "fresh" && categories && (
         <CategoryIconGrid categories={categories} items={items || []} onSelectCategory={setSelectedCategory} />
       )}
-      {(restaurant as any)?.themeSettings?.themeId === "wellness" && items && (
+      {themeId === "wellness" && items && (
         <ProductTabsCarousel
           items={items}
           formatPrice={formatPrice}
@@ -2293,7 +2203,7 @@ export default function Storefront() {
                       displayName={translatedItem.name}
                       displayDescription={translatedItem.description}
                       cardStyle={cardStyle}
-                      theme={(restaurant as any)?.themeSettings?.themeId}
+                      theme={themeId as any}
                       formattedPrice={formatPrice(item.price)}
                       isBoosted={isItemBoosted(item.name)}
                       onSelect={() => handleItemSelect(item)}
@@ -2334,7 +2244,7 @@ export default function Storefront() {
                         displayName={translatedItem.name}
                         displayDescription={translatedItem.description}
                         cardStyle={cardStyle}
-                        theme={(restaurant as any)?.themeSettings?.themeId}
+                        theme={themeId as any}
                         formattedPrice={formatPrice(item.price)}
                         isBoosted={isItemBoosted(item.name)}
                         scarcity={
@@ -2394,7 +2304,7 @@ export default function Storefront() {
                   displayName={translatedItem.name}
                   displayDescription={translatedItem.description}
                   cardStyle={cardStyle}
-                  theme={(restaurant as any)?.themeSettings?.themeId}
+                  theme={themeId as any}
                   formattedPrice={formatPrice(item.price)}
                   isBoosted={isItemBoosted(item.name)}
                   scarcity={

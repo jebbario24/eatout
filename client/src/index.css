@@ -83,7 +83,10 @@
   --chart-5: 0 0% 40%;
 
   --font-sans: Inter, system-ui, -apple-system, sans-serif;
-  --font-serif: Georgia, serif;
+  /* Only the storefront's "Atelier" theme uses font-serif (HeroEditorial, and
+     MenuItemCard when theme === "editorial") — safe to point it at a real
+     display serif instead of the generic Georgia fallback. */
+  --font-serif: "Playfair Display", Georgia, serif;
   --font-mono: Menlo, monospace;
   --font-display: "Outfit", Inter, system-ui, -apple-system, sans-serif;
   --radius: .75rem; /* 12px */

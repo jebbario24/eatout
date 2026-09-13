@@ -7,6 +7,7 @@ import { useStorefrontCart } from "@/hooks/useStorefrontCart";
 import { useStorefrontMarket } from "@/hooks/useStorefrontMarket";
 import { useStorefrontCustomer } from "@/hooks/useStorefrontCustomer";
 import { StorefrontHeader } from "@/components/storefront/StorefrontHeader";
+import { StorefrontBrandStyle } from "@/components/storefront/StorefrontBrandStyle";
 import { StorefrontCartSheet } from "@/components/storefront/StorefrontCartSheet";
 import { CustomerAuthDialog } from "@/components/storefront/CustomerAuthDialog";
 import { MenuItemCard } from "@/components/storefront/MenuItemCard";
@@ -177,6 +178,7 @@ export default function StorefrontShop() {
 
   return (
     <div className="min-h-screen bg-background">
+      <StorefrontBrandStyle restaurant={restaurant} themeId={(restaurant as any)?.themeSettings?.themeId} />
       {restaurant && (
         <StorefrontHeader
           restaurant={restaurant}

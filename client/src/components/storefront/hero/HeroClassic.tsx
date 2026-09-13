@@ -8,6 +8,9 @@ export interface StorefrontHeroProps {
   todayHoursText: string;
   isOpen: boolean;
   t: (key: string) => string;
+  // Link to the full catalog/shop page — only the Atelier hero renders a CTA
+  // with it today, but it's on the shared props so any hero variant can use it.
+  shopHref?: string;
 }
 
 // Extracted verbatim from the storefront's original fixed hero — the fallback for

@@ -14,10 +14,10 @@ export const STOREFRONT_THEMES: StorefrontThemeDef[] = [
   {
     id: "editorial",
     name: "Atelier",
-    description: "Full-bleed photography, serif headlines, and a scrolling marquee — an editorial, fashion-forward look.",
-    primaryColor: "#171412",
-    secondaryColor: "#3a3532",
-    accentColor: "#c9a876",
+    description: "Cream backdrop, serif headlines, and dusty-rose accents — a soft, boutique-fashion look.",
+    primaryColor: "#b5677d",
+    secondaryColor: "#e8c3ca",
+    accentColor: "#f3e0d3",
     cardStyle: "standard",
   },
   {

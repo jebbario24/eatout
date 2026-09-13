@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
+import { Link } from "wouter";
 import { Star, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { StorefrontHeroProps } from "./HeroClassic";
 
 const fadeUp = {
@@ -15,7 +17,7 @@ const staggerContainer = {
 // Full-bleed photography, serif display headline, pill-shaped status badge —
 // an editorial/fashion-forward hero. Layout only; colors come from the merchant's
 // theme-seeded primary/secondary/accent CSS vars, same as every other theme.
-export function HeroEditorial({ restaurant, reviews, todayHoursText, isOpen, t }: StorefrontHeroProps) {
+export function HeroEditorial({ restaurant, reviews, todayHoursText, isOpen, t, shopHref }: StorefrontHeroProps) {
   const avgRating = reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0;
 
   return (
@@ -70,6 +72,20 @@ export function HeroEditorial({ restaurant, reviews, todayHoursText, isOpen, t }
           <motion.div variants={fadeUp} className="mt-5 flex items-center gap-2 text-sm text-white/70">
             <Clock className="h-4 w-4" />
             <span data-testid="text-today-hours">{todayHoursText}</span>
+          </motion.div>
+        )}
+
+        {shopHref && (
+          <motion.div variants={fadeUp} className="mt-7">
+            <Link href={shopHref}>
+              <Button
+                size="lg"
+                className="rounded-full bg-background text-foreground hover:bg-background/90 px-8"
+                data-testid="button-hero-shop-now"
+              >
+                Shop now
+              </Button>
+            </Link>
           </motion.div>
         )}
       </motion.div>
