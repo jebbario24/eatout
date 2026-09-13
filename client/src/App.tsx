@@ -144,7 +144,6 @@ function AuthenticatedRouter() {
       <Route path="/growth" component={Growth} />
       <Route path="/markets" component={Markets} />
       <Route path="/online-store" component={OnlineStoreThemes} />
-      <Route path="/online-store/customize" component={OnlineStoreCustomize} />
       <Route path="/online-store/content" component={StorefrontContent} />
       <Route path="/settings" component={Settings} />
       <Route path="/pos" component={POS} />
@@ -229,6 +228,37 @@ function AppContent() {
   );
 }
 
+// The theme editor is a full-screen tool (its own header, back button, and live
+// preview pane) meant to be opened in its own tab — the dashboard's sidebar/topbar
+// would only eat into its already-tight layout, so it bypasses AppContent's shell
+// entirely rather than rendering inside <AuthenticatedRouter>.
+function ThemeEditorPage() {
+  const { isAuthenticated, isLoading } = useAuth();
+  usePlatformLanguage();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
+  return (
+    <SubscriptionGuard>
+      <RestaurantSetupGuard>
+        <div className="h-screen w-full overflow-hidden">
+          <OnlineStoreCustomize />
+        </div>
+      </RestaurantSetupGuard>
+    </SubscriptionGuard>
+  );
+}
+
 function StorefrontRouter() {
   return (
     <StorefrontCartProvider>
@@ -258,6 +288,7 @@ function StorefrontRouter() {
 function App() {
   const currentPath = window.location.pathname;
   const isStorefrontPath = currentPath.startsWith('/store/');
+  const isThemeEditorPath = currentPath.startsWith('/online-store/customize');
 
   const hostname = window.location.hostname;
   const parts = hostname.split('.');
@@ -272,6 +303,17 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <StorefrontRouter />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  if (isThemeEditorPath) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <ThemeEditorPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

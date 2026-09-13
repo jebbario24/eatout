@@ -1,4 +1,3 @@
-import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Restaurant } from "@shared/schema";
@@ -111,12 +110,12 @@ export default function OnlineStoreThemes() {
                 </p>
                 <p className="text-xs text-muted-foreground">{activePreset ? activePreset.name : "Custom"} theme</p>
               </div>
-              <Link href="/online-store/customize">
+              <a href="/online-store/customize" target="_blank" rel="noopener noreferrer">
                 <Button size="sm" data-testid="button-customize-theme">
                   <Palette className="h-4 w-4 mr-2" />
                   Edit theme
                 </Button>
-              </Link>
+              </a>
             </div>
           </div>
         </CardContent>

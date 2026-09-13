@@ -175,6 +175,10 @@ export default function Dashboard() {
       label: "Customize your online store",
       done: hasThemeSections,
       href: "/online-store/customize",
+      // The theme editor is a standalone full-screen tool without the dashboard
+      // sidebar/topbar — it lives outside the SPA route tree, so it must be
+      // opened as a real navigation (new tab) rather than a client-side Link.
+      openInNewTab: true,
     },
   ];
   const allSetupDone = setupTasks.every((t) => t.done);
@@ -280,8 +284,8 @@ export default function Dashboard() {
             <CardTitle>Setup guide</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            {setupTasks.map((task) => (
-              <Link key={task.key} href={task.href}>
+            {setupTasks.map((task) => {
+              const content = (
                 <div className="flex items-center gap-3 p-2 rounded-md hover-elevate cursor-pointer" data-testid={`setup-task-${task.key}`}>
                   {task.done ? (
                     <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
@@ -290,8 +294,17 @@ export default function Dashboard() {
                   )}
                   <span className={task.done ? "text-muted-foreground line-through" : ""}>{task.label}</span>
                 </div>
-              </Link>
-            ))}
+              );
+              return task.openInNewTab ? (
+                <a key={task.key} href={task.href} target="_blank" rel="noopener noreferrer">
+                  {content}
+                </a>
+              ) : (
+                <Link key={task.key} href={task.href}>
+                  {content}
+                </Link>
+              );
+            })}
           </CardContent>
         </Card>
       )}
