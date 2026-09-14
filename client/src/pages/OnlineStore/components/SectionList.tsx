@@ -31,7 +31,7 @@ export function SectionList({ sections, currentPage, selectedKey, onSelect, onTo
   // Footer/Social Links stay visible either way since they're shared across
   // every page, matching Shopify's own Header/Template/Footer grouping where
   // only the Template section swaps per the page picker up top.
-  currentPage: "home" | "product";
+  currentPage: "home" | "product" | "contact";
   selectedKey: string;
   onSelect: (key: string) => void;
   onToggle: (key: string, enabled: boolean) => void;
@@ -82,6 +82,15 @@ export function SectionList({ sections, currentPage, selectedKey, onSelect, onTo
           >
             <ShoppingBag className="h-4 w-4 shrink-0 text-muted-foreground" />
             <p className="text-sm font-medium">Product Page</p>
+          </button>
+        ) : currentPage === "contact" ? (
+          <button
+            onClick={() => onSelect("contactPage")}
+            className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left ${selectedKey === "contactPage" ? "bg-accent" : "hover:bg-accent/50"}`}
+            data-testid="button-section-contactPage"
+          >
+            <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <p className="text-sm font-medium">Contact Page</p>
           </button>
         ) : (
         <>

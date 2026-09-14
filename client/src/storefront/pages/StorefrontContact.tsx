@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import type { MerchantThemeSettings } from "@shared/schema";
@@ -29,17 +29,35 @@ export function StorefrontContact({ slug }: { slug: string }) {
   const [cartOpen, setCartOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
+  const [draft, setDraft] = useState<{ themeSettings?: MerchantThemeSettings } | null>(null);
   const cart = useCart(slug);
   const { toast } = useToast();
   const base = `/store/${slug}`;
 
   const { data: merchant } = useQuery<StorefrontMerchant>({ queryKey: [`/api/storefront/${slug}`] });
+
+  useEffect(() => {
+    if (!isPreview) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === "STOREFRONT_DRAFT_UPDATE") {
+        setDraft({ themeSettings: event.data.themeSettings });
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  const themeSettings = draft?.themeSettings || merchant?.themeSettings;
   const formatPrice = (n: number) => convertAndFormatPrice(n, merchant?.currency || "USD", null);
-  const theme = resolveTheme(merchant?.themeSettings?.theme);
+  const theme = resolveTheme(themeSettings?.theme);
   const T = STOREFRONT_THEMES[theme];
-  const headerSection = merchant?.themeSettings?.layout?.sections?.find((s) => s.type === "header");
-  const footerSection = merchant?.themeSettings?.layout?.sections?.find((s) => s.type === "footer");
+  const headerSection = themeSettings?.layout?.sections?.find((s) => s.type === "header");
+  const footerSection = themeSettings?.layout?.sections?.find((s) => s.type === "footer");
   const isAdanola = theme === "adanola";
+  const contactPage = themeSettings?.contactPage || {};
+  const heading = contactPage.heading?.trim() || "Contact us";
+  const description = contactPage.description?.trim() || "Have a question about an order or a product? Send us a message and we'll get back to you.";
+  const submitButtonText = contactPage.submitButtonText?.trim() || "Send message";
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -89,10 +107,10 @@ export function StorefrontContact({ slug }: { slug: string }) {
           <span className="text-foreground">Contact</span>
         </nav>
         <h1 className={isAdanola ? "mb-3 text-2xl font-bold text-foreground" : "mb-3 font-serif text-3xl font-normal tracking-tight sm:text-4xl"}>
-          Contact us
+          {heading}
         </h1>
         <p className="mb-10 text-[15px] text-muted-foreground">
-          Have a question about an order or a product? Send us a message and we'll get back to you.
+          {description}
         </p>
 
         {sent ? (
@@ -125,7 +143,7 @@ export function StorefrontContact({ slug }: { slug: string }) {
               disabled={isSubmitting}
               className={isAdanola ? "h-11 rounded px-8 text-xs font-medium uppercase tracking-wide" : "h-11 rounded-none px-8 text-[13px] font-normal uppercase tracking-[0.1em]"}
             >
-              {isSubmitting ? "Sending..." : "Send message"}
+              {isSubmitting ? "Sending..." : submitButtonText}
             </Button>
           </form>
         )}

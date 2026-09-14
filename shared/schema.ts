@@ -1704,11 +1704,20 @@ export interface ProductPageSettings {
   showWishlist?: boolean;
 }
 
+// Contact-page-specific settings — like the product page, this isn't
+// section-based (it's one fixed form), just a few editable knobs.
+export interface ContactPageSettings {
+  heading?: string;
+  description?: string;
+  submitButtonText?: string;
+}
+
 export interface MerchantThemeSettings {
   version: 1;
   theme?: StorefrontThemeId;
   layout: { sections: ThemeSection[] };
   productPage?: ProductPageSettings;
+  contactPage?: ContactPageSettings;
   meta: { lastPublishedAt: string | null; brandStyle: string | null };
 }
 

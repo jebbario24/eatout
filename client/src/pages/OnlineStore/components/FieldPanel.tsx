@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineImageUploader } from "@/components/InlineImageUploader";
 import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
-import type { ThemeSection, ProductPageSettings } from "@shared/schema";
+import type { ThemeSection, ProductPageSettings, ContactPageSettings } from "@shared/schema";
 import { TRUST_BADGE_ICONS } from "@/storefront/components/TrustBadges";
 
 interface Collection {
@@ -72,16 +72,18 @@ function ToggleRow({ label, checked, onChange, testId }: { label: string; checke
   );
 }
 
-export function FieldPanel({ selectedKey, section, socialLinks, productPage, onFieldsChange, onSocialLinksChange, onProductPageChange }: {
+export function FieldPanel({ selectedKey, section, socialLinks, productPage, contactPage, onFieldsChange, onSocialLinksChange, onProductPageChange, onContactPageChange }: {
   selectedKey: string;
   section: ThemeSection | undefined;
   socialLinks: Record<string, string>;
   productPage: ProductPageSettings;
+  contactPage: ContactPageSettings;
   // Keyed by `section.id || section.type` — plain `type` isn't unique once a
   // store can have more than one "customEmbed" section.
   onFieldsChange: (key: string, fields: Record<string, any>) => void;
   onSocialLinksChange: (links: Record<string, string>) => void;
   onProductPageChange: (patch: ProductPageSettings) => void;
+  onContactPageChange: (patch: ContactPageSettings) => void;
 }) {
   const { data: collections = [] } = useQuery<Collection[]>({
     queryKey: ["/api/collections"],
@@ -179,6 +181,43 @@ export function FieldPanel({ selectedKey, section, socialLinks, productPage, onF
           testId="toggle-product-show-about"
         />
         <p className="text-xs text-muted-foreground">Reuses the same About Us section content from above — set it up there first.</p>
+      </div>
+    );
+  }
+
+  if (selectedKey === "contactPage") {
+    const setContactPage = (patch: ContactPageSettings) => onContactPageChange({ ...contactPage, ...patch });
+    return (
+      <div className="space-y-5 p-4">
+        <h3 className="font-semibold">Contact Page</h3>
+        <p className="text-xs text-muted-foreground">
+          Its header and footer come from the Header and Footer sections above. Submitted messages land in your Inbox.
+        </p>
+        <Field label="Heading">
+          <Input
+            value={contactPage.heading || ""}
+            onChange={(e) => setContactPage({ heading: e.target.value })}
+            placeholder="Contact us"
+            data-testid="input-contact-heading"
+          />
+        </Field>
+        <Field label="Description">
+          <Textarea
+            value={contactPage.description || ""}
+            onChange={(e) => setContactPage({ description: e.target.value })}
+            rows={3}
+            placeholder="Have a question about an order or a product? Send us a message and we'll get back to you."
+            data-testid="input-contact-description"
+          />
+        </Field>
+        <Field label="Submit button text">
+          <Input
+            value={contactPage.submitButtonText || ""}
+            onChange={(e) => setContactPage({ submitButtonText: e.target.value })}
+            placeholder="Send message"
+            data-testid="input-contact-submit-text"
+          />
+        </Field>
       </div>
     );
   }

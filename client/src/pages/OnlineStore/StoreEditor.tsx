@@ -1,21 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ExternalLink, Loader2, Home, ShoppingBag, ChevronDown } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, Home, ShoppingBag, Mail, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Merchant, MerchantThemeSettings, ThemeSection, ThemeSectionType, ProductPageSettings, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
+import type { Merchant, MerchantThemeSettings, ThemeSection, ThemeSectionType, ProductPageSettings, ContactPageSettings, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
 import { SectionList } from "./components/SectionList";
 import { FieldPanel } from "./components/FieldPanel";
 import { DeviceSwitcher, DEVICE_WIDTHS, type DeviceMode } from "./components/DeviceSwitcher";
 import { hasValidThemeSettings } from "@/storefront/lib/themeSettings";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const PAGE_META = {
+type EditorPage = "home" | "product" | "contact";
+
+const PAGE_META: Record<EditorPage, { label: string; icon: typeof Home }> = {
   home: { label: "Home page", icon: Home },
   product: { label: "Product page", icon: ShoppingBag },
-} as const;
+  contact: { label: "Contact page", icon: Mail },
+};
 
 // Starter fields for a freshly-added instance of each type — same shape
 // `storeIntelligence.ts` uses for the AI-generated originals, just generic
@@ -38,7 +41,7 @@ export default function StoreEditor() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [selectedKey, setSelectedKey] = useState<string>("hero");
   const [device, setDevice] = useState<DeviceMode>("desktop");
-  const [currentPage, setCurrentPageState] = useState<"home" | "product">("home");
+  const [currentPage, setCurrentPageState] = useState<EditorPage>("home");
   const [themeSettings, setThemeSettings] = useState<MerchantThemeSettings | null>(null);
   const [socialLinks, setSocialLinks] = useState<Record<string, string> | null>(null);
   const [isSaving, setIsSaving] = useState<"save" | "publish" | null>(null);
@@ -111,14 +114,18 @@ export default function StoreEditor() {
     setThemeSettings((prev) => (prev ? { ...prev, productPage: { ...prev.productPage, ...patch } } : prev));
   };
 
+  const handleContactPageChange = (patch: ContactPageSettings) => {
+    setThemeSettings((prev) => (prev ? { ...prev, contactPage: { ...prev.contactPage, ...patch } } : prev));
+  };
+
   // The page picker drives both which page shows in the preview and which
   // "Template" content the sidebar lists (matching Shopify's own Header/
   // Template/Footer grouping) — so switching pages also jumps the field
   // panel to something sensible for that page instead of leaving it stuck
   // on whatever was selected before.
-  const setCurrentPage = (page: "home" | "product") => {
+  const setCurrentPage = (page: EditorPage) => {
     setCurrentPageState(page);
-    setSelectedKey(page === "product" ? "productPage" : "hero");
+    setSelectedKey(page === "product" ? "productPage" : page === "contact" ? "contactPage" : "hero");
   };
 
   const handleAddSection = (type: ThemeSectionType) => {
@@ -207,6 +214,10 @@ export default function StoreEditor() {
                 Product page
                 {!previewProduct && <span className="ml-auto text-xs text-muted-foreground">Add a product first</span>}
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setCurrentPage("contact")} data-testid="menuitem-page-contact">
+                <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
+                Contact page
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <DeviceSwitcher mode={device} onChange={setDevice} />
@@ -242,7 +253,13 @@ export default function StoreEditor() {
           <div className="h-full overflow-hidden rounded-lg border bg-background shadow-sm transition-all" style={{ width: DEVICE_WIDTHS[device] }}>
             <iframe
               ref={iframeRef}
-              src={currentPage === "product" && previewProduct ? `/store/${merchant.slug}/products/${previewProduct.handle}?preview=1` : `/store/${merchant.slug}?preview=1`}
+              src={
+                currentPage === "product" && previewProduct
+                  ? `/store/${merchant.slug}/products/${previewProduct.handle}?preview=1`
+                  : currentPage === "contact"
+                  ? `/store/${merchant.slug}/contact?preview=1`
+                  : `/store/${merchant.slug}?preview=1`
+              }
               className="h-full w-full border-0"
               title="Store preview"
               onLoad={() => setIframeReady(true)}
@@ -256,9 +273,11 @@ export default function StoreEditor() {
             section={activeSection}
             socialLinks={socialLinks!}
             productPage={themeSettings.productPage || {}}
+            contactPage={themeSettings.contactPage || {}}
             onFieldsChange={handleFieldsChange}
             onSocialLinksChange={setSocialLinks}
             onProductPageChange={handleProductPageChange}
+            onContactPageChange={handleContactPageChange}
           />
         </div>
       </div>
