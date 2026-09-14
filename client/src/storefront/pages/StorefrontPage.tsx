@@ -8,13 +8,20 @@ import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
 import { CartDrawer } from "@/storefront/components/CartDrawer";
 import { Markdown } from "@/components/Markdown";
 import { convertAndFormatPrice } from "@/lib/currency";
+import { PixelScripts } from "@/components/PixelScripts";
 
 interface StorefrontRestaurant {
   name: string;
   currency: string;
   themeSettings: RestaurantThemeSettings | null;
   socialLinks: Record<string, string> | null;
+  metaPixelId?: string | null;
+  tiktokPixelId?: string | null;
+  googleAnalyticsId?: string | null;
+  googleAdsId?: string | null;
 }
+
+const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
 
 interface PageDetail {
   title: string;
@@ -53,6 +60,14 @@ export function StorefrontPage({ slug, handle }: { slug: string; handle: string 
 
   return (
     <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
+      {!isPreview && restaurant && (
+        <PixelScripts
+          metaPixelId={restaurant.metaPixelId || undefined}
+          tiktokPixelId={restaurant.tiktokPixelId || undefined}
+          googleAnalyticsId={restaurant.googleAnalyticsId || undefined}
+          googleAdsId={restaurant.googleAdsId || undefined}
+        />
+      )}
       {headerSection && restaurant && (
         <T.Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
       )}

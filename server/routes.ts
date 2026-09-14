@@ -3448,6 +3448,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         socialLinks: restaurant.socialLinks,
         seoTitle: restaurant.seoTitle,
         seoDescription: restaurant.seoDescription,
+        // Pixel/analytics IDs are meant to be public — they're embedded in
+        // the page source on every real storefront so the vendor's script
+        // can read them client-side, same as Shopify/Meta/GA docs show.
+        metaPixelId: restaurant.metaPixelId,
+        tiktokPixelId: restaurant.tiktokPixelId,
+        googleAnalyticsId: restaurant.googleAnalyticsId,
+        googleAdsId: restaurant.googleAdsId,
       });
     } catch (error) {
       logError("Storefront restaurant lookup failed", error);

@@ -7,6 +7,7 @@ import { useCart } from "@/storefront/lib/cartStore";
 import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
 import { CartDrawer } from "@/storefront/components/CartDrawer";
 import type { StorefrontProduct } from "@/storefront/components/ProductCard";
+import { PixelScripts, trackAddToCart } from "@/components/PixelScripts";
 
 interface StorefrontRestaurant {
   id: string;
@@ -23,6 +24,10 @@ interface StorefrontRestaurant {
   socialLinks: Record<string, string> | null;
   seoTitle: string | null;
   seoDescription: string | null;
+  metaPixelId?: string | null;
+  tiktokPixelId?: string | null;
+  googleAnalyticsId?: string | null;
+  googleAdsId?: string | null;
 }
 
 const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
@@ -116,8 +121,28 @@ export function StorefrontHome({ slug }: { slug: string }) {
       priceCents: Math.round(Number(item.price) * 100),
       imageUrl: item.imageUrl,
     }, 1);
+    if (!isPreview) {
+      trackAddToCart(
+        { id: item.id, name: item.name, price: Number(item.price), currency: restaurant.currency },
+        {
+          metaPixelId: restaurant.metaPixelId || undefined,
+          tiktokPixelId: restaurant.tiktokPixelId || undefined,
+          googleAnalyticsId: restaurant.googleAnalyticsId || undefined,
+          googleAdsId: restaurant.googleAdsId || undefined,
+        }
+      );
+    }
     setCartOpen(true);
   };
+
+  const pixelScripts = !isPreview && (
+    <PixelScripts
+      metaPixelId={restaurant.metaPixelId || undefined}
+      tiktokPixelId={restaurant.tiktokPixelId || undefined}
+      googleAnalyticsId={restaurant.googleAnalyticsId || undefined}
+      googleAdsId={restaurant.googleAdsId || undefined}
+    />
+  );
 
   const renderSection = (section: ThemeSection) => {
     if (!section.enabled) return null;
@@ -160,6 +185,7 @@ export function StorefrontHome({ slug }: { slug: string }) {
 
   return (
     <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
+      {pixelScripts}
       {headerSection && (
         <T.Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
       )}

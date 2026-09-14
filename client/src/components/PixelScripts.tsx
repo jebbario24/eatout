@@ -102,24 +102,25 @@ export function PixelScripts({
     }
   }, [metaPixelId, tiktokPixelId, googleAnalyticsId, googleAdsId]);
 
+  // react-helmet requires <noscript> children to be a raw HTML string, not
+  // JSX (it crashes the whole page render otherwise — react-helmet's own
+  // <noscript> handling calls dangerouslySetInnerHTML under the hood). Since
+  // that string gets injected as literal HTML into every visitor's page,
+  // only accept a pixel ID that looks like a real Meta pixel ID (digits
+  // only) — merchants type this field themselves, so an unvalidated value
+  // would be a stored-XSS vector against their own storefront's visitors.
+  const safeMetaPixelId = metaPixelId && /^\d+$/.test(metaPixelId) ? metaPixelId : undefined;
+
   return (
     <Helmet>
       {/* Meta Domain Verification */}
       {metaVerificationCode && (
         <meta name="facebook-domain-verification" content={metaVerificationCode} />
       )}
-      
+
       {/* Noscript fallback for Meta Pixel */}
-      {metaPixelId && (
-        <noscript>
-          <img
-            height="1"
-            width="1"
-            style={{ display: 'none' }}
-            src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`}
-            alt=""
-          />
-        </noscript>
+      {safeMetaPixelId && (
+        <noscript>{`<img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=${safeMetaPixelId}&ev=PageView&noscript=1" alt="" />`}</noscript>
       )}
     </Helmet>
   );
