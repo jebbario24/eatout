@@ -1,12 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
-import { 
-  Tag, 
-  TrendingUp, 
-  MessageSquare, 
-  Share2, 
-  Zap,
+import {
+  Tag,
+  TrendingUp,
+  MessageSquare,
+  Share2,
   Gift,
   Heart
 } from "lucide-react";
@@ -47,14 +46,6 @@ export default function Marketing() {
       url: "/marketing/gift-cards",
       color: "text-amber-500",
       bgColor: "bg-amber-500/10"
-    },
-    {
-      title: "Boosts",
-      description: "Featured placement with FREE daily credits",
-      icon: Zap,
-      url: "/marketing/boosts",
-      color: "text-purple-500",
-      bgColor: "bg-purple-500/10"
     },
     {
       title: "Upsells",
@@ -132,10 +123,6 @@ export default function Marketing() {
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm">
-            <li className="flex items-start gap-2">
-              <Zap className="h-4 w-4 text-primary mt-0.5" />
-              <span><strong>Free Daily Boosts:</strong> Get featured placement credits every day</span>
-            </li>
             <li className="flex items-start gap-2">
               <TrendingUp className="h-4 w-4 text-primary mt-0.5" />
               <span><strong>Analytics Included:</strong> Track performance, ROI, and customer insights</span>
