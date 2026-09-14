@@ -14,6 +14,9 @@ import { Header } from "@/storefront/components/Header";
 import { Footer } from "@/storefront/components/Footer";
 import { CartDrawer } from "@/storefront/components/CartDrawer";
 import { ProductGrid } from "@/storefront/components/ProductGrid";
+import { TrustBadges } from "@/storefront/components/TrustBadges";
+import { Newsletter } from "@/storefront/components/Newsletter";
+import { Truck, RefreshCw } from "lucide-react";
 
 interface StorefrontRestaurant {
   name: string;
@@ -95,6 +98,11 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
 
   const headerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "header");
   const footerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "footer");
+  const trustBadgesSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "trustBadges" && s.enabled);
+  const newsletterSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "newsletter" && s.enabled);
+  const trustBadgeItems: Array<{ icon: string; label: string; detail: string }> = trustBadgesSection?.fields?.items || [];
+  const shippingBadge = trustBadgeItems.find((i) => i.icon === "truck");
+  const returnsBadge = trustBadgeItems.find((i) => i.icon === "refresh-cw");
 
   const selectVariant = (v: Variant) => {
     setSelectedVariantId(v.id);
@@ -228,6 +236,23 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
               </Button>
             </div>
 
+            {(shippingBadge || returnsBadge) && (
+              <div className="space-y-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
+                {shippingBadge && (
+                  <p className="flex items-center gap-2">
+                    <Truck className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                    {shippingBadge.label}{shippingBadge.detail ? ` — ${shippingBadge.detail}` : ""}
+                  </p>
+                )}
+                {returnsBadge && (
+                  <p className="flex items-center gap-2">
+                    <RefreshCw className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />
+                    {returnsBadge.label}{returnsBadge.detail ? ` — ${returnsBadge.detail}` : ""}
+                  </p>
+                )}
+              </div>
+            )}
+
             <Accordion type="single" collapsible defaultValue={product.reviews.length > 0 ? undefined : "details"}>
               {product.description && (
                 <AccordionItem value="details">
@@ -265,6 +290,8 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
           </div>
         )}
       </main>
+      {trustBadgesSection && <TrustBadges fields={trustBadgesSection.fields as any} />}
+      {newsletterSection && <Newsletter fields={newsletterSection.fields as any} slug={slug} />}
       {footerSection && restaurant && (
         <Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} />
       )}
