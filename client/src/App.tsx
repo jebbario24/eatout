@@ -201,7 +201,14 @@ function AppContent() {
     return (
       <SubscriptionGuard>
         <RestaurantSetupGuard>
-          <AuthenticatedRouter />
+          {/* StoreEditor's own root uses h-full, which needs an explicit-height
+              ancestor to resolve against — normally the h-screen wrapper below
+              supplies that (via main/flex-1). Without a sidebar/topbar wrapper
+              here, this div is that ancestor instead, otherwise the editor
+              collapses to its content height and leaves blank space below it. */}
+          <div className="h-screen w-full overflow-hidden">
+            <AuthenticatedRouter />
+          </div>
         </RestaurantSetupGuard>
       </SubscriptionGuard>
     );
