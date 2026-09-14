@@ -731,6 +731,9 @@ export const customerReviews = pgTable("customer_reviews", {
   restaurantId: varchar("restaurant_id").notNull().references(() => restaurants.id, { onDelete: 'cascade' }),
   customerId: varchar("customer_id").references(() => customers.id, { onDelete: 'set null' }),
   orderId: varchar("order_id").references(() => orders.id, { onDelete: 'set null' }),
+  // Nullable — older/store-level reviews have no product link. Only reviews with a
+  // real menuItemId feed a product's star rating; never fabricate one otherwise.
+  menuItemId: varchar("menu_item_id").references(() => menuItems.id, { onDelete: 'set null' }),
   customerName: varchar("customer_name", { length: 255 }).notNull(),
   rating: integer("rating").notNull(), // 1-5 stars
   comment: text("comment"),
@@ -744,6 +747,7 @@ export const customerReviews = pgTable("customer_reviews", {
   index("idx_reviews_customer").on(table.customerId),
   index("idx_reviews_order").on(table.orderId),
   index("idx_reviews_published").on(table.restaurantId, table.isPublished, table.createdAt),
+  index("idx_reviews_menu_item").on(table.menuItemId),
 ]);
 
 // Inbox Messages - Customer messages to restaurants
@@ -1656,6 +1660,26 @@ export const insertRestaurantSchema = createInsertSchema(restaurants).omit({
 });
 export type InsertRestaurant = z.infer<typeof insertRestaurantSchema>;
 export type Restaurant = typeof restaurants.$inferSelect;
+
+// Shape of the `restaurants.themeSettings` jsonb column, shared by client and
+// server. A fixed, ordered list of named page regions — not a freeform/addable
+// block system — each independently togglable except header/footer. Colors live
+// in the separate primaryColor/secondaryColor/accentColor columns, not here.
+export type ThemeSectionType =
+  | "header" | "hero" | "trustBadges" | "featuredProducts" | "bestSellers"
+  | "banner" | "aboutUs" | "testimonials" | "newsletter" | "footer";
+
+export interface ThemeSection {
+  type: ThemeSectionType;
+  enabled: boolean;
+  fields: Record<string, any>;
+}
+
+export interface RestaurantThemeSettings {
+  version: 1;
+  layout: { sections: ThemeSection[] };
+  meta: { lastPublishedAt: string | null; brandStyle: string | null };
+}
 
 export const insertMenuSchema = createInsertSchema(menus, {
   daysOfWeek: z.array(z.string()).optional(),

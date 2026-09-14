@@ -63,6 +63,10 @@ import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
+import { StorefrontRouter } from "@/storefront/StorefrontRouter";
+import StoreBuilderWizard from "@/pages/OnlineStore/StoreBuilderWizard";
+import StoreEditor from "@/pages/OnlineStore/StoreEditor";
+import StoreOptimize from "@/pages/OnlineStore/StoreOptimize";
 
 function PublicRouter() {
   return (
@@ -123,6 +127,9 @@ function AuthenticatedRouter() {
       <Route path="/analytics" component={Analytics} />
       <Route path="/growth" component={Growth} />
       <Route path="/markets" component={Markets} />
+      <Route path="/online-store" component={StoreBuilderWizard} />
+      <Route path="/online-store/editor" component={StoreEditor} />
+      <Route path="/online-store/optimize" component={StoreOptimize} />
       <Route path="/settings" component={Settings} />
       <Route path="/pos" component={POS} />
       <Route path="/marketing" component={Marketing} />
@@ -206,11 +213,13 @@ function AppContent() {
   );
 }
 
+const isStorefrontPath = typeof window !== "undefined" && window.location.pathname.startsWith("/store/");
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AppContent />
+        {isStorefrontPath ? <StorefrontRouter /> : <AppContent />}
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

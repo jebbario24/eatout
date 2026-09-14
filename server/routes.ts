@@ -13,7 +13,10 @@ import {
   insertStaffSchema,
   insertInventorySchema,
   BUSINESS_TYPES,
+  type RestaurantThemeSettings,
 } from "@shared/schema";
+import { buildBlueprint, type StoreBrief } from "./services/storeIntelligence";
+import { draftCopy } from "./services/storeCopywriter";
 import { z } from "zod";
 import Stripe from "stripe";
 import { 
@@ -29,7 +32,7 @@ import { db } from "./db";
 import { boostSlots, promoRules } from "@shared/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
 import { wsManager } from "./websocket";
-import { authLimiter, apiLimiter, webhookLimiter, uploadLimiter } from "./rateLimiter";
+import { authLimiter, apiLimiter, storefrontLimiter, webhookLimiter, uploadLimiter } from "./rateLimiter";
 import { logError, logWarn, logInfo } from "./logger";
 
 // Initialize Stripe only if credentials are available
@@ -3347,6 +3350,320 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching sales by channel:", error);
       res.status(500).json({ message: "Failed to fetch sales by channel" });
+    }
+  });
+
+  // ==========================================
+  // PUBLIC STOREFRONT (no auth required)
+  // ==========================================
+
+  const restaurantBySlugPublic = async (slug: string) => {
+    const restaurant = await storage.getRestaurantBySlug(slug);
+    return restaurant && restaurant.isActive ? restaurant : undefined;
+  };
+
+  app.get('/api/storefront/:slug', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await restaurantBySlugPublic(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      res.json({
+        id: restaurant.id,
+        name: restaurant.name,
+        slug: restaurant.slug,
+        description: restaurant.description,
+        logoUrl: restaurant.logoUrl,
+        coverImageUrl: restaurant.coverImageUrl,
+        currency: restaurant.currency,
+        primaryColor: restaurant.primaryColor,
+        secondaryColor: restaurant.secondaryColor,
+        accentColor: restaurant.accentColor,
+        themeSettings: restaurant.themeSettings,
+        socialLinks: restaurant.socialLinks,
+        seoTitle: restaurant.seoTitle,
+        seoDescription: restaurant.seoDescription,
+      });
+    } catch (error) {
+      logError("Storefront restaurant lookup failed", error);
+      res.status(500).json({ message: "Failed to load store" });
+    }
+  });
+
+  app.get('/api/storefront/:slug/products', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await restaurantBySlugPublic(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      let items = (await storage.getMenuItems(restaurant.id)).filter((i) => i.isAvailable && i.visibleOnline);
+      const collectionHandle = typeof req.query.collection === "string" ? req.query.collection : undefined;
+      if (collectionHandle) {
+        const collection = await storage.getCollectionByHandle(restaurant.id, collectionHandle);
+        if (!collection) return res.json([]);
+        const memberIds = new Set((await storage.listCollectionItems(collection.id)).map((i: any) => i.id));
+        items = items.filter((i) => memberIds.has(i.id));
+      }
+      const productReviews = await storage.getPublishedProductReviews(restaurant.id);
+      const ratingByItem = new Map<string, { sum: number; count: number }>();
+      for (const r of productReviews) {
+        const agg = ratingByItem.get(r.menuItemId!) || { sum: 0, count: 0 };
+        agg.sum += r.rating; agg.count += 1;
+        ratingByItem.set(r.menuItemId!, agg);
+      }
+      res.json(items.map((i) => {
+        const agg = ratingByItem.get(i.id);
+        return { ...i, avgRating: agg ? agg.sum / agg.count : null, reviewCount: agg ? agg.count : 0 };
+      }));
+    } catch (error) {
+      logError("Storefront products list failed", error);
+      res.status(500).json({ message: "Failed to load products" });
+    }
+  });
+
+  app.get('/api/storefront/:slug/products/:handle', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await restaurantBySlugPublic(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const item = await storage.getMenuItemByHandle(restaurant.id, req.params.handle);
+      if (!item || !item.isAvailable || !item.visibleOnline) return res.status(404).json({ message: "Product not found" });
+      const [variants, reviews, allItems] = await Promise.all([
+        item.hasVariants ? storage.listVariants(item.id) : Promise.resolve([]),
+        storage.getPublishedReviewsByMenuItem(item.id),
+        storage.getMenuItems(restaurant.id),
+      ]);
+      const related = allItems
+        .filter((i) => i.id !== item.id && i.categoryId === item.categoryId && i.isAvailable && i.visibleOnline)
+        .slice(0, 3);
+      const avgRating = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null;
+      res.json({ ...item, variants: variants.filter((v) => v.isActive), reviews, avgRating, reviewCount: reviews.length, relatedItems: related });
+    } catch (error) {
+      logError("Storefront product detail failed", error);
+      res.status(500).json({ message: "Failed to load product" });
+    }
+  });
+
+  app.get('/api/storefront/:slug/reviews', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await restaurantBySlugPublic(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      res.json(await storage.getCustomerReviews(restaurant.id));
+    } catch (error) {
+      logError("Storefront reviews failed", error);
+      res.status(500).json({ message: "Failed to load reviews" });
+    }
+  });
+
+  app.post('/api/storefront/:slug/newsletter', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await restaurantBySlugPublic(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const email = String(req.body?.email || "").trim().toLowerCase();
+      if (!email || !email.includes("@")) return res.status(400).json({ message: "A valid email is required" });
+      await storage.createNewsletterSubscriber(restaurant.id, email);
+      res.json({ ok: true });
+    } catch (error) {
+      logError("Newsletter signup failed", error);
+      res.status(500).json({ message: "Failed to subscribe" });
+    }
+  });
+
+  // ==========================================
+  // ONLINE STORE — AI store builder (merchant-authed)
+  // ==========================================
+
+  const ownerRestaurantForStore = async (req: any) => storage.getRestaurantByOwnerId(req.user.id);
+
+  app.post('/api/store/generate', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurantForStore(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const brief: StoreBrief = {
+        businessName: req.body?.businessName || restaurant.name,
+        industry: req.body?.industry || restaurant.businessType,
+        targetAudience: req.body?.targetAudience,
+        targetMarket: req.body?.targetMarket,
+        stylePreference: req.body?.stylePreference,
+      };
+      const [items, reviews, collectionsList] = await Promise.all([
+        storage.getMenuItems(restaurant.id),
+        storage.getCustomerReviews(restaurant.id),
+        storage.listCollections(restaurant.id),
+      ]);
+      const blueprint = buildBlueprint({
+        brief, restaurant, items, reviews,
+        existingCollectionTitles: collectionsList.map((c) => c.title),
+      });
+      const copy = await draftCopy(brief, brief.businessName, blueprint.facts);
+      const heroSection = blueprint.themeSettings.layout.sections.find((s) => s.type === "hero");
+      if (heroSection) {
+        heroSection.fields.heading = copy.heroHeading;
+        heroSection.fields.subheading = copy.heroSubheading;
+        heroSection.fields.buttonText = copy.buttonText;
+      }
+      const aboutSection = blueprint.themeSettings.layout.sections.find((s) => s.type === "aboutUs");
+      if (aboutSection) {
+        aboutSection.fields.heading = copy.aboutUsHeading;
+        aboutSection.fields.body = copy.aboutUsBody;
+      }
+      const generation = await storage.createStoreGeneration(restaurant.id, {
+        kind: 'initial', brief, blueprint, copy,
+      });
+      res.json(generation);
+    } catch (error) {
+      logError("Store generate failed", error);
+      res.status(500).json({ message: "Failed to generate store" });
+    }
+  });
+
+  app.get('/api/store/generations/:id', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurantForStore(req);
+    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const generation = await storage.getStoreGeneration(req.params.id);
+    if (!generation || generation.restaurantId !== restaurant.id) return res.status(404).json({ message: "Not found" });
+    res.json(generation);
+  });
+
+  app.get('/api/store/generations/latest', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurantForStore(req);
+    if (!restaurant) return res.json(null);
+    const kind = typeof req.query.kind === "string" ? req.query.kind : undefined;
+    const status = typeof req.query.status === "string" ? req.query.status : undefined;
+    res.json((await storage.getLatestStoreGeneration(restaurant.id, kind, status)) || null);
+  });
+
+  app.post('/api/store/generations/:id/apply', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurantForStore(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const generation = await storage.getStoreGeneration(req.params.id);
+      if (!generation || generation.restaurantId !== restaurant.id) return res.status(404).json({ message: "Not found" });
+      if (generation.status !== 'proposed') return res.status(400).json({ message: "Already applied or discarded" });
+
+      const blueprint: any = generation.blueprint;
+      await storage.updateRestaurant(restaurant.id, {
+        themeSettings: { ...blueprint.themeSettings, meta: { ...blueprint.themeSettings.meta, lastPublishedAt: new Date().toISOString() } },
+        primaryColor: blueprint.colors.primaryColor,
+        secondaryColor: blueprint.colors.secondaryColor,
+        accentColor: blueprint.colors.accentColor,
+        brandProfile: generation.brief,
+      } as any);
+
+      for (const plan of blueprint.collections || []) {
+        const created = await storage.createCollection(restaurant.id, { title: plan.title, showOnStorefront: true, isActive: true } as any);
+        await storage.setCollectionItems(created.id, plan.menuItemIds);
+      }
+
+      const updated = await storage.markStoreGenerationStatus(req.params.id, restaurant.id, 'applied');
+      res.json(updated);
+    } catch (error) {
+      logError("Store apply failed", error);
+      res.status(500).json({ message: "Failed to apply store" });
+    }
+  });
+
+  app.post('/api/store/optimize', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurantForStore(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const [items, reviews, collectionsList] = await Promise.all([
+        storage.getMenuItems(restaurant.id),
+        storage.getCustomerReviews(restaurant.id),
+        storage.listCollections(restaurant.id),
+      ]);
+      const brief: StoreBrief = {
+        businessName: restaurant.name,
+        industry: restaurant.businessType,
+        ...(restaurant.brandProfile as any || {}),
+      };
+      const currentThemeSettings = (restaurant.themeSettings as RestaurantThemeSettings | null) || null;
+      const blueprint = buildBlueprint({
+        brief, restaurant, items, reviews,
+        existingCollectionTitles: collectionsList.map((c) => c.title),
+        current: currentThemeSettings,
+      });
+      // Only draft fresh copy for a hero that's missing a headline — never
+      // silently overwrite copy the merchant has already written.
+      const heroSection = blueprint.themeSettings.layout.sections.find((s) => s.type === "hero");
+      let copy: any = null;
+      if (heroSection && heroSection.fields.heading === "New heading pending copy") {
+        copy = await draftCopy(brief, brief.businessName, blueprint.facts);
+        heroSection.fields.heading = copy.heroHeading;
+        heroSection.fields.subheading = copy.heroSubheading;
+      }
+
+      const snapshot = {
+        themeSettings: currentThemeSettings,
+        primaryColor: restaurant.primaryColor,
+        secondaryColor: restaurant.secondaryColor,
+        accentColor: restaurant.accentColor,
+      };
+
+      if (blueprint.changes.length === 0) {
+        return res.json({ id: null, changes: [], message: "Your store is already optimized — nothing to change." });
+      }
+
+      const generation = await storage.createStoreGeneration(restaurant.id, {
+        kind: 'optimize',
+        brief: { ...brief, previousSnapshot: snapshot },
+        blueprint,
+        copy,
+      });
+
+      await storage.updateRestaurant(restaurant.id, {
+        themeSettings: blueprint.themeSettings,
+        primaryColor: blueprint.colors.primaryColor,
+        secondaryColor: blueprint.colors.secondaryColor,
+        accentColor: blueprint.colors.accentColor,
+      } as any);
+      for (const plan of blueprint.collections || []) {
+        const created = await storage.createCollection(restaurant.id, { title: plan.title, showOnStorefront: true, isActive: true } as any);
+        await storage.setCollectionItems(created.id, plan.menuItemIds);
+      }
+      await storage.markStoreGenerationStatus(generation.id, restaurant.id, 'applied');
+
+      res.json({ id: generation.id, changes: blueprint.changes });
+    } catch (error) {
+      logError("Store optimize failed", error);
+      res.status(500).json({ message: "Failed to optimize store" });
+    }
+  });
+
+  app.post('/api/store/generations/:id/undo', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurantForStore(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const generation = await storage.getStoreGeneration(req.params.id);
+      if (!generation || generation.restaurantId !== restaurant.id) return res.status(404).json({ message: "Not found" });
+      const snapshot = (generation.brief as any)?.previousSnapshot;
+      if (!snapshot) return res.status(400).json({ message: "Nothing to undo" });
+      await storage.updateRestaurant(restaurant.id, {
+        themeSettings: snapshot.themeSettings,
+        primaryColor: snapshot.primaryColor,
+        secondaryColor: snapshot.secondaryColor,
+        accentColor: snapshot.accentColor,
+      } as any);
+      await storage.markStoreGenerationStatus(req.params.id, restaurant.id, 'discarded');
+      res.json({ ok: true });
+    } catch (error) {
+      logError("Store undo failed", error);
+      res.status(500).json({ message: "Failed to undo" });
+    }
+  });
+
+  app.patch('/api/store/theme', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurantForStore(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const patch: any = {};
+      if (req.body?.themeSettings) patch.themeSettings = req.body.themeSettings;
+      if (req.body?.primaryColor) patch.primaryColor = req.body.primaryColor;
+      if (req.body?.secondaryColor) patch.secondaryColor = req.body.secondaryColor;
+      if (req.body?.accentColor) patch.accentColor = req.body.accentColor;
+      if (req.body?.publish) {
+        patch.themeSettings = { ...(patch.themeSettings || restaurant.themeSettings || {}), meta: { ...(patch.themeSettings?.meta || (restaurant.themeSettings as any)?.meta), lastPublishedAt: new Date().toISOString() } };
+      }
+      const updated = await storage.updateRestaurant(restaurant.id, patch);
+      res.json(updated);
+    } catch (error) {
+      logError("Save theme failed", error);
+      res.status(500).json({ message: "Failed to save" });
     }
   });
 

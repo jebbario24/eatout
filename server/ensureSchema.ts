@@ -62,6 +62,11 @@ const STATEMENTS: string[] = [
     UNIQUE (restaurant_id, email)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_newsletter_subscribers_restaurant ON newsletter_subscribers(restaurant_id)`,
+
+  // Storefront rebuild — per-product reviews (nullable: existing restaurant-level
+  // reviews keep menu_item_id null and simply don't feed any product's rating).
+  `ALTER TABLE customer_reviews ADD COLUMN IF NOT EXISTS menu_item_id varchar REFERENCES menu_items(id) ON DELETE SET NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_reviews_menu_item ON customer_reviews(menu_item_id) WHERE menu_item_id IS NOT NULL`,
 ];
 
 async function main() {

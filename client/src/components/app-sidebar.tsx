@@ -19,7 +19,8 @@ import {
   Layers,
   Send,
   TrendingUp,
-  Globe
+  Globe,
+  Store
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -126,6 +127,11 @@ const customerItems = [
 
 // Store section
 const storeItems = [
+  {
+    titleKey: "navigation.storeBuilder",
+    url: "/online-store",
+    icon: Store,
+  },
   {
     titleKey: "navigation.pixelsTracking",
     url: "/marketing/pixels",

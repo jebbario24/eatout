@@ -15,6 +15,8 @@ import {
   promoRedemptions,
   collections,
   collectionItems,
+  storeGenerations,
+  newsletterSubscribers,
   productVariants,
   customerSegments,
   segmentMembers,
@@ -68,6 +70,8 @@ import {
   type GiftCardTransaction,
   type Collection,
   type CollectionItem,
+  type StoreGeneration,
+  type NewsletterSubscriber,
   type ProductVariant,
   type CustomerSegment,
   type Campaign,
@@ -106,7 +110,7 @@ import {
   type InsertMarket,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, desc, asc, like, sql, inArray, gte, lte } from "drizzle-orm";
+import { eq, and, or, desc, asc, like, sql, inArray, gte, lte, isNotNull } from "drizzle-orm";
 
 /** URL handle from a title: lowercase, hyphen-separated, ascii-ish. */
 export function slugify(input: string): string {
@@ -1033,6 +1037,27 @@ export class DatabaseStorage implements IStorage {
     return reviews;
   }
 
+  async getPublishedReviewsByMenuItem(menuItemId: string): Promise<CustomerReview[]> {
+    return db
+      .select()
+      .from(customerReviews)
+      .where(and(eq(customerReviews.menuItemId, menuItemId), eq(customerReviews.isPublished, true)))
+      .orderBy(desc(customerReviews.createdAt));
+  }
+
+  /** All published, product-linked reviews for a restaurant — used to compute
+   *  per-product rating/count on catalog grids without a query per card. */
+  async getPublishedProductReviews(restaurantId: string): Promise<CustomerReview[]> {
+    return db
+      .select()
+      .from(customerReviews)
+      .where(and(
+        eq(customerReviews.restaurantId, restaurantId),
+        eq(customerReviews.isPublished, true),
+        isNotNull(customerReviews.menuItemId),
+      ));
+  }
+
   async createCustomerReview(review: InsertCustomerReview): Promise<CustomerReview> {
     const [created] = await db
       .insert(customerReviews)
@@ -1752,6 +1777,48 @@ export class DatabaseStorage implements IStorage {
         menuItemIds.map((menuItemId, i) => ({ collectionId, menuItemId, position: i })),
       );
     }
+  }
+
+  // ---- AI store builder ----
+
+  async createStoreGeneration(restaurantId: string, data: { kind: string; brief: any; blueprint: any; copy: any }): Promise<StoreGeneration> {
+    const [created] = await db.insert(storeGenerations).values({
+      restaurantId,
+      kind: data.kind,
+      brief: data.brief ?? null,
+      blueprint: data.blueprint,
+      copy: data.copy ?? null,
+    }).returning();
+    return created;
+  }
+  async getStoreGeneration(id: string): Promise<StoreGeneration | undefined> {
+    const [g] = await db.select().from(storeGenerations).where(eq(storeGenerations.id, id)).limit(1);
+    return g;
+  }
+  async getLatestStoreGeneration(restaurantId: string, kind?: string, status?: string): Promise<StoreGeneration | undefined> {
+    const conditions = [eq(storeGenerations.restaurantId, restaurantId)];
+    if (kind) conditions.push(eq(storeGenerations.kind, kind));
+    if (status) conditions.push(eq(storeGenerations.status, status));
+    const [g] = await db.select().from(storeGenerations)
+      .where(and(...conditions))
+      .orderBy(desc(storeGenerations.createdAt))
+      .limit(1);
+    return g;
+  }
+  async markStoreGenerationStatus(id: string, restaurantId: string, status: 'applied' | 'discarded'): Promise<StoreGeneration | undefined> {
+    const [updated] = await db.update(storeGenerations)
+      .set({ status, appliedAt: status === 'applied' ? new Date() : undefined })
+      .where(and(eq(storeGenerations.id, id), eq(storeGenerations.restaurantId, restaurantId)))
+      .returning();
+    return updated;
+  }
+
+  async createNewsletterSubscriber(restaurantId: string, email: string): Promise<NewsletterSubscriber> {
+    const [existing] = await db.select().from(newsletterSubscribers)
+      .where(and(eq(newsletterSubscribers.restaurantId, restaurantId), eq(newsletterSubscribers.email, email))).limit(1);
+    if (existing) return existing;
+    const [created] = await db.insert(newsletterSubscribers).values({ restaurantId, email }).returning();
+    return created;
   }
 
   // ---- Marketing: segments, campaigns, abandoned carts, boosts (Tier 6) ----

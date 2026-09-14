@@ -26,6 +26,10 @@ interface EnvConfig {
   GOOGLE_MAPS_API_KEY?: string;
   GOOGLE_MAPS_API_KEY_SERVER?: string;
 
+  // Anthropic API (optional — powers Online Store copywriting; structural
+  // decisions work without it, copy just falls back to templates)
+  ANTHROPIC_API_KEY?: string;
+
   // Server config
   PORT: string;
   NODE_ENV: string;
@@ -54,6 +58,7 @@ const OPTIONAL_ENV_VARS = [
   'GOOGLE_CLIENT_SECRET',
   'GOOGLE_MAPS_API_KEY',
   'GOOGLE_MAPS_API_KEY_SERVER',
+  'ANTHROPIC_API_KEY',
 ] as const;
 
 export function validateEnv(): EnvConfig {
