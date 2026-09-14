@@ -11,8 +11,6 @@ import { DeviceSwitcher, DEVICE_WIDTHS, type DeviceMode } from "./components/Dev
 import { hasValidThemeSettings } from "@/storefront/lib/themeSettings";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-type Colors = { primaryColor: string; secondaryColor: string; accentColor: string };
-
 export default function StoreEditor() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -20,7 +18,7 @@ export default function StoreEditor() {
   const [selectedKey, setSelectedKey] = useState<string>("hero");
   const [device, setDevice] = useState<DeviceMode>("desktop");
   const [themeSettings, setThemeSettings] = useState<RestaurantThemeSettings | null>(null);
-  const [colors, setColors] = useState<Colors | null>(null);
+  const [socialLinks, setSocialLinks] = useState<Record<string, string> | null>(null);
   const [isSaving, setIsSaving] = useState<"save" | "publish" | null>(null);
   const [iframeReady, setIframeReady] = useState(false);
 
@@ -31,23 +29,19 @@ export default function StoreEditor() {
   useEffect(() => {
     if (restaurant && !themeSettings) {
       setThemeSettings(hasValidThemeSettings(restaurant.themeSettings) ? restaurant.themeSettings : null);
-      setColors({
-        primaryColor: restaurant.primaryColor || "#111111",
-        secondaryColor: restaurant.secondaryColor || "#ffffff",
-        accentColor: restaurant.accentColor || "#2563eb",
-      });
+      setSocialLinks((restaurant.socialLinks as Record<string, string>) || {});
     }
   }, [restaurant, themeSettings]);
 
   const postDraft = () => {
-    if (!iframeRef.current?.contentWindow || !themeSettings || !colors) return;
-    iframeRef.current.contentWindow.postMessage({ type: "STOREFRONT_DRAFT_UPDATE", themeSettings, colors }, window.location.origin);
+    if (!iframeRef.current?.contentWindow || !themeSettings) return;
+    iframeRef.current.contentWindow.postMessage({ type: "STOREFRONT_DRAFT_UPDATE", themeSettings }, window.location.origin);
   };
 
   useEffect(() => {
     if (iframeReady) postDraft();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [themeSettings, colors, iframeReady]);
+  }, [themeSettings, iframeReady]);
 
   if (isLoading || !restaurant) {
     return <div className="flex h-full min-h-[70vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -113,10 +107,10 @@ export default function StoreEditor() {
   };
 
   const save = async (publish: boolean) => {
-    if (!themeSettings || !colors) return;
+    if (!themeSettings || !socialLinks) return;
     setIsSaving(publish ? "publish" : "save");
     try {
-      await apiRequest("/api/store/theme", "PATCH", { themeSettings, ...colors, publish });
+      await apiRequest("/api/store/theme", "PATCH", { themeSettings, socialLinks, publish });
       await queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
       toast({ title: publish ? "Your store is live" : "Draft saved" });
     } catch {
@@ -190,9 +184,9 @@ export default function StoreEditor() {
           <FieldPanel
             selectedKey={selectedKey}
             section={activeSection}
-            colors={colors!}
+            socialLinks={socialLinks!}
             onFieldsChange={handleFieldsChange}
-            onColorsChange={setColors}
+            onSocialLinksChange={setSocialLinks}
           />
         </div>
       </div>

@@ -28,7 +28,7 @@ interface StorefrontRestaurant {
 const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
 
 export function StorefrontHome({ slug }: { slug: string }) {
-  const [draft, setDraft] = useState<{ themeSettings?: RestaurantThemeSettings; colors?: Record<string, string> } | null>(null);
+  const [draft, setDraft] = useState<{ themeSettings?: RestaurantThemeSettings } | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const cart = useCart(slug);
 
@@ -44,11 +44,25 @@ export function StorefrontHome({ slug }: { slug: string }) {
     enabled: !!restaurant,
   });
 
+  // The featured-products section can be scoped to one collection — a
+  // separate, handle-filtered fetch since it's a different subset than the
+  // page's main `products` list (which bestSellers also draws from).
+  const featuredCollectionHandle = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "featuredProducts")?.fields?.collectionHandle as string | null | undefined;
+  const { data: collectionProducts } = useQuery<StorefrontProduct[]>({
+    queryKey: [`/api/storefront/${slug}/products`, "collection", featuredCollectionHandle],
+    queryFn: async () => {
+      const res = await fetch(`/api/storefront/${slug}/products?collection=${encodeURIComponent(featuredCollectionHandle!)}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+      return res.json();
+    },
+    enabled: !!restaurant && !!featuredCollectionHandle,
+  });
+
   useEffect(() => {
     if (!isPreview) return;
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === "STOREFRONT_DRAFT_UPDATE") {
-        setDraft({ themeSettings: event.data.themeSettings, colors: event.data.colors });
+        setDraft({ themeSettings: event.data.themeSettings });
       }
     };
     window.addEventListener("message", onMessage);
@@ -104,12 +118,14 @@ export function StorefrontHome({ slug }: { slug: string }) {
         return <T.Hero key="hero" fields={section.fields as any} shopHref={`${base}/shop`} />;
       case "trustBadges":
         return <T.TrustBadges key="trustBadges" fields={section.fields as any} />;
-      case "featuredProducts":
+      case "featuredProducts": {
+        const featuredItems = section.fields.collectionHandle ? (collectionProducts || []) : items;
         return (
           <div id="featured" key="featuredProducts">
-            <T.ProductGrid heading={section.fields.heading || "Featured"} items={items.slice(0, section.fields.limit || 8)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} emptyHint="New arrivals coming soon." onQuickAdd={handleQuickAdd} />
+            <T.ProductGrid heading={section.fields.heading || "Featured"} items={featuredItems.slice(0, section.fields.limit || 8)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} emptyHint="New arrivals coming soon." onQuickAdd={handleQuickAdd} />
           </div>
         );
+      }
       case "bestSellers":
         return bestSellers.length === 0 ? null : (
           <T.ProductGrid key="bestSellers" heading={section.fields.heading || "Best Sellers"} items={bestSellers.slice(0, section.fields.limit || 4)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} onQuickAdd={handleQuickAdd} />

@@ -3799,6 +3799,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body?.primaryColor) patch.primaryColor = req.body.primaryColor;
       if (req.body?.secondaryColor) patch.secondaryColor = req.body.secondaryColor;
       if (req.body?.accentColor) patch.accentColor = req.body.accentColor;
+      if (req.body?.socialLinks) patch.socialLinks = req.body.socialLinks;
       if (req.body?.publish) {
         patch.themeSettings = { ...(patch.themeSettings || restaurant.themeSettings || {}), meta: { ...(patch.themeSettings?.meta || (restaurant.themeSettings as any)?.meta), lastPublishedAt: new Date().toISOString() } };
       }

@@ -4,14 +4,31 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineImageUploader } from "@/components/InlineImageUploader";
+import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import type { ThemeSection } from "@shared/schema";
+import { TRUST_BADGE_ICONS } from "@/storefront/components/TrustBadges";
 
 interface Collection {
   id: string;
   title: string;
+  handle: string;
 }
+
+interface StorePage {
+  id: string;
+  title: string;
+  handle: string;
+}
+
+const NAV_TYPES: Array<{ value: string; label: string }> = [
+  { value: "home", label: "Home" },
+  { value: "shop", label: "Shop" },
+  { value: "contact", label: "Contact" },
+  { value: "page", label: "A page you wrote" },
+];
 
 async function getUploadParameters() {
   const response = await fetch("/api/objects/upload", { method: "POST", credentials: "include" });
@@ -55,40 +72,44 @@ function ToggleRow({ label, checked, onChange, testId }: { label: string; checke
   );
 }
 
-export function FieldPanel({ selectedKey, section, colors, onFieldsChange, onColorsChange }: {
+export function FieldPanel({ selectedKey, section, socialLinks, onFieldsChange, onSocialLinksChange }: {
   selectedKey: string;
   section: ThemeSection | undefined;
-  colors: { primaryColor: string; secondaryColor: string; accentColor: string };
+  socialLinks: Record<string, string>;
   // Keyed by `section.id || section.type` — plain `type` isn't unique once a
   // store can have more than one "customEmbed" section.
   onFieldsChange: (key: string, fields: Record<string, any>) => void;
-  onColorsChange: (colors: { primaryColor: string; secondaryColor: string; accentColor: string }) => void;
+  onSocialLinksChange: (links: Record<string, string>) => void;
 }) {
   const { data: collections = [] } = useQuery<Collection[]>({
     queryKey: ["/api/collections"],
     enabled: selectedKey === "featuredProducts",
   });
+  const { data: pages = [] } = useQuery<StorePage[]>({
+    queryKey: ["/api/store/pages"],
+    enabled: selectedKey === "header",
+  });
 
-  if (selectedKey === "design") {
+  if (selectedKey === "social") {
     return (
       <div className="space-y-5 p-4">
-        <h3 className="font-semibold">Design &amp; Colors</h3>
+        <h3 className="font-semibold">Social Links</h3>
+        <p className="text-xs text-muted-foreground">
+          Shown as icons in your footer when "Show social links" is on. Leave any blank to hide that icon.
+        </p>
         {([
-          ["primaryColor", "Primary color"],
-          ["secondaryColor", "Secondary color"],
-          ["accentColor", "Accent color"],
+          ["instagram", "Instagram"],
+          ["facebook", "Facebook"],
+          ["tiktok", "TikTok"],
+          ["twitter", "Twitter / X"],
         ] as const).map(([key, label]) => (
           <Field key={key} label={label}>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={colors[key]}
-                onChange={(e) => onColorsChange({ ...colors, [key]: e.target.value })}
-                className="h-9 w-12 shrink-0 cursor-pointer rounded border"
-                data-testid={`input-color-${key}`}
-              />
-              <Input value={colors[key]} onChange={(e) => onColorsChange({ ...colors, [key]: e.target.value })} />
-            </div>
+            <Input
+              value={socialLinks[key] || ""}
+              onChange={(e) => onSocialLinksChange({ ...socialLinks, [key]: e.target.value })}
+              placeholder={`https://${key}.com/yourstore`}
+              data-testid={`input-social-${key}`}
+            />
           </Field>
         ))}
       </div>
@@ -115,6 +136,70 @@ export function FieldPanel({ selectedKey, section, colors, onFieldsChange, onCol
           <ToggleRow label="Show search icon" checked={fields.showSearch} onChange={(v) => set({ showSearch: v })} testId="toggle-header-search" />
           <ToggleRow label="Show account icon" checked={fields.showAccount} onChange={(v) => set({ showAccount: v })} testId="toggle-header-account" />
           <ToggleRow label="Show cart icon" checked={fields.showCart} onChange={(v) => set({ showCart: v })} testId="toggle-header-cart" />
+
+          <div className="space-y-2 border-t pt-4">
+            <Label>Navigation links</Label>
+            {(fields.nav || []).map((item: any, i: number) => {
+              const nav = fields.nav || [];
+              const updateItem = (patch: Record<string, any>) => {
+                const next = [...nav];
+                next[i] = { ...next[i], ...patch };
+                set({ nav: next });
+              };
+              return (
+                <div key={i} className="space-y-1.5 rounded-md border p-2.5">
+                  <div className="flex items-center gap-1">
+                    <Input
+                      value={item.label}
+                      placeholder="Link text"
+                      onChange={(e) => updateItem({ label: e.target.value })}
+                      data-testid={`input-nav-label-${i}`}
+                    />
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8 shrink-0"
+                      disabled={i === 0}
+                      onClick={() => { const next = [...nav]; [next[i - 1], next[i]] = [next[i], next[i - 1]]; set({ nav: next }); }}
+                      data-testid={`button-nav-up-${i}`}
+                    ><ChevronUp className="h-3.5 w-3.5" /></Button>
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8 shrink-0"
+                      disabled={i === nav.length - 1}
+                      onClick={() => { const next = [...nav]; [next[i], next[i + 1]] = [next[i + 1], next[i]]; set({ nav: next }); }}
+                      data-testid={`button-nav-down-${i}`}
+                    ><ChevronDown className="h-3.5 w-3.5" /></Button>
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => set({ nav: nav.filter((_: any, j: number) => j !== i) })}
+                      data-testid={`button-nav-remove-${i}`}
+                    ><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                  <Select value={item.type} onValueChange={(v) => updateItem({ type: v, value: v === "page" ? (pages[0]?.handle || "") : undefined })}>
+                    <SelectTrigger data-testid={`select-nav-type-${i}`}><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {NAV_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  {item.type === "page" && (
+                    <Select value={item.value || ""} onValueChange={(v) => updateItem({ value: v })}>
+                      <SelectTrigger data-testid={`select-nav-page-${i}`}><SelectValue placeholder="Choose a page" /></SelectTrigger>
+                      <SelectContent>
+                        {pages.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">No pages yet — write one in Pages first.</p>}
+                        {pages.map((p) => <SelectItem key={p.id} value={p.handle}>{p.title}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              );
+            })}
+            <Button
+              variant="outline" size="sm" className="w-full"
+              onClick={() => set({ nav: [...(fields.nav || []), { label: "New link", type: "home" }] })}
+              data-testid="button-nav-add"
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Add link
+            </Button>
+          </div>
         </>
       )}
 
@@ -157,18 +242,37 @@ export function FieldPanel({ selectedKey, section, colors, onFieldsChange, onCol
       )}
 
       {section.type === "trustBadges" && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {(fields.items || []).map((item: any, i: number) => (
             <div key={i} className="space-y-1.5 rounded-md border p-2.5">
-              <Input
-                value={item.label}
-                placeholder="Label"
-                onChange={(e) => {
-                  const items = [...fields.items];
-                  items[i] = { ...items[i], label: e.target.value };
-                  set({ items });
-                }}
-              />
+              <div className="flex items-center gap-1">
+                <Select
+                  value={item.icon}
+                  onValueChange={(v) => { const items = [...fields.items]; items[i] = { ...items[i], icon: v }; set({ items }); }}
+                >
+                  <SelectTrigger className="w-28 shrink-0" data-testid={`select-badge-icon-${i}`}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(TRUST_BADGE_ICONS).map(([key, { label }]) => (
+                      <SelectItem key={key} value={key}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={item.label}
+                  placeholder="Label"
+                  onChange={(e) => {
+                    const items = [...fields.items];
+                    items[i] = { ...items[i], label: e.target.value };
+                    set({ items });
+                  }}
+                  data-testid={`input-badge-label-${i}`}
+                />
+                <Button
+                  variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => set({ items: fields.items.filter((_: any, j: number) => j !== i) })}
+                  data-testid={`button-badge-remove-${i}`}
+                ><Trash2 className="h-3.5 w-3.5" /></Button>
+              </div>
               <Input
                 value={item.detail}
                 placeholder="Detail"
@@ -177,9 +281,18 @@ export function FieldPanel({ selectedKey, section, colors, onFieldsChange, onCol
                   items[i] = { ...items[i], detail: e.target.value };
                   set({ items });
                 }}
+                data-testid={`input-badge-detail-${i}`}
               />
             </div>
           ))}
+          <Button
+            variant="outline" size="sm" className="w-full"
+            onClick={() => set({ items: [...(fields.items || []), { icon: "truck", label: "New badge", detail: "" }] })}
+            data-testid="button-badge-add"
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Add badge
+          </Button>
         </div>
       )}
 
@@ -189,11 +302,11 @@ export function FieldPanel({ selectedKey, section, colors, onFieldsChange, onCol
             <Input value={fields.heading || ""} onChange={(e) => set({ heading: e.target.value })} />
           </Field>
           <Field label="Collection">
-            <Select value={fields.collectionId || "__all__"} onValueChange={(v) => set({ collectionId: v === "__all__" ? null : v })}>
+            <Select value={fields.collectionHandle || "__all__"} onValueChange={(v) => set({ collectionHandle: v === "__all__" ? null : v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All products</SelectItem>
-                {collections.map((c) => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
+                {collections.map((c) => <SelectItem key={c.id} value={c.handle}>{c.title}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>

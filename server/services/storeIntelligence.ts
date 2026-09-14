@@ -100,7 +100,7 @@ function defaultSections(restaurant: Restaurant, facts: StoreFacts): ThemeSectio
       { icon: "shield-check", label: "Secure payments", detail: "100% protected" },
       { icon: "headset", label: "24/7 support", detail: "We're here to help" },
     ] } },
-    { type: "featuredProducts", enabled: facts.productCount > 0, fields: { collectionId: null, heading: "Featured Products", limit: 8 } },
+    { type: "featuredProducts", enabled: facts.productCount > 0, fields: { collectionHandle: null, heading: "Featured Products", limit: 8 } },
     { type: "bestSellers", enabled: facts.bestsellerTagCount > 0, fields: { heading: "Best Sellers", limit: 4 } },
     { type: "banner", enabled: facts.productCount > 0, fields: { imageUrl: null, heading: "New Arrivals", buttonText: "Shop Now", buttonUrl: `/store/${restaurant.slug}/shop` } },
     { type: "aboutUs", enabled: true, fields: { heading: "About Us", body: "", imageUrl: restaurant.coverImageUrl || null } },

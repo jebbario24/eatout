@@ -1,11 +1,19 @@
-import { Truck, RefreshCw, ShieldCheck, Headset, Sparkles } from "lucide-react";
+import { Truck, RefreshCw, ShieldCheck, Headset, Package, Star, Gift, Clock, Sparkles } from "lucide-react";
 
-const ICONS: Record<string, typeof Truck> = {
-  truck: Truck,
-  "refresh-cw": RefreshCw,
-  "shield-check": ShieldCheck,
-  headset: Headset,
+export const TRUST_BADGE_ICONS: Record<string, { Icon: typeof Truck; label: string }> = {
+  truck: { Icon: Truck, label: "Truck" },
+  "refresh-cw": { Icon: RefreshCw, label: "Returns" },
+  "shield-check": { Icon: ShieldCheck, label: "Security" },
+  headset: { Icon: Headset, label: "Support" },
+  package: { Icon: Package, label: "Package" },
+  star: { Icon: Star, label: "Star" },
+  gift: { Icon: Gift, label: "Gift" },
+  clock: { Icon: Clock, label: "Clock" },
 };
+
+const ICONS: Record<string, typeof Truck> = Object.fromEntries(
+  Object.entries(TRUST_BADGE_ICONS).map(([key, { Icon }]) => [key, Icon]),
+);
 
 export interface TrustBadgesFields {
   items: Array<{ icon: string; label: string; detail: string }>;

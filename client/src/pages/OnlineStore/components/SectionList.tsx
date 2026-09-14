@@ -1,4 +1,4 @@
-import { Palette, Layout, Image as ImageIcon, ShieldCheck, Grid3x3, Star, Megaphone, Users, Mail, PanelBottom, Code2, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { Share2, Layout, Image as ImageIcon, ShieldCheck, Grid3x3, Star, Megaphone, Users, Mail, PanelBottom, Code2, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import type { ThemeSection, ThemeSectionType } from "@shared/schema";
 
@@ -38,12 +38,12 @@ export function SectionList({ sections, selectedKey, onSelect, onToggle, onAddEm
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <button
-        onClick={() => onSelect("design")}
-        className={`flex items-center gap-2.5 border-b px-4 py-3 text-left text-sm font-medium ${selectedKey === "design" ? "bg-accent" : "hover:bg-accent/50"}`}
-        data-testid="button-section-design"
+        onClick={() => onSelect("social")}
+        className={`flex items-center gap-2.5 border-b px-4 py-3 text-left text-sm font-medium ${selectedKey === "social" ? "bg-accent" : "hover:bg-accent/50"}`}
+        data-testid="button-section-social"
       >
-        <Palette className="h-4 w-4 text-primary" />
-        Design &amp; Colors
+        <Share2 className="h-4 w-4 text-primary" />
+        Social Links
       </button>
 
       {sections.filter((s) => s.type === "header").map((section) => {
