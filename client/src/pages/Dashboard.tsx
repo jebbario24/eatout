@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import type { Restaurant, Order } from "@shared/schema";
+import type { Merchant, Order } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
-import { RestaurantNotificationHeader } from "@/components/RestaurantNotificationHeader";
+import { MerchantNotificationHeader } from "@/components/MerchantNotificationHeader";
 import { getBusinessTypeConfig } from "@/lib/businessType";
 
 interface DashboardStats {
@@ -59,8 +59,8 @@ export default function Dashboard() {
     }
   }, [isAuthenticated, authLoading, toast]);
 
-  const { data: restaurant, isLoading: restaurantLoading } = useQuery<Restaurant>({
-    queryKey: ["/api/restaurants/me"],
+  const { data: merchant, isLoading: merchantLoading } = useQuery<Merchant>({
+    queryKey: ["/api/merchants/me"],
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
@@ -80,15 +80,15 @@ export default function Dashboard() {
   });
 
   const { data: stripeStatus } = useQuery<{ connected: boolean; payoutsEnabled: boolean }>({
-    queryKey: ["/api/restaurant/connect/status"],
-    enabled: !!restaurant,
+    queryKey: ["/api/merchant/connect/status"],
+    enabled: !!merchant,
   });
 
   const trialDaysLeft = subscriptionStatus?.trialEndsAt 
     ? Math.ceil((new Date(subscriptionStatus.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : 0;
 
-  if (authLoading || restaurantLoading) {
+  if (authLoading || merchantLoading) {
     return (
       <div className="p-6 space-y-6">
         <Skeleton className="h-10 w-64" />
@@ -101,7 +101,7 @@ export default function Dashboard() {
     );
   }
 
-  if (!restaurant) {
+  if (!merchant) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Card className="max-w-md">
@@ -116,7 +116,7 @@ export default function Dashboard() {
               Set up your business to start managing orders, your catalog, and more.
             </p>
             <Link href="/settings">
-              <Button className="w-full" data-testid="button-setup-restaurant">
+              <Button className="w-full" data-testid="button-setup-merchant">
                 Set Up Your Business
               </Button>
             </Link>
@@ -126,7 +126,7 @@ export default function Dashboard() {
     );
   }
 
-  const businessConfig = getBusinessTypeConfig(restaurant.businessType);
+  const businessConfig = getBusinessTypeConfig(merchant.businessType);
 
   const statCards: { title: string; value: string | number; icon: typeof DollarSign; description?: string }[] = [
     {
@@ -212,17 +212,17 @@ export default function Dashboard() {
       <div>
         <h1 className="text-sm font-semibold">Dashboard</h1>
         <p className="text-xs text-muted-foreground mt-1">
-          Welcome back, {restaurant.name}
+          Welcome back, {merchant.name}
         </p>
       </div>
 
       <Card className="overflow-hidden">
         <CardContent className="p-6">
           <h2 className="text-2xl font-display font-bold">
-            {restaurant.slug ? `Welcome back, ${restaurant.name}!` : `Finish setting up ${restaurant.name}`}
+            {merchant.slug ? `Welcome back, ${merchant.name}!` : `Finish setting up ${merchant.name}`}
           </h2>
           <p className="text-muted-foreground mt-1">
-            {restaurant.slug
+            {merchant.slug
               ? "Here's what's happening with your business."
               : "Set up your online store slug in Settings to get started."}
           </p>

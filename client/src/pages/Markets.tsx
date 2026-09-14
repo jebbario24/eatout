@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Globe, Pencil, Trash2 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { CURRENCIES, COUNTRIES } from "@/lib/countries-currencies";
-import type { Restaurant } from "@shared/schema";
+import type { Merchant } from "@shared/schema";
 
 // apiRequest throws `Error("<status>: <json-or-text body>")` on non-2xx responses.
 function extractErrorMessage(error: unknown, fallback: string): string {
@@ -80,7 +80,7 @@ export default function Markets() {
   const [form, setForm] = useState(emptyForm);
   const [countrySearch, setCountrySearch] = useState("");
 
-  const { data: restaurant } = useQuery<Restaurant>({ queryKey: ["/api/restaurants/me"] });
+  const { data: merchant } = useQuery<Merchant>({ queryKey: ["/api/merchants/me"] });
 
   const { data: marketsFromDB = [], isLoading } = useQuery<MarketFromDB[]>({
     queryKey: ["/api/markets"],
@@ -148,7 +148,7 @@ export default function Markets() {
   });
 
   const openCreate = () => {
-    setForm({ ...emptyForm, currency: restaurant?.currency || "USD" });
+    setForm({ ...emptyForm, currency: merchant?.currency || "USD" });
     setCountrySearch("");
     setCreateOpen(true);
   };
@@ -242,7 +242,7 @@ export default function Markets() {
                     <TableCell className="font-medium">{market.name}</TableCell>
                     <TableCell>{market.currency}</TableCell>
                     <TableCell>
-                      1 {restaurant?.currency || "USD"} = {market.conversionRate} {market.currency}
+                      1 {merchant?.currency || "USD"} = {market.conversionRate} {market.currency}
                     </TableCell>
                     <TableCell>
                       {market.taxRate ? `${market.taxRate}%` : <Badge variant="secondary">Default</Badge>}
@@ -288,7 +288,7 @@ export default function Markets() {
             <DialogTitle>{editingMarket ? "Edit market" : "Add market"}</DialogTitle>
             <DialogDescription>
               Prices are converted for display only, using the rate below — orders are still
-              recorded and charged in your restaurant's base currency ({restaurant?.currency || "USD"}).
+              recorded and charged in your merchant's base currency ({merchant?.currency || "USD"}).
             </DialogDescription>
           </DialogHeader>
 
@@ -330,7 +330,7 @@ export default function Markets() {
                 data-testid="input-market-rate"
               />
               <p className="text-xs text-muted-foreground">
-                1 {restaurant?.currency || "USD"} = {form.conversionRate || "0"} {form.currency}
+                1 {merchant?.currency || "USD"} = {form.conversionRate || "0"} {form.currency}
               </p>
             </div>
 
@@ -344,7 +344,7 @@ export default function Markets() {
                   min="0"
                   value={form.taxRate}
                   onChange={(e) => setForm((f) => ({ ...f, taxRate: e.target.value }))}
-                  placeholder={`Default (${restaurant?.taxRate || "0.00"}%)`}
+                  placeholder={`Default (${merchant?.taxRate || "0.00"}%)`}
                   data-testid="input-market-tax"
                 />
                 {form.taxRate !== "" && (

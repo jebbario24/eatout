@@ -28,8 +28,6 @@
     "analytics": "ניתוח נתונים",
     "growth": "צמיחה",
     "markets": "שווקים",
-    "allRestaurants": "כל הסוחרים",
-    "restaurantManagement": "ניהול סוחרים",
     "platformManagement": "ניהול פלטפורמה",
     "marketing": "שיווק",
     "campaigns": "קמפיינים",
@@ -62,7 +60,9 @@
     "finance": "כספים",
     "products": "מוצרים",
     "growthMarketing": "צמיחה ושיווק",
-    "salesChannels": "ערוצי מכירה"
+    "salesChannels": "ערוצי מכירה",
+    "allMerchants": "כל הסוחרים",
+    "merchantManagement": "ניהול סוחרים"
   },
   "storefront": {
     "menu": "Menu",

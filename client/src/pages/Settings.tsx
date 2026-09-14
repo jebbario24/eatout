@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Restaurant } from "@shared/schema";
+import type { Merchant } from "@shared/schema";
 import { BUSINESS_TYPE_CONFIG } from "@/lib/businessType";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -104,7 +104,7 @@ const defaultPaymentMethods: PaymentMethods = {
   cash: true,
 };
 
-const restaurantSchema = z.object({
+const merchantSchema = z.object({
   businessType: z.enum(["grocery", "pharmacy", "flowers", "retail"]),
   name: z.string().min(1, "Business name is required"),
   slug: z.string().min(1, "URL slug is required").regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens allowed"),
@@ -166,8 +166,8 @@ export default function Settings() {
     }
   }, [isAuthenticated, authLoading, toast]);
 
-  const { data: restaurant, isLoading } = useQuery<Restaurant>({
-    queryKey: ["/api/restaurants/me"],
+  const { data: merchant, isLoading } = useQuery<Merchant>({
+    queryKey: ["/api/merchants/me"],
   });
 
   // Query Stripe Connect status
@@ -178,18 +178,18 @@ export default function Settings() {
     requirementsCurrentlyDue?: string[];
     requirementsEventuallyDue?: string[];
   }>({
-    queryKey: ["/api/restaurant/connect/status"],
-    enabled: !!restaurant,
+    queryKey: ["/api/merchant/connect/status"],
+    enabled: !!merchant,
   });
 
   // Create Stripe Connect account mutation
   const createAccountMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("/api/restaurant/connect/create-account", "POST", {});
+      return await apiRequest("/api/merchant/connect/create-account", "POST", {});
     },
     onSuccess: async () => {
       // After creating account, generate onboarding link and redirect
-      const linkResponse: any = await apiRequest("/api/restaurant/connect/onboarding-link", "POST", {});
+      const linkResponse: any = await apiRequest("/api/merchant/connect/onboarding-link", "POST", {});
       window.location.href = linkResponse.url;
     },
     onError: () => {
@@ -200,7 +200,7 @@ export default function Settings() {
   // Generate onboarding link for existing account
   const onboardingLinkMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("/api/restaurant/connect/onboarding-link", "POST", {});
+      return await apiRequest("/api/merchant/connect/onboarding-link", "POST", {});
     },
     onSuccess: (data: any) => {
       window.location.href = data.url;
@@ -234,7 +234,7 @@ export default function Settings() {
   })();
 
   const form = useForm({
-    resolver: zodResolver(restaurantSchema),
+    resolver: zodResolver(merchantSchema),
     defaultValues: {
       businessType: preselectedBusinessType as any,
       name: "",
@@ -254,32 +254,32 @@ export default function Settings() {
     : { business: "Business", store: "business", catalog: "Products" };
 
   useEffect(() => {
-    if (restaurant) {
+    if (merchant) {
       form.reset({
-        businessType: (restaurant.businessType as any) || "retail",
-        name: restaurant.name || "",
-        slug: restaurant.slug || "",
-        subdomain: restaurant.subdomain || "",
-        description: restaurant.description || "",
-        address: restaurant.address || "",
-        phone: restaurant.phone || "",
-        email: restaurant.email || "",
-        timezone: restaurant.timezone || detectedTimezone,
+        businessType: (merchant.businessType as any) || "retail",
+        name: merchant.name || "",
+        slug: merchant.slug || "",
+        subdomain: merchant.subdomain || "",
+        description: merchant.description || "",
+        address: merchant.address || "",
+        phone: merchant.phone || "",
+        email: merchant.email || "",
+        timezone: merchant.timezone || detectedTimezone,
       });
     }
-  }, [restaurant, form, detectedTimezone]);
+  }, [merchant, form, detectedTimezone]);
 
   const updateMutation = useMutation({
-    mutationFn: async (data: z.infer<typeof restaurantSchema>) => {
-      if (restaurant) {
-        return await apiRequest(`/api/restaurants/${restaurant.id}`, "PUT", data);
+    mutationFn: async (data: z.infer<typeof merchantSchema>) => {
+      if (merchant) {
+        return await apiRequest(`/api/merchants/${merchant.id}`, "PUT", data);
       } else {
-        return await apiRequest("/api/restaurants", "POST", { ...data, currency: "USD" });
+        return await apiRequest("/api/merchants", "POST", { ...data, currency: "USD" });
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
-      const isFirstCreation = !restaurant;
+      queryClient.invalidateQueries({ queryKey: ["/api/merchants/me"] });
+      const isFirstCreation = !merchant;
       if (isFirstCreation) {
         try {
           sessionStorage.removeItem("eatout_signup_business_type");
@@ -287,7 +287,7 @@ export default function Settings() {
           // ignore — best-effort cleanup only
         }
       }
-      toast({ title: restaurant ? "Settings updated successfully" : `${labels.business} created successfully` });
+      toast({ title: merchant ? "Settings updated successfully" : `${labels.business} created successfully` });
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
@@ -308,27 +308,27 @@ export default function Settings() {
   });
 
   const openingHoursMutation = useMutation({
-    mutationFn: async (hours: OpeningHours) => apiRequest("/api/restaurant/opening-hours", "PUT", { openingHours: hours }),
+    mutationFn: async (hours: OpeningHours) => apiRequest("/api/merchant/opening-hours", "PUT", { openingHours: hours }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/merchants/me"] });
       toast({ title: "Opening hours updated successfully!" });
     },
     onError: () => toast({ title: "Failed to update opening hours", variant: "destructive" }),
   });
 
   const paymentMethodsMutation = useMutation({
-    mutationFn: async (methods: PaymentMethods) => apiRequest("/api/restaurant/payment-methods", "PUT", { paymentMethods: methods }),
+    mutationFn: async (methods: PaymentMethods) => apiRequest("/api/merchant/payment-methods", "PUT", { paymentMethods: methods }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/merchants/me"] });
       toast({ title: "Payment methods updated successfully!" });
     },
     onError: () => toast({ title: "Failed to update payment methods", variant: "destructive" }),
   });
 
   const orderTypesMutation = useMutation({
-    mutationFn: async (types: { pickup: boolean; shipping: boolean }) => apiRequest("/api/restaurant/order-types", "PUT", { orderTypes: types }),
+    mutationFn: async (types: { pickup: boolean; shipping: boolean }) => apiRequest("/api/merchant/order-types", "PUT", { orderTypes: types }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/merchants/me"] });
       toast({ title: "Order types updated successfully!" });
     },
     onError: () => toast({ title: "Failed to update order types", variant: "destructive" }),
@@ -336,27 +336,27 @@ export default function Settings() {
 
   const regionalSettingsMutation = useMutation({
     mutationFn: async (settings: { currency: string; country: string; platformLanguage: string; storefrontLanguage: string }) =>
-      apiRequest("/api/restaurant/regional-settings", "PUT", settings),
+      apiRequest("/api/merchant/regional-settings", "PUT", settings),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/merchants/me"] });
       toast({ title: "Regional settings updated successfully!" });
     },
     onError: () => toast({ title: "Failed to update regional settings", variant: "destructive" }),
   });
 
   const taxSettingsMutation = useMutation({
-    mutationFn: async (settings: typeof taxSettings) => apiRequest("/api/restaurant/tax-settings", "PUT", settings),
+    mutationFn: async (settings: typeof taxSettings) => apiRequest("/api/merchant/tax-settings", "PUT", settings),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/merchants/me"] });
       toast({ title: "Tax settings updated successfully!" });
     },
     onError: () => toast({ title: "Failed to update tax settings", variant: "destructive" }),
   });
 
   const payoutSettingsMutation = useMutation({
-    mutationFn: async (data: { payoutSchedule: "daily" | "weekly" }) => apiRequest("/api/restaurant/payout-settings", "PUT", data),
+    mutationFn: async (data: { payoutSchedule: "daily" | "weekly" }) => apiRequest("/api/merchant/payout-settings", "PUT", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/payout-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/merchant/payout-settings"] });
       toast({ title: "Payout schedule saved successfully!" });
     },
     onError: () => toast({ title: "Failed to save payout schedule", variant: "destructive" }),
@@ -374,52 +374,52 @@ export default function Settings() {
     openingHoursMutation.mutate(openingHours);
   };
 
-  // Load existing opening hours when restaurant data is available
+  // Load existing opening hours when merchant data is available
   useEffect(() => {
-    if (restaurant?.openingHours) {
-      setOpeningHours(restaurant.openingHours as OpeningHours);
+    if (merchant?.openingHours) {
+      setOpeningHours(merchant.openingHours as OpeningHours);
     }
-  }, [restaurant?.openingHours]);
+  }, [merchant?.openingHours]);
 
   // Load existing payment methods
   useEffect(() => {
-    if (restaurant?.paymentMethods) {
-      setPaymentMethods(restaurant.paymentMethods as PaymentMethods);
+    if (merchant?.paymentMethods) {
+      setPaymentMethods(merchant.paymentMethods as PaymentMethods);
     }
-  }, [restaurant?.paymentMethods]);
+  }, [merchant?.paymentMethods]);
 
   // Load existing order types
   useEffect(() => {
-    if (restaurant?.orderTypes) {
-      setOrderTypes(restaurant.orderTypes as { pickup: boolean; shipping: boolean });
+    if (merchant?.orderTypes) {
+      setOrderTypes(merchant.orderTypes as { pickup: boolean; shipping: boolean });
     }
-  }, [restaurant?.orderTypes]);
+  }, [merchant?.orderTypes]);
 
   // Load existing regional settings
   useEffect(() => {
-    if (restaurant) {
-      setCurrency(restaurant.currency || "USD");
-      setCountry(restaurant.country || "United States");
-      setPlatformLanguage(restaurant.platformLanguage || "en");
-      setStorefrontLanguage(restaurant.storefrontLanguage || "en");
+    if (merchant) {
+      setCurrency(merchant.currency || "USD");
+      setCountry(merchant.country || "United States");
+      setPlatformLanguage(merchant.platformLanguage || "en");
+      setStorefrontLanguage(merchant.storefrontLanguage || "en");
     }
-  }, [restaurant?.currency, restaurant?.country, restaurant?.platformLanguage, restaurant?.storefrontLanguage]);
+  }, [merchant?.currency, merchant?.country, merchant?.platformLanguage, merchant?.storefrontLanguage]);
 
   // Load existing tax settings
   useEffect(() => {
-    if (restaurant) {
+    if (merchant) {
       setTaxSettings({
-        taxRate: restaurant.taxRate || "0.00",
-        taxIncludedInPrice: restaurant.taxIncludedInPrice || false,
-        taxLabel: restaurant.taxLabel || "Tax",
+        taxRate: merchant.taxRate || "0.00",
+        taxIncludedInPrice: merchant.taxIncludedInPrice || false,
+        taxLabel: merchant.taxLabel || "Tax",
       });
     }
-  }, [restaurant?.taxRate, restaurant?.taxIncludedInPrice, restaurant?.taxLabel]);
+  }, [merchant?.taxRate, merchant?.taxIncludedInPrice, merchant?.taxLabel]);
 
   // Fetch payout schedule
   const { data: payoutData } = useQuery<{ payoutSchedule: "daily" | "weekly" }>({
-    queryKey: ["/api/restaurant/payout-settings"],
-    enabled: !!restaurant,
+    queryKey: ["/api/merchant/payout-settings"],
+    enabled: !!merchant,
   });
 
   // Load payout schedule when data is available
@@ -438,7 +438,7 @@ export default function Settings() {
     );
   }
 
-  const storefrontUrl = restaurant?.slug ? `${window.location.origin}/store/${restaurant.slug}` : "";
+  const storefrontUrl = merchant?.slug ? `${window.location.origin}/store/${merchant.slug}` : "";
 
   const businessInformationCard = (
     <Card>
@@ -482,7 +482,7 @@ export default function Settings() {
                 <FormItem>
                   <FormLabel>{labels.business} Name</FormLabel>
                   <FormControl>
-                    <Input {...field} data-testid="input-restaurant-name" />
+                    <Input {...field} data-testid="input-merchant-name" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -653,7 +653,7 @@ export default function Settings() {
     </Card>
   );
 
-  if (!restaurant) {
+  if (!merchant) {
     return (
       <div className="p-6 space-y-6 max-w-4xl">
         <div className="flex items-center justify-between">
@@ -706,7 +706,7 @@ export default function Settings() {
         </TabsList>
 
         <TabsContent value="general" className="space-y-6 mt-4">
-          {restaurant.slug && (
+          {merchant.slug && (
             <Card className="bg-primary/5 border-primary/20">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between flex-wrap gap-4">

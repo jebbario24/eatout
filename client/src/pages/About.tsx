@@ -38,7 +38,7 @@ export default function About() {
             EatOut started with a simple frustration: online marketplaces made it easy to reach customers, but they took a growing cut of every single sale in exchange, and along with it, the customer relationship, the data, and control over how orders actually got fulfilled.
           </p>
           <p>
-            We built EatOut as the alternative: a complete platform for running an online business (storefront, orders, payments, inventory, and fulfillment) without handing a percentage of every transaction to someone else. Whether you're a restaurant, a grocer, a pharmacy, a flower shop, or any other kind of local or online business, the tools are the same, and the economics stay in your favor as you grow.
+            We built EatOut as the alternative: a complete platform for running an online business (storefront, orders, payments, inventory, and fulfillment) without handing a percentage of every transaction to someone else. Whether you're a grocer, a pharmacy, a flower shop, or any other kind of local or online retailer, the tools are the same, and the economics stay in your favor as you grow.
           </p>
           <p>
             Today EatOut supports businesses selling in multiple languages and currencies, shipping or delivering however makes sense for what they sell, and building direct relationships with the customers who order from them, order after order, without a marketplace in between.

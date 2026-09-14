@@ -18,7 +18,7 @@ const verificationSchema = z.object({
 
 type VerificationFormData = z.infer<typeof verificationSchema>;
 
-interface Restaurant {
+interface Merchant {
   id: string;
   metaVerificationCode?: string;
   subdomain?: string;
@@ -29,27 +29,27 @@ export default function DomainVerification() {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
-  const { data: restaurant, isLoading } = useQuery<Restaurant>({
-    queryKey: ['/api/restaurants/me'],
+  const { data: merchant, isLoading } = useQuery<Merchant>({
+    queryKey: ['/api/merchants/me'],
   });
 
   const form = useForm<VerificationFormData>({
     resolver: zodResolver(verificationSchema),
     defaultValues: {
-      metaVerificationCode: restaurant?.metaVerificationCode || "",
+      metaVerificationCode: merchant?.metaVerificationCode || "",
     },
     values: {
-      metaVerificationCode: restaurant?.metaVerificationCode || "",
+      metaVerificationCode: merchant?.metaVerificationCode || "",
     },
   });
 
   const updateVerificationMutation = useMutation({
     mutationFn: async (data: VerificationFormData) => {
-      if (!restaurant?.id) throw new Error("Restaurant not found");
-      return apiRequest(`/api/restaurants/${restaurant.id}/domain-verification`, "PATCH", data);
+      if (!merchant?.id) throw new Error("Merchant not found");
+      return apiRequest(`/api/merchants/${merchant.id}/domain-verification`, "PATCH", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/restaurants/me'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/merchants/me'] });
       toast({
         title: "Success",
         description: "Domain verification settings updated successfully",
@@ -69,7 +69,7 @@ export default function DomainVerification() {
   };
 
   const copyToClipboard = () => {
-    const domain = restaurant?.customDomain || restaurant?.subdomain || "";
+    const domain = merchant?.customDomain || merchant?.subdomain || "";
     navigator.clipboard.writeText(domain);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -83,7 +83,7 @@ export default function DomainVerification() {
     );
   }
 
-  const currentDomain = restaurant?.customDomain || restaurant?.subdomain || "your-store.eatout.app";
+  const currentDomain = merchant?.customDomain || merchant?.subdomain || "your-store.eatout.app";
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">

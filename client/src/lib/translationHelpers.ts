@@ -4,12 +4,12 @@ import type { MenuItem } from '@shared/schema';
 export function getTranslatedMenuItem(item: MenuItem, t: TFunction): MenuItem {
   const translatedName = t(`menu_item_${item.id}_name`, { 
     defaultValue: item.name,
-    ns: 'restaurant'
+    ns: 'merchant'
   });
   
   const translatedDescription = t(`menu_item_${item.id}_description`, { 
     defaultValue: item.description || '',
-    ns: 'restaurant'
+    ns: 'merchant'
   });
   
   return {

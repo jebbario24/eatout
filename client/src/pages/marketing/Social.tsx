@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { getBusinessTypeConfig } from "@/lib/businessType";
 
-interface Restaurant {
+interface Merchant {
   id: string;
   name: string;
   slug: string;
@@ -56,22 +56,22 @@ export default function Social() {
   const { toast } = useToast();
   const qrCodeRef = useRef<HTMLDivElement>(null);
 
-  // Fetch restaurant data
-  const { data: restaurant } = useQuery<Restaurant>({
-    queryKey: ["/api/restaurants/me"],
+  // Fetch merchant data
+  const { data: merchant } = useQuery<Merchant>({
+    queryKey: ["/api/merchants/me"],
   });
-  const businessConfig = getBusinessTypeConfig(restaurant?.businessType);
+  const businessConfig = getBusinessTypeConfig(merchant?.businessType);
 
   // Generate storefront URL
   const getStorefrontUrl = () => {
-    if (!restaurant) return "";
+    if (!merchant) return "";
     
-    if (restaurant.customDomain) {
-      return `https://${restaurant.customDomain}`;
-    } else if (restaurant.subdomain) {
-      return `https://${restaurant.subdomain}.eatout.app`;
+    if (merchant.customDomain) {
+      return `https://${merchant.customDomain}`;
+    } else if (merchant.subdomain) {
+      return `https://${merchant.subdomain}.eatout.app`;
     } else {
-      return `${window.location.origin}/store/${restaurant.slug}`;
+      return `${window.location.origin}/store/${merchant.slug}`;
     }
   };
 
@@ -303,7 +303,7 @@ export default function Social() {
   };
 
   const handleDownloadQR = () => {
-    if (!qrCodeRef.current || !restaurant) return;
+    if (!qrCodeRef.current || !merchant) return;
 
     // Get the SVG element
     const svg = qrCodeRef.current.querySelector('svg');
@@ -355,7 +355,7 @@ export default function Social() {
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.download = `${restaurant.name.replace(/\s+/g, '-')}-qr-code.png`;
+            link.download = `${merchant.name.replace(/\s+/g, '-')}-qr-code.png`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -393,7 +393,7 @@ export default function Social() {
   };
 
   const handlePrintTableTents = () => {
-    if (!restaurant || !storefrontUrl) return;
+    if (!merchant || !storefrontUrl) return;
 
     // HTML escape function
     const escapeHtml = (str: string) => {
@@ -409,7 +409,7 @@ export default function Social() {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const escapedName = escapeHtml(restaurant.name);
+    const escapedName = escapeHtml(merchant.name);
     const escapedUrl = escapeHtml(storefrontUrl);
 
     // Generate print-friendly table tent HTML

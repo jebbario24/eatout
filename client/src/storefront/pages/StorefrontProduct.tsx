@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { AnimatePresence, motion } from "framer-motion";
 import { Star, Minus, Plus, Heart, Truck, RefreshCw } from "lucide-react";
-import type { CustomerReview, RestaurantThemeSettings } from "@shared/schema";
+import type { CustomerReview, MerchantThemeSettings } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { convertAndFormatPrice } from "@/lib/currency";
@@ -14,11 +14,11 @@ import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
 import { CartDrawer } from "@/storefront/components/CartDrawer";
 import { PixelScripts, trackViewContent, trackAddToCart } from "@/components/PixelScripts";
 
-interface StorefrontRestaurant {
+interface StorefrontMerchant {
   id: string;
   name: string;
   currency: string;
-  themeSettings: RestaurantThemeSettings | null;
+  themeSettings: MerchantThemeSettings | null;
   socialLinks: Record<string, string> | null;
   primaryColor: string | null;
   secondaryColor: string | null;
@@ -64,10 +64,10 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
   const [qty, setQty] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
   const [wishlisted, setWishlisted] = useState(false);
-  const [draft, setDraft] = useState<{ themeSettings?: RestaurantThemeSettings } | null>(null);
+  const [draft, setDraft] = useState<{ themeSettings?: MerchantThemeSettings } | null>(null);
   const cart = useCart(slug);
 
-  const { data: restaurant } = useQuery<StorefrontRestaurant>({ queryKey: [`/api/storefront/${slug}`] });
+  const { data: merchant } = useQuery<StorefrontMerchant>({ queryKey: [`/api/storefront/${slug}`] });
   const { data: product, isLoading, isError } = useQuery<ProductDetail>({
     queryKey: [`/api/storefront/${slug}/products/${handle}`],
   });
@@ -92,19 +92,19 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
   // Never fire real tracking pixels from inside the Store Editor's live
   // preview iframe — that would pollute the merchant's own ad accounts.
   useEffect(() => {
-    if (isPreview || !product || !restaurant) return;
+    if (isPreview || !product || !merchant) return;
     trackViewContent(
-      { id: product.id, name: product.name, price: Number(product.price), currency: restaurant.currency || "USD" },
+      { id: product.id, name: product.name, price: Number(product.price), currency: merchant.currency || "USD" },
       {
-        metaPixelId: restaurant.metaPixelId || undefined,
-        tiktokPixelId: restaurant.tiktokPixelId || undefined,
-        googleAnalyticsId: restaurant.googleAnalyticsId || undefined,
-        googleAdsId: restaurant.googleAdsId || undefined,
+        metaPixelId: merchant.metaPixelId || undefined,
+        tiktokPixelId: merchant.tiktokPixelId || undefined,
+        googleAnalyticsId: merchant.googleAnalyticsId || undefined,
+        googleAdsId: merchant.googleAdsId || undefined,
       }
     );
-  }, [product?.id, restaurant?.id]);
+  }, [product?.id, merchant?.id]);
 
-  const themeSettings = draft?.themeSettings || restaurant?.themeSettings;
+  const themeSettings = draft?.themeSettings || merchant?.themeSettings;
   const theme = resolveTheme(themeSettings?.theme);
   const T = STOREFRONT_THEMES[theme];
 
@@ -120,7 +120,7 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
     );
   }
 
-  const currency = restaurant?.currency || "USD";
+  const currency = merchant?.currency || "USD";
   const formatPrice = (n: number) => convertAndFormatPrice(n, currency, null);
   const activeVariants = product.variants.filter((v) => v.isActive);
   const selectedVariant = activeVariants.find((v) => v.id === selectedVariantId) || null;
@@ -164,14 +164,14 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
       priceCents,
       imageUrl: displayImage,
     }, qty);
-    if (!isPreview && restaurant) {
+    if (!isPreview && merchant) {
       trackAddToCart(
         { id: product.id, name: product.name, price: priceCents / 100, currency, quantity: qty },
         {
-          metaPixelId: restaurant.metaPixelId || undefined,
-          tiktokPixelId: restaurant.tiktokPixelId || undefined,
-          googleAnalyticsId: restaurant.googleAnalyticsId || undefined,
-          googleAdsId: restaurant.googleAdsId || undefined,
+          metaPixelId: merchant.metaPixelId || undefined,
+          tiktokPixelId: merchant.tiktokPixelId || undefined,
+          googleAnalyticsId: merchant.googleAnalyticsId || undefined,
+          googleAdsId: merchant.googleAdsId || undefined,
         }
       );
     }
@@ -180,12 +180,12 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
     setCartOpen(true);
   };
 
-  const pixelScripts = !isPreview && restaurant && (
+  const pixelScripts = !isPreview && merchant && (
     <PixelScripts
-      metaPixelId={restaurant.metaPixelId || undefined}
-      tiktokPixelId={restaurant.tiktokPixelId || undefined}
-      googleAnalyticsId={restaurant.googleAnalyticsId || undefined}
-      googleAdsId={restaurant.googleAdsId || undefined}
+      metaPixelId={merchant.metaPixelId || undefined}
+      tiktokPixelId={merchant.tiktokPixelId || undefined}
+      googleAnalyticsId={merchant.googleAnalyticsId || undefined}
+      googleAdsId={merchant.googleAdsId || undefined}
     />
   );
 
@@ -252,7 +252,7 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
       <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
         {pixelScripts}
         {headerSection && (
-          <T.Header storeName={restaurant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+          <T.Header storeName={merchant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
         )}
         <main className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
           <div className="grid gap-8 md:grid-cols-2">
@@ -386,8 +386,8 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
         </main>
         {trustBadgesSection && <T.TrustBadges fields={trustBadgesSection.fields as any} />}
         {newsletterSection && <T.Newsletter fields={newsletterSection.fields as any} slug={slug} />}
-        {footerSection && restaurant && (
-          <T.Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
+        {footerSection && merchant && (
+          <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
         )}
         {cartDrawer}
       </div>
@@ -398,7 +398,7 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
     <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
       {pixelScripts}
       {headerSection && (
-        <T.Header storeName={restaurant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        <T.Header storeName={merchant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
       )}
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {breadcrumb}
@@ -577,8 +577,8 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
       </main>
       {trustBadgesSection && <T.TrustBadges fields={trustBadgesSection.fields as any} />}
       {newsletterSection && <T.Newsletter fields={newsletterSection.fields as any} slug={slug} />}
-      {footerSection && restaurant && (
-        <T.Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
+      {footerSection && merchant && (
+        <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
       )}
       {cartDrawer}
     </div>

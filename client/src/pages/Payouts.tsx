@@ -36,24 +36,24 @@ export default function Payouts() {
   const { toast } = useToast();
 
   const { data: pendingData, isLoading: pendingLoading } = useQuery<PendingPayoutData>({
-    queryKey: ["/api/restaurant/payouts/pending"],
+    queryKey: ["/api/merchant/payouts/pending"],
   });
 
   const { data: payoutHistory = [], isLoading: historyLoading } = useQuery<PayoutRun[]>({
-    queryKey: ["/api/restaurant/payouts/history"],
+    queryKey: ["/api/merchant/payouts/history"],
   });
 
   const processPayout = useMutation({
     mutationFn: async () => {
-      return await apiRequest("/api/restaurant/payouts/process", "POST");
+      return await apiRequest("/api/merchant/payouts/process", "POST");
     },
     onSuccess: () => {
       toast({
         title: "Payout initiated",
         description: "Your payout is being processed. It should arrive in your bank account in 1-3 business days.",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/payouts/pending"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/restaurant/payouts/history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/merchant/payouts/pending"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/merchant/payouts/history"] });
     },
     onError: (error: any) => {
       toast({

@@ -33,7 +33,7 @@ export function ReferralCTA({ referralData, enabled }: ReferralCTAProps) {
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: 'Check out this amazing restaurant!',
+        title: 'Check out this amazing store!',
         text: `Get ${referralData.refereeReward} off your first order!`,
         url: referralData.referralLink,
       });

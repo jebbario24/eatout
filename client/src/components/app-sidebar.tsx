@@ -40,7 +40,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import { useNewOrders } from "@/hooks/useNewOrders";
 import { useQuery } from "@tanstack/react-query";
-import type { Restaurant } from "@shared/schema";
+import type { Merchant } from "@shared/schema";
 import { getBusinessTypeConfig } from "@/lib/businessType";
 
 // Top-level, ungrouped — mirrors Shopify's own Home/Orders rows
@@ -204,8 +204,8 @@ export const adminMenuItems = [
     icon: ShoppingCart,
   },
   {
-    titleKey: "navigation.allRestaurants",
-    url: "/admin/restaurants",
+    titleKey: "navigation.allMerchants",
+    url: "/admin/merchants",
     icon: Building2,
   },
   {
@@ -280,11 +280,11 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
   
   const isAdmin = user?.role === 'admin';
 
-  const { data: restaurant } = useQuery<Restaurant | null>({
-    queryKey: ['/api/restaurants/me'],
+  const { data: merchant } = useQuery<Merchant | null>({
+    queryKey: ['/api/merchants/me'],
     enabled: user?.role === 'owner',
   });
-  const businessConfig = getBusinessTypeConfig(restaurant?.businessType);
+  const businessConfig = getBusinessTypeConfig(merchant?.businessType);
   const catalogLabel = businessConfig.catalog;
 
   const menuItems = [

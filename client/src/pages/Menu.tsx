@@ -148,11 +148,11 @@ export default function Menu() {
     queryKey: ["/api/menu/items"],
   });
 
-  const { data: restaurant } = useQuery<{ enabledLanguages: string[]; businessType?: string }>({
-    queryKey: ["/api/restaurants/me"],
+  const { data: merchant } = useQuery<{ enabledLanguages: string[]; businessType?: string }>({
+    queryKey: ["/api/merchants/me"],
   });
 
-  const businessType = restaurant?.businessType || 'retail';
+  const businessType = merchant?.businessType || 'retail';
   const businessConfig = getBusinessTypeConfig(businessType);
   const catalogLabel = businessConfig.catalog;
   const itemLabel = businessConfig.item;
@@ -721,8 +721,8 @@ export default function Menu() {
                         <ItemIcon className="h-4 w-4" />
                         Main
                       </TabsTrigger>
-                      {restaurant?.enabledLanguages && restaurant.enabledLanguages.length > 1 && 
-                        restaurant.enabledLanguages
+                      {merchant?.enabledLanguages && merchant.enabledLanguages.length > 1 && 
+                        merchant.enabledLanguages
                           .filter(lang => lang !== 'en')
                           .map(locale => (
                             <TabsTrigger 
@@ -1669,8 +1669,8 @@ export default function Menu() {
                     </TabsContent>
 
                     {/* Translation tabs for each enabled language */}
-                    {restaurant?.enabledLanguages && restaurant.enabledLanguages.length > 1 && 
-                      restaurant.enabledLanguages
+                    {merchant?.enabledLanguages && merchant.enabledLanguages.length > 1 && 
+                      merchant.enabledLanguages
                         .filter(lang => lang !== 'en')
                         .map(locale => (
                           <TabsContent key={locale} value={locale} className="space-y-6 mt-6">

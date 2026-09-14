@@ -28,8 +28,6 @@
     "analytics": "分析",
     "growth": "增长",
     "markets": "市场",
-    "allRestaurants": "所有商家",
-    "restaurantManagement": "商家管理",
     "platformManagement": "平台管理",
     "marketing": "营销",
     "campaigns": "活动",
@@ -62,7 +60,9 @@
     "finance": "财务",
     "products": "产品",
     "growthMarketing": "增长与营销",
-    "salesChannels": "销售渠道"
+    "salesChannels": "销售渠道",
+    "allMerchants": "所有商家",
+    "merchantManagement": "商家管理"
   },
   "storefront": {
     "menu": "菜单",

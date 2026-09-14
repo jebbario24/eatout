@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import type { Restaurant } from "@shared/schema";
+import type { Merchant } from "@shared/schema";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,11 +31,11 @@ export function TopBar() {
   const isAdmin = user?.role === "admin";
   const homeUrl = isAdmin ? "/admin" : "/dashboard";
 
-  const { data: restaurant } = useQuery<Restaurant | null>({
-    queryKey: ["/api/restaurants/me"],
+  const { data: merchant } = useQuery<Merchant | null>({
+    queryKey: ["/api/merchants/me"],
     enabled: user?.role === "owner",
   });
-  const businessConfig = getBusinessTypeConfig(restaurant?.businessType);
+  const businessConfig = getBusinessTypeConfig(merchant?.businessType);
 
   const routes = useMemo(
     () => (isAdmin ? adminMenuItems : getSearchableRoutes(businessConfig)),

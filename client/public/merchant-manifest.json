@@ -1,7 +1,7 @@
 {
-  "name": "EatOut Restaurant Manager",
+  "name": "EatOut Merchant Manager",
   "short_name": "EatOut Manager",
-  "description": "Manage your restaurant orders, menu, and operations in real-time",
+  "description": "Manage your store orders, catalog, and operations in real-time",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#02090a",
@@ -10,19 +10,19 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/icons/restaurant-icon-192.png",
+      "src": "/icons/merchant-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/restaurant-icon-512.png",
+      "src": "/icons/merchant-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/restaurant-icon-maskable.png",
+      "src": "/icons/merchant-icon-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -30,21 +30,21 @@
   ],
   "screenshots": [
     {
-      "src": "/screenshots/restaurant-orders.png",
+      "src": "/screenshots/merchant-orders.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Order Management - Accept and manage orders in real-time"
     },
     {
-      "src": "/screenshots/restaurant-menu.png",
+      "src": "/screenshots/merchant-menu.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Menu Management - Update your menu items and pricing"
+      "label": "Catalog Management - Update your products and pricing"
     },
     {
-      "src": "/screenshots/restaurant-dashboard.png",
+      "src": "/screenshots/merchant-dashboard.png",
       "sizes": "2560x1440",
       "type": "image/png",
       "form_factor": "wide",
@@ -58,28 +58,28 @@
       "short_name": "Orders",
       "description": "View and manage current orders",
       "url": "/orders",
-      "icons": [{ "src": "/icons/restaurant-icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/merchant-icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Menu",
       "short_name": "Menu",
       "description": "Edit your menu items",
       "url": "/menu",
-      "icons": [{ "src": "/icons/restaurant-icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/merchant-icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Analytics",
       "short_name": "Analytics",
       "description": "View sales and reports",
       "url": "/dashboard",
-      "icons": [{ "src": "/icons/restaurant-icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/merchant-icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Settings",
       "short_name": "Settings",
-      "description": "Restaurant settings",
+      "description": "Store settings",
       "url": "/settings",
-      "icons": [{ "src": "/icons/restaurant-icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/icons/merchant-icon-192.png", "sizes": "192x192" }]
     }
   ],
   "prefer_related_applications": false,

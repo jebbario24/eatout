@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, ShoppingCart, Zap } from "lucide-react";
-import type { MenuItem, Restaurant } from "@shared/schema";
+import type { MenuItem, Merchant } from "@shared/schema";
 import { getBusinessTypeConfig } from "@/lib/businessType";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,10 +41,10 @@ export default function Upsells() {
     queryKey: ["/api/menu/items"],
   });
 
-  const { data: restaurant } = useQuery<Restaurant>({
-    queryKey: ["/api/restaurants/me"],
+  const { data: merchant } = useQuery<Merchant>({
+    queryKey: ["/api/merchants/me"],
   });
-  const businessConfig = getBusinessTypeConfig(restaurant?.businessType);
+  const businessConfig = getBusinessTypeConfig(merchant?.businessType);
 
   const { data: upsellRules = [], isLoading } = useQuery<UpsellRule[]>({
     queryKey: ["/api/upsells"],

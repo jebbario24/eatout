@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import { queryClient } from "@/lib/queryClient";
 
 interface AdminAnalytics {
-  totalRestaurants: number;
+  totalMerchants: number;
   activeSubscriptions: number;
   activeTrials: number;
   mrr: number;
@@ -102,7 +102,7 @@ export default function AdminDashboard() {
   const stats = [
     {
       title: "Total Merchants",
-      value: analytics?.totalRestaurants || 0,
+      value: analytics?.totalMerchants || 0,
       icon: Store,
       description: "Registered on platform"
     },
@@ -241,14 +241,14 @@ export default function AdminDashboard() {
         <CardContent>
           <div className="space-y-4">
             {analytics?.recentSignups && analytics.recentSignups.length > 0 ? (
-              analytics.recentSignups.map((restaurant: any) => (
-                <div key={restaurant.id} className="flex items-center justify-between border-b pb-3 last:border-0" data-testid={`row-restaurant-${restaurant.id}`}>
+              analytics.recentSignups.map((merchant: any) => (
+                <div key={merchant.id} className="flex items-center justify-between border-b pb-3 last:border-0" data-testid={`row-merchant-${merchant.id}`}>
                   <div>
-                    <p className="font-medium" data-testid={`text-restaurant-name-${restaurant.id}`}>{restaurant.name}</p>
-                    <p className="text-sm text-muted-foreground">{restaurant.email}</p>
+                    <p className="font-medium" data-testid={`text-merchant-name-${merchant.id}`}>{merchant.name}</p>
+                    <p className="text-sm text-muted-foreground">{merchant.email}</p>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {new Date(restaurant.createdAt).toLocaleDateString()}
+                    {new Date(merchant.createdAt).toLocaleDateString()}
                   </div>
                 </div>
               ))

@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell, BellOff, Download, Wifi, WifiOff } from "lucide-react";
-import { useRestaurantPush } from "@/hooks/useRestaurantPush";
+import { useMerchantPush } from "@/hooks/useMerchantPush";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useState, useEffect } from "react";
 
-export function RestaurantNotificationHeader() {
-  const { isSupported, isSubscribed, subscribe, unsubscribe } = useRestaurantPush();
+export function MerchantNotificationHeader() {
+  const { isSupported, isSubscribed, subscribe, unsubscribe } = useMerchantPush();
   const { isOnline } = useOnlineStatus();
   const [showInstall, setShowInstall] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);

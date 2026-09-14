@@ -21,7 +21,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
-import { RestaurantNotificationHeader } from "@/components/RestaurantNotificationHeader";
+import { MerchantNotificationHeader } from "@/components/MerchantNotificationHeader";
 import { useOrderAlert } from "@/hooks/useOrderAlert";
 import {
   Table,
@@ -838,7 +838,7 @@ export default function Orders() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <RestaurantNotificationHeader />
+          <MerchantNotificationHeader />
           <Button variant="outline" onClick={() => { setEditDraft(null); setDraftOpen(true); }} data-testid="button-new-draft">
             <FileText className="mr-2 h-4 w-4" />
             New Draft

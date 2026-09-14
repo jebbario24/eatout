@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Staff, Restaurant } from "@shared/schema";
+import type { Staff, Merchant } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,8 +49,8 @@ export default function Staff() {
     queryKey: ["/api/staff"],
   });
 
-  const { data: restaurant } = useQuery<Restaurant>({
-    queryKey: ["/api/restaurants/me"],
+  const { data: merchant } = useQuery<Merchant>({
+    queryKey: ["/api/merchants/me"],
   });
   const rolePlaceholders: Record<string, string> = {
     grocery: "e.g., Cashier, Stock Clerk, Manager",
@@ -58,7 +58,7 @@ export default function Staff() {
     flowers: "e.g., Florist, Delivery, Manager",
     retail: "e.g., Sales Associate, Cashier, Manager",
   };
-  const rolePlaceholder = rolePlaceholders[restaurant?.businessType || "retail"] || rolePlaceholders.retail;
+  const rolePlaceholder = rolePlaceholders[merchant?.businessType || "retail"] || rolePlaceholders.retail;
 
   const form = useForm({
     resolver: zodResolver(staffSchema),

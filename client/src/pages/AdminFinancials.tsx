@@ -12,9 +12,9 @@ interface FinancialData {
   totalCommissions: string;
   totalPayouts: string;
   pendingPayouts: string;
-  restaurantBreakdown: Array<{
-    restaurantId: string;
-    restaurantName: string;
+  merchantBreakdown: Array<{
+    merchantId: string;
+    merchantName: string;
     totalOrders: number;
     totalRevenue: string;
     commissionEarned: string;
@@ -22,8 +22,8 @@ interface FinancialData {
   }>;
   recentPayouts: Array<{
     id: string;
-    restaurantId: string;
-    restaurantName: string;
+    merchantId: string;
+    merchantName: string;
     totalAmount: string;
     status: string;
     payoutTransactionId: string | null;
@@ -57,16 +57,16 @@ export default function AdminFinancials() {
 
   // Prepare chart data - group by last 30 days
   const getChartData = () => {
-    if (!data?.restaurantBreakdown) return [];
+    if (!data?.merchantBreakdown) return [];
     
-    // For simplicity, show commission per restaurant
-    return data.restaurantBreakdown
+    // For simplicity, show commission per merchant
+    return data.merchantBreakdown
       .sort((a, b) => parseFloat(b.commissionEarned) - parseFloat(a.commissionEarned))
       .slice(0, 10)
       .map(item => ({
-        name: item.restaurantName.length > 20 
-          ? item.restaurantName.substring(0, 20) + '...' 
-          : item.restaurantName,
+        name: item.merchantName.length > 20 
+          ? item.merchantName.substring(0, 20) + '...' 
+          : item.merchantName,
         commission: parseFloat(item.commissionEarned),
       }));
   };
@@ -207,7 +207,7 @@ export default function AdminFinancials() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead data-testid="header-restaurant">Merchant</TableHead>
+                    <TableHead data-testid="header-merchant">Merchant</TableHead>
                     <TableHead data-testid="header-total-orders">Total Orders</TableHead>
                     <TableHead data-testid="header-total-revenue">Total Revenue</TableHead>
                     <TableHead data-testid="header-commission">Commission Earned (2%)</TableHead>
@@ -215,28 +215,28 @@ export default function AdminFinancials() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data?.restaurantBreakdown.length === 0 ? (
+                  {data?.merchantBreakdown.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground" data-testid="text-no-data">
                         No merchant data available
                       </TableCell>
                     </TableRow>
                   ) : (
-                    data?.restaurantBreakdown.map((item) => (
-                      <TableRow key={item.restaurantId} data-testid={`row-restaurant-${item.restaurantId}`}>
-                        <TableCell className="font-medium" data-testid={`text-restaurant-name-${item.restaurantId}`}>
-                          {item.restaurantName}
+                    data?.merchantBreakdown.map((item) => (
+                      <TableRow key={item.merchantId} data-testid={`row-merchant-${item.merchantId}`}>
+                        <TableCell className="font-medium" data-testid={`text-merchant-name-${item.merchantId}`}>
+                          {item.merchantName}
                         </TableCell>
-                        <TableCell data-testid={`text-orders-${item.restaurantId}`}>
+                        <TableCell data-testid={`text-orders-${item.merchantId}`}>
                           {item.totalOrders}
                         </TableCell>
-                        <TableCell data-testid={`text-revenue-${item.restaurantId}`}>
+                        <TableCell data-testid={`text-revenue-${item.merchantId}`}>
                           {formatCurrency(item.totalRevenue)}
                         </TableCell>
-                        <TableCell className="font-semibold" data-testid={`text-commission-${item.restaurantId}`}>
+                        <TableCell className="font-semibold" data-testid={`text-commission-${item.merchantId}`}>
                           {formatCurrency(item.commissionEarned)}
                         </TableCell>
-                        <TableCell data-testid={`text-last-payout-${item.restaurantId}`}>
+                        <TableCell data-testid={`text-last-payout-${item.merchantId}`}>
                           {item.lastPayoutDate 
                             ? format(new Date(item.lastPayoutDate), 'MMM dd, yyyy')
                             : 'Never'}
@@ -268,7 +268,7 @@ export default function AdminFinancials() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead data-testid="header-payout-restaurant">Merchant</TableHead>
+                    <TableHead data-testid="header-payout-merchant">Merchant</TableHead>
                     <TableHead data-testid="header-payout-amount">Amount</TableHead>
                     <TableHead data-testid="header-payout-status">Status</TableHead>
                     <TableHead data-testid="header-payout-transfer-id">Transfer ID</TableHead>
@@ -285,8 +285,8 @@ export default function AdminFinancials() {
                   ) : (
                     data?.recentPayouts.map((payout) => (
                       <TableRow key={payout.id} data-testid={`row-payout-${payout.id}`}>
-                        <TableCell className="font-medium" data-testid={`text-payout-restaurant-${payout.id}`}>
-                          {payout.restaurantName || 'Unknown'}
+                        <TableCell className="font-medium" data-testid={`text-payout-merchant-${payout.id}`}>
+                          {payout.merchantName || 'Unknown'}
                         </TableCell>
                         <TableCell data-testid={`text-payout-amount-${payout.id}`}>
                           {formatCurrency(payout.totalAmount)}

@@ -121,7 +121,7 @@ export default function Analytics() {
         <div>
           <h1 className="text-3xl font-display font-bold">Analytics</h1>
           <p className="text-muted-foreground mt-1">
-            Track your restaurant's performance
+            Track your store's performance
           </p>
         </div>
         <div className="flex items-center gap-2">

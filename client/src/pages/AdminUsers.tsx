@@ -67,8 +67,8 @@ interface User {
   isActive: boolean;
   createdAt: string;
   lastLogin: string | null;
-  restaurantName?: string;
-  restaurantId?: string;
+  merchantName?: string;
+  merchantId?: string;
 }
 
 export default function AdminUsers() {
@@ -176,7 +176,7 @@ export default function AdminUsers() {
   const filteredUsers = users.filter((user) => {
     const matchesSearch = 
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.restaurantName?.toLowerCase().includes(searchQuery.toLowerCase());
+      user.merchantName?.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesRole = roleFilter === "all" || user.role === roleFilter;
     const matchesStatus = 
@@ -356,8 +356,8 @@ export default function AdminUsers() {
                   </TableCell>
                   <TableCell>{getRoleBadge(user.role, user.id)}</TableCell>
                   <TableCell>{getStatusBadge(user.isActive, user.id)}</TableCell>
-                  <TableCell data-testid={`text-restaurant-${user.id}`}>
-                    {user.restaurantName || '-'}
+                  <TableCell data-testid={`text-merchant-${user.id}`}>
+                    {user.merchantName || '-'}
                   </TableCell>
                   <TableCell data-testid={`text-created-${user.id}`}>
                     {new Date(user.createdAt).toLocaleDateString()}
@@ -507,11 +507,11 @@ export default function AdminUsers() {
               <span className="text-destructive font-semibold">Warning: This action cannot be undone!</span>
               <br /><br />
               This will permanently delete <strong>{selectedUser?.email}</strong> and all associated data.
-              {selectedUser?.role === 'owner' && selectedUser?.restaurantName && (
+              {selectedUser?.role === 'owner' && selectedUser?.merchantName && (
                 <>
                   <br /><br />
-                  <span className="font-semibold">Note:</span> This user owns the restaurant "{selectedUser.restaurantName}".
-                  Deleting this user will not delete the restaurant. If you want to remove the restaurant,
+                  <span className="font-semibold">Note:</span> This user owns the merchant "{selectedUser.merchantName}".
+                  Deleting this user will not delete the merchant. If you want to remove the merchant,
                   use the Merchant Management page.
                 </>
               )}

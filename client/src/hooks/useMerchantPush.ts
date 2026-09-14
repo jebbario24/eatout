@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-export function useRestaurantPush() {
+export function useMerchantPush() {
   const [isSupported, setIsSupported] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
@@ -42,7 +42,7 @@ export function useRestaurantPush() {
       const registration = await navigator.serviceWorker.ready;
       
       // Get VAPID public key from server
-      const response = await fetch('/api/restaurant/push/vapid-public-key', {
+      const response = await fetch('/api/merchant/push/vapid-public-key', {
         credentials: 'include',
       });
       
@@ -59,7 +59,7 @@ export function useRestaurantPush() {
       });
 
       // Send subscription to server
-      await fetch('/api/restaurant/push/subscribe', {
+      await fetch('/api/merchant/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -72,8 +72,8 @@ export function useRestaurantPush() {
       // Test notification
       new Notification('🎉 Notifications Enabled!', {
         body: 'You\'ll now receive alerts for new orders',
-        icon: '/icons/restaurant-icon-192.png',
-        badge: '/icons/restaurant-icon-192.png',
+        icon: '/icons/merchant-icon-192.png',
+        badge: '/icons/merchant-icon-192.png',
       });
       
       return pushSubscription;
@@ -90,7 +90,7 @@ export function useRestaurantPush() {
       await subscription.unsubscribe();
       
       // Notify server
-      await fetch('/api/restaurant/push/unsubscribe', {
+      await fetch('/api/merchant/push/unsubscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -113,8 +113,8 @@ export function useRestaurantPush() {
 
     new Notification('🔔 Test Notification', {
       body: 'This is how order notifications will look',
-      icon: '/icons/restaurant-icon-192.png',
-      badge: '/icons/restaurant-icon-192.png',
+      icon: '/icons/merchant-icon-192.png',
+      badge: '/icons/merchant-icon-192.png',
       tag: 'test',
       ...({ vibrate: [200, 100, 200] } as any),
     });

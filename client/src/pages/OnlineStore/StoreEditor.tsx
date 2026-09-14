@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Restaurant, RestaurantThemeSettings, ThemeSection, ThemeSectionType, ProductPageSettings, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
+import type { Merchant, MerchantThemeSettings, ThemeSection, ThemeSectionType, ProductPageSettings, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
 import { SectionList } from "./components/SectionList";
 import { FieldPanel } from "./components/FieldPanel";
 import { DeviceSwitcher, DEVICE_WIDTHS, type DeviceMode } from "./components/DeviceSwitcher";
@@ -39,21 +39,21 @@ export default function StoreEditor() {
   const [selectedKey, setSelectedKey] = useState<string>("hero");
   const [device, setDevice] = useState<DeviceMode>("desktop");
   const [currentPage, setCurrentPageState] = useState<"home" | "product">("home");
-  const [themeSettings, setThemeSettings] = useState<RestaurantThemeSettings | null>(null);
+  const [themeSettings, setThemeSettings] = useState<MerchantThemeSettings | null>(null);
   const [socialLinks, setSocialLinks] = useState<Record<string, string> | null>(null);
   const [isSaving, setIsSaving] = useState<"save" | "publish" | null>(null);
   const [iframeReady, setIframeReady] = useState(false);
 
-  const { data: restaurant, isLoading } = useQuery<Restaurant | null>({ queryKey: ["/api/restaurants/me"] });
+  const { data: merchant, isLoading } = useQuery<Merchant | null>({ queryKey: ["/api/merchants/me"] });
   const { data: reviews = [] } = useQuery<CustomerReview[]>({ queryKey: ["/api/reviews"] });
   const { data: items = [] } = useQuery<MenuItem[]>({ queryKey: ["/api/menu/items"] });
 
   useEffect(() => {
-    if (restaurant && !themeSettings) {
-      setThemeSettings(hasValidThemeSettings(restaurant.themeSettings) ? restaurant.themeSettings : null);
-      setSocialLinks((restaurant.socialLinks as Record<string, string>) || {});
+    if (merchant && !themeSettings) {
+      setThemeSettings(hasValidThemeSettings(merchant.themeSettings) ? merchant.themeSettings : null);
+      setSocialLinks((merchant.socialLinks as Record<string, string>) || {});
     }
-  }, [restaurant, themeSettings]);
+  }, [merchant, themeSettings]);
 
   const postDraft = () => {
     if (!iframeRef.current?.contentWindow || !themeSettings) return;
@@ -71,7 +71,7 @@ export default function StoreEditor() {
     setIframeReady(false);
   }, [currentPage]);
 
-  if (isLoading || !restaurant) {
+  if (isLoading || !merchant) {
     return <div className="flex h-full min-h-[70vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
 
@@ -154,7 +154,7 @@ export default function StoreEditor() {
     setIsSaving(publish ? "publish" : "save");
     try {
       await apiRequest("/api/store/theme", "PATCH", { themeSettings, socialLinks, publish });
-      await queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/merchants/me"] });
       toast({ title: publish ? "Your store is live" : "Draft saved" });
     } catch {
       toast({ variant: "destructive", title: "Failed to save", description: "Please try again." });
@@ -212,7 +212,7 @@ export default function StoreEditor() {
           <DeviceSwitcher mode={device} onChange={setDevice} />
         </div>
         <div className="flex items-center gap-2">
-          <a href={`/store/${restaurant.slug}`} target="_blank" rel="noopener noreferrer">
+          <a href={`/store/${merchant.slug}`} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" size="sm"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />View store</Button>
           </a>
           <Button variant="outline" size="sm" disabled={isSaving !== null} onClick={() => save(false)} data-testid="button-save-draft">
@@ -242,7 +242,7 @@ export default function StoreEditor() {
           <div className="h-full overflow-hidden rounded-lg border bg-background shadow-sm transition-all" style={{ width: DEVICE_WIDTHS[device] }}>
             <iframe
               ref={iframeRef}
-              src={currentPage === "product" && previewProduct ? `/store/${restaurant.slug}/products/${previewProduct.handle}?preview=1` : `/store/${restaurant.slug}?preview=1`}
+              src={currentPage === "product" && previewProduct ? `/store/${merchant.slug}/products/${previewProduct.handle}?preview=1` : `/store/${merchant.slug}?preview=1`}
               className="h-full w-full border-0"
               title="Store preview"
               onLoad={() => setIframeReady(true)}

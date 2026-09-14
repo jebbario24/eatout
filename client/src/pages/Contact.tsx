@@ -134,7 +134,7 @@ export default function Contact() {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
-                  123 Restaurant Plaza<br />
+                  123 Commerce Plaza<br />
                   San Francisco, CA 94102<br />
                   United States
                 </p>

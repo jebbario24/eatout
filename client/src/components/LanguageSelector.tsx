@@ -58,15 +58,15 @@ const RTL_LANGUAGES = ['ar', 'he', 'fa', 'ur'];
 
 interface LanguageSelectorProps {
   enabledLanguages: string[];
-  restaurantId?: string;
+  merchantId?: string;
 }
 
-export function LanguageSelector({ enabledLanguages, restaurantId }: LanguageSelectorProps) {
+export function LanguageSelector({ enabledLanguages, merchantId }: LanguageSelectorProps) {
   const { i18n } = useTranslation();
   
   // Load saved language preference on mount
   useEffect(() => {
-    const savedLanguage = localStorage.getItem(`storefront_language_${restaurantId}`);
+    const savedLanguage = localStorage.getItem(`storefront_language_${merchantId}`);
     if (savedLanguage && enabledLanguages.includes(savedLanguage)) {
       i18n.changeLanguage(savedLanguage);
       applyDirection(savedLanguage);
@@ -75,7 +75,7 @@ export function LanguageSelector({ enabledLanguages, restaurantId }: LanguageSel
       i18n.changeLanguage(enabledLanguages[0]);
       applyDirection(enabledLanguages[0]);
     }
-  }, [restaurantId, enabledLanguages, i18n]);
+  }, [merchantId, enabledLanguages, i18n]);
 
   const applyDirection = (lang: string) => {
     const isRTL = RTL_LANGUAGES.includes(lang);
@@ -86,8 +86,8 @@ export function LanguageSelector({ enabledLanguages, restaurantId }: LanguageSel
   const handleLanguageChange = (lang: string) => {
     i18n.changeLanguage(lang);
     applyDirection(lang);
-    if (restaurantId) {
-      localStorage.setItem(`storefront_language_${restaurantId}`, lang);
+    if (merchantId) {
+      localStorage.setItem(`storefront_language_${merchantId}`, lang);
     }
   };
 

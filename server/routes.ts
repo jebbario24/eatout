@@ -5000,7 +5000,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         actionCategory: 'subscription',
         description: `Cancelled subscription for merchant "${merchant.name}"`,
         targetId: id,
-        targetType: 'merchant',
+        // Matches AdminActivityLogs.tsx's categoryLabels/categories, which
+        // still filter on and display the literal legacy value 'restaurant'
+        // (relabeled to "Merchant" there) rather than every historical log
+        // row becoming unfilterable by its old category.
+        targetType: 'restaurant',
         targetName: merchant.name,
         metadata: { merchantId: id, merchantName: merchant.name },
         ipAddress: req.ip,
@@ -5067,10 +5071,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId: req.user.id,
         userEmail: req.user.email,
         actionType: 'merchant_deleted',
-        actionCategory: 'merchant',
+        // See the comment on the other logAdminActivity call above -- these
+        // two stay the literal legacy value 'restaurant'.
+        actionCategory: 'restaurant',
         description: `Deleted merchant "${merchant?.name || id}" and all associated data`,
         targetId: id,
-        targetType: 'merchant',
+        targetType: 'restaurant',
         targetName: merchant?.name,
         metadata: { merchantId: id, merchantName: merchant?.name },
         ipAddress: req.ip,

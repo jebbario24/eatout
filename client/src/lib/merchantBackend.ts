@@ -1,27 +1,27 @@
-class RestaurantTranslationsBackend {
+class MerchantTranslationsBackend {
   type = 'backend' as const;
   static type = 'backend' as const;
   
-  restaurantSlug: string | null = null;
+  merchantSlug: string | null = null;
   
   init(services: any, backendOptions: any) {
-    if (backendOptions && backendOptions.restaurantSlug) {
-      this.restaurantSlug = backendOptions.restaurantSlug;
+    if (backendOptions && backendOptions.merchantSlug) {
+      this.merchantSlug = backendOptions.merchantSlug;
     }
   }
   
   read(language: string, namespace: string, callback: (err: any, data: any) => void) {
-    if (namespace !== 'restaurant') {
+    if (namespace !== 'merchant') {
       callback(null, {});
       return;
     }
     
-    if (!this.restaurantSlug) {
+    if (!this.merchantSlug) {
       callback(null, {});
       return;
     }
     
-    fetch(`/api/storefront/${this.restaurantSlug}/translations/${language}`)
+    fetch(`/api/storefront/${this.merchantSlug}/translations/${language}`)
       .then(response => {
         if (!response.ok) {
           callback(null, {});
@@ -53,14 +53,14 @@ class RestaurantTranslationsBackend {
         callback(null, translations);
       })
       .catch(error => {
-        console.error('Failed to load restaurant translations:', error);
+        console.error('Failed to load merchant translations:', error);
         callback(null, {});
       });
   }
   
-  setRestaurantSlug(slug: string) {
-    this.restaurantSlug = slug;
+  setMerchantSlug(slug: string) {
+    this.merchantSlug = slug;
   }
 }
 
-export default RestaurantTranslationsBackend;
+export default MerchantTranslationsBackend;

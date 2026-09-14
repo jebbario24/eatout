@@ -35,7 +35,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { MenuItem, Restaurant } from "@shared/schema";
+import type { MenuItem, Merchant } from "@shared/schema";
 import { getBusinessTypeConfig } from "@/lib/businessType";
 import { InlineImageUploader } from "@/components/InlineImageUploader";
 import type { UploadResult } from "@uppy/core";
@@ -56,18 +56,18 @@ export default function Bundles() {
   const { t } = useTranslation();
   const { toast } = useToast();
 
-  // Fetch restaurant data for currency
-  const { data: restaurant } = useQuery<Restaurant>({
-    queryKey: ["/api/restaurants/me"],
+  // Fetch merchant data for currency
+  const { data: merchant } = useQuery<Merchant>({
+    queryKey: ["/api/merchants/me"],
   });
-  const businessConfig = getBusinessTypeConfig(restaurant?.businessType);
+  const businessConfig = getBusinessTypeConfig(merchant?.businessType);
   const bundleNamePlaceholders: Record<string, string> = {
     grocery: "Weekly Essentials Bundle",
     pharmacy: "Cold & Flu Care Pack",
     flowers: "Anniversary Bouquet Bundle",
     retail: "Starter Bundle",
   };
-  const bundleNamePlaceholder = bundleNamePlaceholders[restaurant?.businessType || "retail"] || bundleNamePlaceholders.retail;
+  const bundleNamePlaceholder = bundleNamePlaceholders[merchant?.businessType || "retail"] || bundleNamePlaceholders.retail;
 
   // Fetch available menu items
   const { data: menuItems = [] } = useQuery<MenuItem[]>({
@@ -183,8 +183,8 @@ export default function Bundles() {
   // Currency formatter
   const formatCurrency = (amount: number | string) => {
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    const currency = restaurant?.currency || 'USD';
-    const country = restaurant?.country || 'United States';
+    const currency = merchant?.currency || 'USD';
+    const country = merchant?.country || 'United States';
     
     // Map countries to locale codes
     const localeMap: { [key: string]: string } = {
@@ -640,7 +640,7 @@ export default function Bundles() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-regular-price">Regular Price ({restaurant?.currency || 'USD'})</Label>
+                  <Label htmlFor="edit-regular-price">Regular Price ({merchant?.currency || 'USD'})</Label>
                   <Input
                     id="edit-regular-price"
                     type="number"
@@ -654,7 +654,7 @@ export default function Bundles() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-bundle-price">Bundle Price ({restaurant?.currency || 'USD'})</Label>
+                  <Label htmlFor="edit-bundle-price">Bundle Price ({merchant?.currency || 'USD'})</Label>
                   <Input
                     id="edit-bundle-price"
                     type="number"
@@ -797,7 +797,7 @@ export default function Bundles() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="new-regular-price">Regular Price ({restaurant?.currency || 'USD'})</Label>
+                <Label htmlFor="new-regular-price">Regular Price ({merchant?.currency || 'USD'})</Label>
                 <Input
                   id="new-regular-price"
                   type="number"
@@ -811,7 +811,7 @@ export default function Bundles() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="new-bundle-price">Bundle Price ({restaurant?.currency || 'USD'})</Label>
+                <Label htmlFor="new-bundle-price">Bundle Price ({merchant?.currency || 'USD'})</Label>
                 <Input
                   id="new-bundle-price"
                   type="number"

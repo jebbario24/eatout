@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { MenuItem, MenuCategory, Restaurant } from "@shared/schema";
+import type { MenuItem, MenuCategory, Merchant } from "@shared/schema";
 import { getBusinessTypeConfig } from "@/lib/businessType";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,10 +61,10 @@ export default function POS() {
     queryKey: ["/api/menu/items"],
   });
 
-  const { data: restaurant } = useQuery<Restaurant>({
-    queryKey: ["/api/restaurants/me"],
+  const { data: merchant } = useQuery<Merchant>({
+    queryKey: ["/api/merchants/me"],
   });
-  const businessConfig = getBusinessTypeConfig(restaurant?.businessType);
+  const businessConfig = getBusinessTypeConfig(merchant?.businessType);
   const effectiveOrderType = orderType || businessConfig.orderTypes[0]?.value || "pickup";
 
   const filteredItems = selectedCategory

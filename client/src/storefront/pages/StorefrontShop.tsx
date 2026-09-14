@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { ChevronDown } from "lucide-react";
-import type { RestaurantThemeSettings } from "@shared/schema";
+import type { MerchantThemeSettings } from "@shared/schema";
 import { convertAndFormatPrice } from "@/lib/currency";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
 import { useCart } from "@/storefront/lib/cartStore";
@@ -12,11 +12,11 @@ import { ProductCard as FarfetchProductCard, type StorefrontProduct } from "@/st
 import { ProductCard as AdanolaProductCard } from "@/storefront/themes/adanola/ProductCard";
 import { PixelScripts, trackAddToCart } from "@/components/PixelScripts";
 
-interface StorefrontRestaurant {
+interface StorefrontMerchant {
   name: string;
   description: string | null;
   currency: string;
-  themeSettings: RestaurantThemeSettings | null;
+  themeSettings: MerchantThemeSettings | null;
   socialLinks: Record<string, string> | null;
   metaPixelId?: string | null;
   tiktokPixelId?: string | null;
@@ -58,7 +58,7 @@ export function StorefrontShop({ slug }: { slug: string }) {
 
   const collectionHandle = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("collection") : null;
 
-  const { data: restaurant } = useQuery<StorefrontRestaurant>({ queryKey: [`/api/storefront/${slug}`] });
+  const { data: merchant } = useQuery<StorefrontMerchant>({ queryKey: [`/api/storefront/${slug}`] });
   const { data: products, isLoading } = useQuery<(StorefrontProduct & { categoryId: string | null; createdAt: string | null; tags?: string[] | null; hasVariants?: boolean })[]>({
     queryKey: [`/api/storefront/${slug}/products`, collectionHandle],
     queryFn: async () => {
@@ -72,9 +72,9 @@ export function StorefrontShop({ slug }: { slug: string }) {
   });
   const { data: categories } = useQuery<Category[]>({ queryKey: [`/api/storefront/${slug}/categories`] });
 
-  const currency = restaurant?.currency || "USD";
+  const currency = merchant?.currency || "USD";
   const formatPrice = (n: number) => convertAndFormatPrice(n, currency, null);
-  const theme = resolveTheme(restaurant?.themeSettings?.theme);
+  const theme = resolveTheme(merchant?.themeSettings?.theme);
   const T = STOREFRONT_THEMES[theme];
 
   const items = useMemo(() => {
@@ -95,9 +95,9 @@ export function StorefrontShop({ slug }: { slug: string }) {
     return list;
   }, [products, categoryId, sort]);
 
-  const headerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "header");
-  const footerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "footer");
-  const bannerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "banner" && s.enabled && (s.fields?.heading || s.fields?.imageUrl));
+  const headerSection = merchant?.themeSettings?.layout?.sections?.find((s) => s.type === "header");
+  const footerSection = merchant?.themeSettings?.layout?.sections?.find((s) => s.type === "footer");
+  const bannerSection = merchant?.themeSettings?.layout?.sections?.find((s) => s.type === "banner" && s.enabled && (s.fields?.heading || s.fields?.imageUrl));
   const base = `/store/${slug}`;
 
   const handleQuickAdd = (item: StorefrontProduct) => {
@@ -107,26 +107,26 @@ export function StorefrontShop({ slug }: { slug: string }) {
       priceCents: Math.round(Number(item.price) * 100),
       imageUrl: item.imageUrl,
     }, 1);
-    if (!isPreview && restaurant) {
+    if (!isPreview && merchant) {
       trackAddToCart(
         { id: item.id, name: item.name, price: Number(item.price), currency },
         {
-          metaPixelId: restaurant.metaPixelId || undefined,
-          tiktokPixelId: restaurant.tiktokPixelId || undefined,
-          googleAnalyticsId: restaurant.googleAnalyticsId || undefined,
-          googleAdsId: restaurant.googleAdsId || undefined,
+          metaPixelId: merchant.metaPixelId || undefined,
+          tiktokPixelId: merchant.tiktokPixelId || undefined,
+          googleAnalyticsId: merchant.googleAnalyticsId || undefined,
+          googleAdsId: merchant.googleAdsId || undefined,
         }
       );
     }
     setCartOpen(true);
   };
 
-  const pixelScripts = !isPreview && restaurant && (
+  const pixelScripts = !isPreview && merchant && (
     <PixelScripts
-      metaPixelId={restaurant.metaPixelId || undefined}
-      tiktokPixelId={restaurant.tiktokPixelId || undefined}
-      googleAnalyticsId={restaurant.googleAnalyticsId || undefined}
-      googleAdsId={restaurant.googleAdsId || undefined}
+      metaPixelId={merchant.metaPixelId || undefined}
+      tiktokPixelId={merchant.tiktokPixelId || undefined}
+      googleAnalyticsId={merchant.googleAnalyticsId || undefined}
+      googleAdsId={merchant.googleAdsId || undefined}
     />
   );
 
@@ -155,8 +155,8 @@ export function StorefrontShop({ slug }: { slug: string }) {
     return (
       <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
         {pixelScripts}
-        {headerSection && restaurant && (
-          <T.Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        {headerSection && merchant && (
+          <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
         )}
 
         <div className="mx-auto max-w-[1440px] px-4 pt-4 sm:px-6 lg:px-8">
@@ -241,15 +241,15 @@ export function StorefrontShop({ slug }: { slug: string }) {
           </div>
         </div>
 
-        {restaurant?.description && (
+        {merchant?.description && (
           <div className="mx-auto max-w-[1440px] border-t border-[hsl(var(--card-border))] px-4 py-10 sm:px-6 lg:px-8">
             <h2 className="text-xl font-bold text-foreground">Shop</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted-foreground">{restaurant.description}</p>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted-foreground">{merchant.description}</p>
           </div>
         )}
 
-        {footerSection && restaurant && (
-          <T.Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
+        {footerSection && merchant && (
+          <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
         )}
         {cartDrawer}
       </div>
@@ -270,19 +270,19 @@ export function StorefrontShop({ slug }: { slug: string }) {
   return (
     <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
       {pixelScripts}
-      {headerSection && restaurant && (
-        <T.Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+      {headerSection && merchant && (
+        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
       )}
 
       <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
         {breadcrumb}
         <h1 className="mt-4 font-serif text-3xl font-normal tracking-tight sm:text-4xl">Shop</h1>
-        {restaurant?.description && (
+        {merchant?.description && (
           <div className="mt-3 max-w-2xl">
             <p className={`text-[15px] leading-relaxed text-muted-foreground ${descriptionExpanded ? "" : "line-clamp-2"}`}>
-              {restaurant.description}
+              {merchant.description}
             </p>
-            {restaurant.description.length > 140 && (
+            {merchant.description.length > 140 && (
               <button
                 onClick={() => setDescriptionExpanded((v) => !v)}
                 className="mt-1 text-[13px] font-medium underline underline-offset-4"
@@ -359,8 +359,8 @@ export function StorefrontShop({ slug }: { slug: string }) {
         </div>
       )}
 
-      {footerSection && restaurant && (
-        <T.Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
+      {footerSection && merchant && (
+        <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
       )}
       {cartDrawer}
     </div>

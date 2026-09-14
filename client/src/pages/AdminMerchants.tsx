@@ -13,7 +13,7 @@ import { useMemo, useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-interface Restaurant {
+interface Merchant {
   id: string;
   name: string;
   slug: string;
@@ -47,9 +47,9 @@ const BUSINESS_TYPE_LABELS: Record<string, string> = {
   retail: "Retail Shop",
 };
 
-export default function AdminRestaurants() {
+export default function AdminMerchants() {
   const { toast } = useToast();
-  const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
+  const [editingMerchant, setEditingMerchant] = useState<Merchant | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
     subdomain: "",
@@ -59,21 +59,21 @@ export default function AdminRestaurants() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const { data: restaurants, isLoading } = useQuery<Restaurant[]>({
-    queryKey: ['/api/admin/restaurants'],
+  const { data: merchants, isLoading } = useQuery<Merchant[]>({
+    queryKey: ['/api/admin/merchants'],
   });
 
   const typeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const r of restaurants || []) {
+    for (const r of merchants || []) {
       const type = r.businessType || 'retail';
       counts[type] = (counts[type] || 0) + 1;
     }
     return counts;
-  }, [restaurants]);
+  }, [merchants]);
 
-  const filteredRestaurants = useMemo(() => {
-    return (restaurants || []).filter((r) => {
+  const filteredMerchants = useMemo(() => {
+    return (merchants || []).filter((r) => {
       const matchesType = typeFilter === "all" || (r.businessType || 'retail') === typeFilter;
       const q = searchQuery.trim().toLowerCase();
       const matchesSearch = !q ||
@@ -82,19 +82,19 @@ export default function AdminRestaurants() {
         `${r.owner.firstName} ${r.owner.lastName}`.toLowerCase().includes(q);
       return matchesType && matchesSearch;
     });
-  }, [restaurants, typeFilter, searchQuery]);
+  }, [merchants, typeFilter, searchQuery]);
 
   const editMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      return await apiRequest(`/api/admin/restaurants/${id}`, 'PATCH', data);
+      return await apiRequest(`/api/admin/merchants/${id}`, 'PATCH', data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/restaurants'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/merchants'] });
       toast({
         title: "Merchant Updated",
         description: "Merchant has been updated successfully.",
       });
-      setEditingRestaurant(null);
+      setEditingMerchant(null);
     },
     onError: () => {
       toast({
@@ -107,10 +107,10 @@ export default function AdminRestaurants() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest(`/api/admin/restaurants/${id}`, 'DELETE');
+      return await apiRequest(`/api/admin/merchants/${id}`, 'DELETE');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/restaurants'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/merchants'] });
       toast({
         title: "Merchant Deleted",
         description: "Merchant has been deleted successfully.",
@@ -119,25 +119,25 @@ export default function AdminRestaurants() {
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to delete restaurant.",
+        description: "Failed to delete merchant.",
         variant: "destructive",
       });
     },
   });
 
-  const handleEditClick = (restaurant: Restaurant) => {
-    setEditingRestaurant(restaurant);
+  const handleEditClick = (merchant: Merchant) => {
+    setEditingMerchant(merchant);
     setEditForm({
-      name: restaurant.name,
-      subdomain: restaurant.subdomain,
-      isActive: restaurant.isActive,
-      businessType: restaurant.businessType || "retail",
+      name: merchant.name,
+      subdomain: merchant.subdomain,
+      isActive: merchant.isActive,
+      businessType: merchant.businessType || "retail",
     });
   };
 
   const handleEditSubmit = () => {
-    if (!editingRestaurant) return;
-    editMutation.mutate({ id: editingRestaurant.id, data: editForm });
+    if (!editingMerchant) return;
+    editMutation.mutate({ id: editingMerchant.id, data: editForm });
   };
 
   if (isLoading) {
@@ -171,7 +171,7 @@ export default function AdminRestaurants() {
           className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${typeFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "hover-elevate"}`}
           data-testid="button-filter-type-all"
         >
-          All ({restaurants?.length || 0})
+          All ({merchants?.length || 0})
         </button>
         {BUSINESS_TYPES.map((type) => (
           <button
@@ -197,91 +197,91 @@ export default function AdminRestaurants() {
       </div>
 
       <div className="grid gap-4">
-        {filteredRestaurants.length > 0 ? (
-          filteredRestaurants.map((restaurant) => (
-            <Card key={restaurant.id} data-testid={`card-restaurant-${restaurant.id}`}>
+        {filteredMerchants.length > 0 ? (
+          filteredMerchants.map((merchant) => (
+            <Card key={merchant.id} data-testid={`card-merchant-${merchant.id}`}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <CardTitle className="flex items-center gap-2 flex-wrap">
-                      <span data-testid={`text-restaurant-name-${restaurant.id}`}>{restaurant.name}</span>
+                      <span data-testid={`text-merchant-name-${merchant.id}`}>{merchant.name}</span>
                       <Badge variant="secondary" className="no-default-hover-elevate font-normal">
-                        {BUSINESS_TYPE_LABELS[restaurant.businessType || 'retail'] || restaurant.businessType}
+                        {BUSINESS_TYPE_LABELS[merchant.businessType || 'retail'] || merchant.businessType}
                       </Badge>
-                      {restaurant.isActive ? (
+                      {merchant.isActive ? (
                         <Badge variant="default" className="no-default-hover-elevate">Active</Badge>
                       ) : (
                         <Badge variant="outline" className="no-default-hover-elevate">Inactive</Badge>
                       )}
                     </CardTitle>
                     <CardDescription>
-                      {restaurant.subdomain && (
+                      {merchant.subdomain && (
                         <span className="inline-flex items-center gap-1">
                           <a 
-                            href={`https://${restaurant.subdomain}.eatout.app`}
+                            href={`https://${merchant.subdomain}.eatout.app`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-primary hover:underline inline-flex items-center gap-1"
-                            data-testid={`link-storefront-${restaurant.id}`}
+                            data-testid={`link-storefront-${merchant.id}`}
                           >
-                            {restaurant.subdomain}.eatout.app
+                            {merchant.subdomain}.eatout.app
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         </span>
                       )}
                     </CardDescription>
                   </div>
-                  {getSubscriptionBadge(restaurant.owner.subscriptionStatus)}
+                  {getSubscriptionBadge(merchant.owner.subscriptionStatus)}
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-muted-foreground">Owner</p>
-                    <p className="font-medium" data-testid={`text-owner-name-${restaurant.id}`}>
-                      {restaurant.owner.firstName} {restaurant.owner.lastName}
+                    <p className="font-medium" data-testid={`text-owner-name-${merchant.id}`}>
+                      {merchant.owner.firstName} {merchant.owner.lastName}
                     </p>
-                    <p className="text-sm text-muted-foreground">{restaurant.owner.email}</p>
+                    <p className="text-sm text-muted-foreground">{merchant.owner.email}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Location & Currency</p>
-                    <p className="font-medium">{restaurant.country}</p>
-                    <p className="text-sm text-muted-foreground">{restaurant.currency}</p>
+                    <p className="font-medium">{merchant.country}</p>
+                    <p className="text-sm text-muted-foreground">{merchant.currency}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Payment Integration</p>
                     <div className="flex gap-2 mt-1">
-                      {restaurant.stripeAccountId && (
+                      {merchant.stripeAccountId && (
                         <Badge variant="secondary" className="no-default-hover-elevate">Stripe Connected</Badge>
                       )}
-                      {restaurant.paypalMerchantId && (
+                      {merchant.paypalMerchantId && (
                         <Badge variant="secondary" className="no-default-hover-elevate">PayPal Connected</Badge>
                       )}
-                      {!restaurant.stripeAccountId && !restaurant.paypalMerchantId && (
+                      {!merchant.stripeAccountId && !merchant.paypalMerchantId && (
                         <span className="text-sm text-muted-foreground">No payment methods</span>
                       )}
                     </div>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Joined</p>
-                    <p className="font-medium">{new Date(restaurant.createdAt).toLocaleDateString()}</p>
+                    <p className="font-medium">{new Date(merchant.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
                 
                 <div className="flex gap-2 pt-3 border-t">
-                  <Dialog open={editingRestaurant?.id === restaurant.id} onOpenChange={(open) => !open && setEditingRestaurant(null)}>
+                  <Dialog open={editingMerchant?.id === merchant.id} onOpenChange={(open) => !open && setEditingMerchant(null)}>
                     <DialogTrigger asChild>
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => handleEditClick(restaurant)}
-                        data-testid={`button-edit-${restaurant.id}`}
+                        onClick={() => handleEditClick(merchant)}
+                        data-testid={`button-edit-${merchant.id}`}
                       >
                         <Edit className="h-4 w-4 mr-2" />
                         Edit
                       </Button>
                     </DialogTrigger>
-                    <DialogContent data-testid="dialog-edit-restaurant">
+                    <DialogContent data-testid="dialog-edit-merchant">
                       <DialogHeader>
                         <DialogTitle>Edit Merchant</DialogTitle>
                         <DialogDescription>
@@ -346,7 +346,7 @@ export default function AdminRestaurants() {
                       <DialogFooter>
                         <Button
                           variant="outline"
-                          onClick={() => setEditingRestaurant(null)}
+                          onClick={() => setEditingMerchant(null)}
                           data-testid="button-cancel-edit"
                         >
                           Cancel
@@ -367,23 +367,23 @@ export default function AdminRestaurants() {
                       <Button 
                         variant="outline" 
                         size="sm"
-                        data-testid={`button-delete-${restaurant.id}`}
+                        data-testid={`button-delete-${merchant.id}`}
                       >
                         <Trash2 className="h-4 w-4 mr-2" />
                         Delete
                       </Button>
                     </AlertDialogTrigger>
-                    <AlertDialogContent data-testid="dialog-delete-restaurant">
+                    <AlertDialogContent data-testid="dialog-delete-merchant">
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Merchant?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This will permanently delete <strong>{restaurant.name}</strong> and all associated data including catalog items, orders, reservations, and staff. This action cannot be undone.
+                          This will permanently delete <strong>{merchant.name}</strong> and all associated data including catalog items, orders, reservations, and staff. This action cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                          onClick={() => deleteMutation.mutate(restaurant.id)}
+                          onClick={() => deleteMutation.mutate(merchant.id)}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                           data-testid="button-confirm-delete"
                         >
@@ -399,7 +399,7 @@ export default function AdminRestaurants() {
         ) : (
           <Card>
             <CardContent className="py-12 text-center text-muted-foreground">
-              {restaurants && restaurants.length > 0 ? "No merchants match your search or filter" : "No merchants yet"}
+              {merchants && merchants.length > 0 ? "No merchants match your search or filter" : "No merchants yet"}
             </CardContent>
           </Card>
         )}

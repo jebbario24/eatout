@@ -1,7 +1,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
-import RestaurantTranslationsBackend from './lib/restaurantBackend';
+import MerchantTranslationsBackend from './lib/merchantBackend';
 
 import en from './locales/en.json';
 import es from './locales/es.json';
@@ -19,25 +19,25 @@ import ja from './locales/ja.json';
 const RTL_LANGUAGES = ['ar', 'he', 'fa', 'ur'];
 
 i18n
-  .use(RestaurantTranslationsBackend)
+  .use(MerchantTranslationsBackend)
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources: {
-      en: { translation: en, restaurant: {} },
-      es: { translation: es, restaurant: {} },
-      fr: { translation: fr, restaurant: {} },
-      de: { translation: de, restaurant: {} },
-      ar: { translation: ar, restaurant: {} },
-      he: { translation: he, restaurant: {} },
-      fa: { translation: fa, restaurant: {} },
-      ur: { translation: ur, restaurant: {} },
-      pt: { translation: pt, restaurant: {} },
-      it: { translation: it, restaurant: {} },
-      zh: { translation: zh, restaurant: {} },
-      ja: { translation: ja, restaurant: {} },
+      en: { translation: en, merchant: {} },
+      es: { translation: es, merchant: {} },
+      fr: { translation: fr, merchant: {} },
+      de: { translation: de, merchant: {} },
+      ar: { translation: ar, merchant: {} },
+      he: { translation: he, merchant: {} },
+      fa: { translation: fa, merchant: {} },
+      ur: { translation: ur, merchant: {} },
+      pt: { translation: pt, merchant: {} },
+      it: { translation: it, merchant: {} },
+      zh: { translation: zh, merchant: {} },
+      ja: { translation: ja, merchant: {} },
     },
-    ns: ['translation', 'restaurant'],
+    ns: ['translation', 'merchant'],
     defaultNS: 'translation',
     fallbackLng: 'en',
     interpolation: {
@@ -48,7 +48,7 @@ i18n
       caches: ['localStorage'],
     },
     backend: {
-      restaurantSlug: null,
+      merchantSlug: null,
     },
   });
 

@@ -155,7 +155,7 @@ export default function Subscribe() {
               </Badge>
               <CardHeader>
                 <CardTitle className="text-2xl">Standard Plan</CardTitle>
-                <CardDescription className="text-lg">For Restaurants</CardDescription>
+                <CardDescription className="text-lg">For Your Business</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="bg-primary/10 p-6 rounded-lg space-y-2">
@@ -189,7 +189,7 @@ export default function Subscribe() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-2xl">Immediate Access Plan</CardTitle>
-                <CardDescription className="text-lg">For Restaurants</CardDescription>
+                <CardDescription className="text-lg">For Your Business</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="bg-primary/10 p-6 rounded-lg space-y-2">
@@ -320,7 +320,7 @@ export default function Subscribe() {
             </Badge>
             <CardHeader>
               <CardTitle className="text-2xl">Standard Plan</CardTitle>
-              <CardDescription className="text-lg">For Restaurants</CardDescription>
+              <CardDescription className="text-lg">For Your Business</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="bg-primary/10 p-6 rounded-lg space-y-2">
@@ -353,7 +353,7 @@ export default function Subscribe() {
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl">Immediate Access Plan</CardTitle>
-              <CardDescription className="text-lg">For Restaurants</CardDescription>
+              <CardDescription className="text-lg">For Your Business</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="bg-primary/10 p-6 rounded-lg space-y-2">
@@ -427,7 +427,7 @@ export default function Subscribe() {
             <Card>
               <CardHeader>
                 <CardTitle>What's Included</CardTitle>
-                <CardDescription>Everything you need to run your restaurant</CardDescription>
+                <CardDescription>Everything you need to run your store</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="bg-primary/10 p-4 rounded-lg">
@@ -439,8 +439,8 @@ export default function Subscribe() {
                   <div className="flex items-start gap-2">
                     <Check className="w-5 h-5 text-primary mt-0.5" />
                     <div>
-                      <p className="font-medium">Complete Restaurant Management</p>
-                      <p className="text-sm text-muted-foreground">Menu, orders, tables, staff, inventory</p>
+                      <p className="font-medium">Complete Store Management</p>
+                      <p className="text-sm text-muted-foreground">Products, orders, staff, inventory</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">

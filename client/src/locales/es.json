@@ -28,8 +28,6 @@
     "analytics": "Análisis",
     "growth": "Crecimiento",
     "markets": "Mercados",
-    "allRestaurants": "Todos los Comercios",
-    "restaurantManagement": "Gestión de Comercios",
     "platformManagement": "Gestión de Plataforma",
     "marketing": "Marketing",
     "campaigns": "Campañas",
@@ -62,7 +60,9 @@
     "finance": "Finanzas",
     "products": "Productos",
     "growthMarketing": "Crecimiento y Marketing",
-    "salesChannels": "Canales de Venta"
+    "salesChannels": "Canales de Venta",
+    "allMerchants": "Todos los Comercios",
+    "merchantManagement": "Gestión de Comercios"
   },
   "storefront": {
     "menu": "Menú",

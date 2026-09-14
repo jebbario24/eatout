@@ -95,7 +95,7 @@ export default function Marketing() {
       <div>
         <h1 className="text-3xl font-bold">Marketing Suite</h1>
         <p className="text-muted-foreground mt-1">
-          Free marketing tools to grow your restaurant — all included with your subscription
+          Free marketing tools to grow your store — all included with your subscription
         </p>
       </div>
 

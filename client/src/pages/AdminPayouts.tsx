@@ -295,8 +295,8 @@ export default function AdminPayouts() {
             <TableBody>
               {payouts.map((payout: any) => (
                 <TableRow key={payout.id} data-testid={`row-payout-${payout.id}`}>
-                  <TableCell className="font-medium" data-testid={`text-restaurant-${payout.id}`}>
-                    {payout.restaurantName}
+                  <TableCell className="font-medium" data-testid={`text-merchant-${payout.id}`}>
+                    {payout.merchantName}
                   </TableCell>
                   <TableCell data-testid={`text-amount-${payout.id}`}>
                     ${parseFloat(payout.totalAmount).toFixed(2)}
@@ -395,7 +395,7 @@ export default function AdminPayouts() {
             <AlertDialogHeader>
               <AlertDialogTitle>Retry Failed Payout</AlertDialogTitle>
               <AlertDialogDescription>
-                This will reschedule the payout for {selectedAction.payout.restaurantName} 
+                This will reschedule the payout for {selectedAction.payout.merchantName} 
                 (${parseFloat(selectedAction.payout.totalAmount).toFixed(2)}) for immediate processing.
                 Are you sure you want to continue?
               </AlertDialogDescription>
@@ -420,7 +420,7 @@ export default function AdminPayouts() {
             <AlertDialogHeader>
               <AlertDialogTitle>Cancel Payout</AlertDialogTitle>
               <AlertDialogDescription>
-                This will cancel the payout for {selectedAction.payout.restaurantName} 
+                This will cancel the payout for {selectedAction.payout.merchantName} 
                 (${parseFloat(selectedAction.payout.totalAmount).toFixed(2)}).
                 This action cannot be undone. Are you sure?
               </AlertDialogDescription>
@@ -445,7 +445,7 @@ export default function AdminPayouts() {
             <AlertDialogHeader>
               <AlertDialogTitle>Manually Mark as Paid</AlertDialogTitle>
               <AlertDialogDescription>
-                Mark the payout for {selectedAction.payout.restaurantName} 
+                Mark the payout for {selectedAction.payout.merchantName} 
                 (${parseFloat(selectedAction.payout.totalAmount).toFixed(2)}) as completed.
                 Please provide the transaction ID from your payment provider.
               </AlertDialogDescription>

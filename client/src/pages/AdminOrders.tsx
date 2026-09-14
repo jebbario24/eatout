@@ -53,7 +53,7 @@ const statusLabels: Record<string, string> = {
 };
 
 type ExtendedOrder = Order & {
-  restaurantName?: string | null;
+  merchantName?: string | null;
   currency?: string | null;
   deliveryInstructions?: string | null;
   discount?: string | null;
@@ -64,7 +64,7 @@ export default function AdminOrders() {
   const [selectedOrder, setSelectedOrder] = useState<ExtendedOrder | null>(null);
   const [orderTypeFilter, setOrderTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [restaurantFilter, setRestaurantFilter] = useState<string>("all");
+  const [merchantFilter, setMerchantFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   // WebSocket setup for real-time order and delivery tracking
@@ -106,16 +106,16 @@ export default function AdminOrders() {
     queryKey: ["/api/admin/orders"],
   });
 
-  // Get unique restaurant names for filter
-  const uniqueRestaurants = Array.from(
-    new Set(orders.map(o => o.restaurantName).filter(Boolean))
+  // Get unique merchant names for filter
+  const uniqueMerchants = Array.from(
+    new Set(orders.map(o => o.merchantName).filter(Boolean))
   ).sort();
 
   // Filter orders
   const filteredOrders = orders.filter(order => {
     if (orderTypeFilter !== "all" && order.orderType !== orderTypeFilter) return false;
     if (statusFilter !== "all" && order.status !== statusFilter) return false;
-    if (restaurantFilter !== "all" && order.restaurantName !== restaurantFilter) return false;
+    if (merchantFilter !== "all" && order.merchantName !== merchantFilter) return false;
     if (searchQuery && !order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
@@ -159,13 +159,13 @@ export default function AdminOrders() {
                 data-testid="input-search-order"
               />
             </div>
-            <Select value={restaurantFilter} onValueChange={setRestaurantFilter}>
-              <SelectTrigger className="w-[200px]" data-testid="select-restaurant-filter">
+            <Select value={merchantFilter} onValueChange={setMerchantFilter}>
+              <SelectTrigger className="w-[200px]" data-testid="select-merchant-filter">
                 <SelectValue placeholder="Filter by merchant" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Merchants</SelectItem>
-                {uniqueRestaurants.map((name) => (
+                {uniqueMerchants.map((name) => (
                   <SelectItem key={name} value={name!}>
                     {name}
                   </SelectItem>
@@ -230,7 +230,7 @@ export default function AdminOrders() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Store className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{order.restaurantName || "Unknown"}</span>
+                          <span className="font-medium">{order.merchantName || "Unknown"}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -302,7 +302,7 @@ export default function AdminOrders() {
                     <Store className="h-4 w-4" />
                     Merchant
                   </h3>
-                  <p className="text-sm">{selectedOrder.restaurantName || "Unknown"}</p>
+                  <p className="text-sm">{selectedOrder.merchantName || "Unknown"}</p>
                 </div>
                 <div>
                   <h3 className="font-semibold mb-2 flex items-center gap-2">

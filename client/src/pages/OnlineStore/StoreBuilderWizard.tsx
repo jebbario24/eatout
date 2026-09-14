@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient as qc } from "@/lib/queryClient";
-import type { Restaurant, RestaurantThemeSettings, StorefrontThemeId } from "@shared/schema";
+import type { Merchant, MerchantThemeSettings, StorefrontThemeId } from "@shared/schema";
 import { hasValidThemeSettings } from "@/storefront/lib/themeSettings";
 import { resolveTheme } from "@/storefront/themeRegistry";
 
@@ -52,7 +52,7 @@ const ANALYSIS_STEPS = [
 
 interface Generation {
   id: string;
-  blueprint: { themeSettings: RestaurantThemeSettings; colors: { primaryColor: string; secondaryColor: string; accentColor: string }; facts: any; changes: Array<{ description: string }> };
+  blueprint: { themeSettings: MerchantThemeSettings; colors: { primaryColor: string; secondaryColor: string; accentColor: string }; facts: any; changes: Array<{ description: string }> };
 }
 
 type Step = "loading" | "landing" | "details" | "analyzing" | "preview";
@@ -69,13 +69,13 @@ export default function StoreBuilderWizard() {
   const [iframeReady, setIframeReady] = useState(false);
   const [form, setForm] = useState({ businessName: "", targetAudience: "", targetMarket: "", stylePreference: STYLE_OPTIONS[4].value });
 
-  const { data: restaurant, isLoading } = useQuery<Restaurant | null>({ queryKey: ["/api/restaurants/me"] });
+  const { data: merchant, isLoading } = useQuery<Merchant | null>({ queryKey: ["/api/merchants/me"] });
 
   useEffect(() => {
-    if (!restaurant || step !== "loading") return;
-    setForm((f) => ({ ...f, businessName: restaurant.name }));
-    setStep(hasValidThemeSettings(restaurant.themeSettings) ? "landing" : "details");
-  }, [restaurant, step]);
+    if (!merchant || step !== "loading") return;
+    setForm((f) => ({ ...f, businessName: merchant.name }));
+    setStep(hasValidThemeSettings(merchant.themeSettings) ? "landing" : "details");
+  }, [merchant, step]);
 
   useEffect(() => {
     if (step !== "analyzing") return;
@@ -116,7 +116,7 @@ export default function StoreBuilderWizard() {
     setIsApplying(true);
     try {
       await apiRequest(`/api/store/generations/${generation.id}/apply`, "POST");
-      await queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/merchants/me"] });
       toast({ title: "Your store is ready!" });
       navigate("/online-store/editor");
     } catch {
@@ -126,7 +126,7 @@ export default function StoreBuilderWizard() {
     }
   };
 
-  const themeSettings = restaurant?.themeSettings as RestaurantThemeSettings | null | undefined;
+  const themeSettings = merchant?.themeSettings as MerchantThemeSettings | null | undefined;
   const activeTheme = resolveTheme(themeSettings?.theme);
 
   const switchTheme = useMutation({
@@ -137,7 +137,7 @@ export default function StoreBuilderWizard() {
       });
     },
     onSuccess: (_data, themeId) => {
-      qc.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      qc.invalidateQueries({ queryKey: ["/api/merchants/me"] });
       const name = THEME_CATALOG.find((t) => t.id === themeId)?.name || themeId;
       toast({ title: `Switched to ${name}` });
     },
@@ -148,7 +148,7 @@ export default function StoreBuilderWizard() {
     return <div className="flex h-full min-h-[70vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
 
-  if (step === "landing" && restaurant) {
+  if (step === "landing" && merchant) {
     const lastSaved = themeSettings?.meta?.lastPublishedAt;
     return (
       <div className="mx-auto max-w-4xl p-6">
@@ -160,7 +160,7 @@ export default function StoreBuilderWizard() {
         <Card className="mb-8 overflow-hidden" data-testid="card-live-theme">
           <div className="relative h-64 bg-muted/40">
             <iframe
-              src={`/store/${restaurant.slug}`}
+              src={`/store/${merchant.slug}`}
               className="h-full w-full origin-top-left border-0"
               style={{ width: "250%", height: "250%", transform: "scale(0.4)", pointerEvents: "none" }}
               title="Live storefront preview"
@@ -169,14 +169,14 @@ export default function StoreBuilderWizard() {
           </div>
           <CardContent className="flex items-center justify-between gap-4 p-4">
             <div className="min-w-0">
-              <p className="truncate font-medium">{restaurant.name}</p>
+              <p className="truncate font-medium">{merchant.name}</p>
               <p className="text-xs text-muted-foreground">
                 {THEME_CATALOG.find((t) => t.id === activeTheme)?.name || activeTheme} theme
                 {lastSaved ? ` · Last saved ${new Date(lastSaved).toLocaleDateString()}` : ""}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <a href={`/store/${restaurant.slug}`} target="_blank" rel="noopener noreferrer">
+              <a href={`/store/${merchant.slug}`} target="_blank" rel="noopener noreferrer">
                 <Button variant="outline" size="sm" data-testid="button-view-live">
                   <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                   View store
@@ -341,7 +341,7 @@ export default function StoreBuilderWizard() {
           <div className="mx-auto h-full max-w-5xl overflow-hidden rounded-lg border bg-background shadow-sm">
             <iframe
               ref={iframeRef}
-              src={restaurant ? `/store/${restaurant.slug}?preview=1` : undefined}
+              src={merchant ? `/store/${merchant.slug}?preview=1` : undefined}
               className="h-full w-full border-0"
               title="Generated store preview"
               onLoad={() => setIframeReady(true)}

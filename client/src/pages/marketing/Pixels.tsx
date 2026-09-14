@@ -21,7 +21,7 @@ const pixelSchema = z.object({
 
 type PixelFormData = z.infer<typeof pixelSchema>;
 
-interface Restaurant {
+interface Merchant {
   id: string;
   metaPixelId?: string;
   tiktokPixelId?: string;
@@ -32,33 +32,33 @@ interface Restaurant {
 export default function Pixels() {
   const { toast } = useToast();
 
-  const { data: restaurant, isLoading } = useQuery<Restaurant>({
-    queryKey: ['/api/restaurants/me'],
+  const { data: merchant, isLoading } = useQuery<Merchant>({
+    queryKey: ['/api/merchants/me'],
   });
 
   const form = useForm<PixelFormData>({
     resolver: zodResolver(pixelSchema),
     defaultValues: {
-      metaPixelId: restaurant?.metaPixelId || "",
-      tiktokPixelId: restaurant?.tiktokPixelId || "",
-      googleAnalyticsId: restaurant?.googleAnalyticsId || "",
-      googleAdsId: restaurant?.googleAdsId || "",
+      metaPixelId: merchant?.metaPixelId || "",
+      tiktokPixelId: merchant?.tiktokPixelId || "",
+      googleAnalyticsId: merchant?.googleAnalyticsId || "",
+      googleAdsId: merchant?.googleAdsId || "",
     },
     values: {
-      metaPixelId: restaurant?.metaPixelId || "",
-      tiktokPixelId: restaurant?.tiktokPixelId || "",
-      googleAnalyticsId: restaurant?.googleAnalyticsId || "",
-      googleAdsId: restaurant?.googleAdsId || "",
+      metaPixelId: merchant?.metaPixelId || "",
+      tiktokPixelId: merchant?.tiktokPixelId || "",
+      googleAnalyticsId: merchant?.googleAnalyticsId || "",
+      googleAdsId: merchant?.googleAdsId || "",
     },
   });
 
   const updatePixelsMutation = useMutation({
     mutationFn: async (data: PixelFormData) => {
-      if (!restaurant?.id) throw new Error("Restaurant not found");
-      return apiRequest(`/api/restaurants/${restaurant.id}/pixels`, "PATCH", data);
+      if (!merchant?.id) throw new Error("Merchant not found");
+      return apiRequest(`/api/merchants/${merchant.id}/pixels`, "PATCH", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/restaurants/me'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/merchants/me'] });
       toast({
         title: "Success",
         description: "Pixel settings updated successfully",

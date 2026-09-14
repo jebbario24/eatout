@@ -28,8 +28,6 @@
     "analytics": "تجزیات",
     "growth": "ترقی",
     "markets": "منڈیاں",
-    "allRestaurants": "تمام تاجر",
-    "restaurantManagement": "تاجروں کا انتظام",
     "platformManagement": "پلیٹ فارم کا انتظام",
     "marketing": "مارکیٹنگ",
     "campaigns": "مہمات",
@@ -62,7 +60,9 @@
     "finance": "مالیات",
     "products": "مصنوعات",
     "growthMarketing": "ترقی اور مارکیٹنگ",
-    "salesChannels": "سیلز چینلز"
+    "salesChannels": "سیلز چینلز",
+    "allMerchants": "تمام تاجر",
+    "merchantManagement": "تاجروں کا انتظام"
   },
   "storefront": {
     "menu": "Menu",

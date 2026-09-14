@@ -287,8 +287,8 @@ export default function AdminModeration() {
             <TableBody>
               {reviews.map((review: any) => (
                 <TableRow key={review.id} data-testid={`row-review-${review.id}`}>
-                  <TableCell className="font-medium" data-testid={`text-restaurant-${review.id}`}>
-                    {review.restaurantName}
+                  <TableCell className="font-medium" data-testid={`text-merchant-${review.id}`}>
+                    {review.merchantName}
                   </TableCell>
                   <TableCell data-testid={`text-customer-${review.id}`}>
                     {review.customerName}
@@ -401,7 +401,7 @@ export default function AdminModeration() {
               <AlertDialogTitle>Delete Review</AlertDialogTitle>
               <AlertDialogDescription>
                 This will permanently delete the review from {selectedAction.review.customerName} 
-                for {selectedAction.review.restaurantName}. This action cannot be undone.
+                for {selectedAction.review.merchantName}. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -426,7 +426,7 @@ export default function AdminModeration() {
                 {selectedAction.review.response ? 'Edit Response' : 'Add Response'}
               </DialogTitle>
               <DialogDescription>
-                Respond to {selectedAction.review.customerName}'s review for {selectedAction.review.restaurantName}
+                Respond to {selectedAction.review.customerName}'s review for {selectedAction.review.merchantName}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import type { RestaurantThemeSettings } from "@shared/schema";
+import type { MerchantThemeSettings } from "@shared/schema";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
 import { useCart } from "@/storefront/lib/cartStore";
 import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
@@ -12,10 +12,10 @@ import { useToast } from "@/hooks/use-toast";
 import { convertAndFormatPrice } from "@/lib/currency";
 import { PixelScripts } from "@/components/PixelScripts";
 
-interface StorefrontRestaurant {
+interface StorefrontMerchant {
   name: string;
   currency: string;
-  themeSettings: RestaurantThemeSettings | null;
+  themeSettings: MerchantThemeSettings | null;
   socialLinks: Record<string, string> | null;
   metaPixelId?: string | null;
   tiktokPixelId?: string | null;
@@ -33,12 +33,12 @@ export function StorefrontContact({ slug }: { slug: string }) {
   const { toast } = useToast();
   const base = `/store/${slug}`;
 
-  const { data: restaurant } = useQuery<StorefrontRestaurant>({ queryKey: [`/api/storefront/${slug}`] });
-  const formatPrice = (n: number) => convertAndFormatPrice(n, restaurant?.currency || "USD", null);
-  const theme = resolveTheme(restaurant?.themeSettings?.theme);
+  const { data: merchant } = useQuery<StorefrontMerchant>({ queryKey: [`/api/storefront/${slug}`] });
+  const formatPrice = (n: number) => convertAndFormatPrice(n, merchant?.currency || "USD", null);
+  const theme = resolveTheme(merchant?.themeSettings?.theme);
   const T = STOREFRONT_THEMES[theme];
-  const headerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "header");
-  const footerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "footer");
+  const headerSection = merchant?.themeSettings?.layout?.sections?.find((s) => s.type === "header");
+  const footerSection = merchant?.themeSettings?.layout?.sections?.find((s) => s.type === "footer");
   const isAdanola = theme === "adanola";
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -71,16 +71,16 @@ export function StorefrontContact({ slug }: { slug: string }) {
 
   return (
     <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
-      {!isPreview && restaurant && (
+      {!isPreview && merchant && (
         <PixelScripts
-          metaPixelId={restaurant.metaPixelId || undefined}
-          tiktokPixelId={restaurant.tiktokPixelId || undefined}
-          googleAnalyticsId={restaurant.googleAnalyticsId || undefined}
-          googleAdsId={restaurant.googleAdsId || undefined}
+          metaPixelId={merchant.metaPixelId || undefined}
+          tiktokPixelId={merchant.tiktokPixelId || undefined}
+          googleAnalyticsId={merchant.googleAnalyticsId || undefined}
+          googleAdsId={merchant.googleAdsId || undefined}
         />
       )}
-      {headerSection && restaurant && (
-        <T.Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+      {headerSection && merchant && (
+        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
       )}
       <main className={`mx-auto max-w-xl px-4 sm:px-6 lg:px-8 ${isAdanola ? "py-8" : "py-10"}`}>
         <nav className="mb-6 text-xs text-muted-foreground">
@@ -130,8 +130,8 @@ export function StorefrontContact({ slug }: { slug: string }) {
           </form>
         )}
       </main>
-      {footerSection && restaurant && (
-        <T.Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
+      {footerSection && merchant && (
+        <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
       )}
       <CartDrawer
         open={cartOpen}

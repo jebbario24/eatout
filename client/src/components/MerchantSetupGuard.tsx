@@ -2,27 +2,27 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import type { Restaurant } from "@shared/schema";
+import type { Merchant } from "@shared/schema";
 
-interface RestaurantSetupGuardProps {
+interface MerchantSetupGuardProps {
   children: React.ReactNode;
 }
 
-export function RestaurantSetupGuard({ children }: RestaurantSetupGuardProps) {
+export function MerchantSetupGuard({ children }: MerchantSetupGuardProps) {
   const [location, setLocation] = useLocation();
   const { user } = useAuth();
   
-  // Only check for restaurant owners (not admins or drivers)
+  // Only check for merchant owners (not admins or drivers)
   if (user?.role !== 'owner') {
     return <>{children}</>;
   }
   
-  const { data: restaurant, isLoading } = useQuery<Restaurant | null>({
-    queryKey: ['/api/restaurants/me'],
+  const { data: merchant, isLoading } = useQuery<Merchant | null>({
+    queryKey: ['/api/merchants/me'],
     retry: 1,
   });
 
-  // Define allowed paths where users can go even without a restaurant
+  // Define allowed paths where users can go even without a merchant
   const allowedPaths = ['/settings', '/billing', '/subscribe'];
   const isOnAllowedPath = allowedPaths.includes(location);
 
@@ -32,12 +32,12 @@ export function RestaurantSetupGuard({ children }: RestaurantSetupGuardProps) {
       return;
     }
 
-    // Redirect to settings if no restaurant exists
-    // This will run every time user tries to access a restricted page without a restaurant
-    if (!restaurant) {
+    // Redirect to settings if no merchant exists
+    // This will run every time user tries to access a restricted page without a merchant
+    if (!merchant) {
       setLocation('/settings');
     }
-  }, [restaurant, isLoading, isOnAllowedPath, location, setLocation]);
+  }, [merchant, isLoading, isOnAllowedPath, location, setLocation]);
 
   // Show loading state while checking
   if (isLoading) {
@@ -48,7 +48,7 @@ export function RestaurantSetupGuard({ children }: RestaurantSetupGuardProps) {
     );
   }
 
-  // If on an allowed path, render normally (even without restaurant)
+  // If on an allowed path, render normally (even without merchant)
   // The Settings page itself will show the onboarding message
   return <>{children}</>;
 }

@@ -28,8 +28,6 @@
     "analytics": "تحلیل‌ها",
     "growth": "رشد",
     "markets": "بازارها",
-    "allRestaurants": "همه فروشندگان",
-    "restaurantManagement": "مدیریت فروشندگان",
     "platformManagement": "مدیریت پلتفرم",
     "marketing": "بازاریابی",
     "campaigns": "کمپین‌ها",
@@ -62,7 +60,9 @@
     "finance": "مالی",
     "products": "محصولات",
     "growthMarketing": "رشد و بازاریابی",
-    "salesChannels": "کانال‌های فروش"
+    "salesChannels": "کانال‌های فروش",
+    "allMerchants": "همه فروشندگان",
+    "merchantManagement": "مدیریت فروشندگان"
   },
   "storefront": {
     "menu": "Menu",

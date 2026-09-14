@@ -11,14 +11,14 @@ interface QuickMessagesProps {
   recipient: {
     name: string;
     phone: string;
-    type: "restaurant" | "customer";
+    type: "merchant" | "customer";
   };
   onSend: (message: string) => void;
 }
 
 const QUICK_MESSAGES = [
   "On my way to pickup",
-  "Arrived at restaurant",
+  "Arrived at pickup location",
   "Picked up order, heading to you",
   "Almost there, 5 minutes away",
   "Arrived at your location",

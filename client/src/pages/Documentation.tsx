@@ -6,7 +6,7 @@ const SECTIONS = [
     icon: Rocket,
     title: "Getting started",
     body: [
-      "After you sign up, the first thing to do is set up your business profile under Settings: your business type (restaurant, grocery, pharmacy, flowers, or retail), name, and storefront URL. This determines the terminology used throughout your dashboard (\"menu\" vs. \"products\", for example) and where customers find you online.",
+      "After you sign up, the first thing to do is set up your business profile under Settings: your business type (grocery, pharmacy, flowers, or retail), name, and storefront URL. This determines the terminology used throughout your dashboard (\"menu\" vs. \"products\", for example) and where customers find you online.",
       "Next, add your catalog: products, prices, and categories, from the Catalog section of your dashboard. You can add items one at a time or organize them into collections to make your storefront easier to browse.",
       "Once you have at least one product and a payment method connected, your storefront is live at your chosen URL and ready to accept real orders.",
     ],

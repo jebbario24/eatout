@@ -11,20 +11,20 @@ interface PurchaseNotification {
 
 interface LivePurchaseNotificationsProps {
   enabled: boolean;
-  restaurantId?: string;
+  merchantId?: string;
 }
 
-export function LivePurchaseNotifications({ enabled, restaurantId }: LivePurchaseNotificationsProps) {
+export function LivePurchaseNotifications({ enabled, merchantId }: LivePurchaseNotificationsProps) {
   const [notifications, setNotifications] = useState<PurchaseNotification[]>([]);
   const [currentNotification, setCurrentNotification] = useState<PurchaseNotification | null>(null);
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    if (!enabled || !restaurantId) return;
+    if (!enabled || !merchantId) return;
 
     const fetchRecentOrders = async () => {
       try {
-        const response = await fetch(`/api/storefront/recent-purchases/${restaurantId}`);
+        const response = await fetch(`/api/storefront/recent-purchases/${merchantId}`);
         if (response.ok) {
           const data = await response.json();
           console.log('[LivePurchaseNotifications] Fetched notifications:', data);
@@ -41,7 +41,7 @@ export function LivePurchaseNotifications({ enabled, restaurantId }: LivePurchas
     const interval = setInterval(fetchRecentOrders, 30000);
 
     return () => clearInterval(interval);
-  }, [enabled, restaurantId]);
+  }, [enabled, merchantId]);
 
   useEffect(() => {
     if (notifications.length === 0 || !enabled) {

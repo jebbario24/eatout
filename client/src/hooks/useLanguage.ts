@@ -1,31 +1,31 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import type { Restaurant } from '@shared/schema';
+import type { Merchant } from '@shared/schema';
 
 export function usePlatformLanguage() {
   const { i18n } = useTranslation();
-  const { data: restaurant } = useQuery<Restaurant>({
-    queryKey: ["/api/restaurants/me"],
+  const { data: merchant } = useQuery<Merchant>({
+    queryKey: ["/api/merchants/me"],
   });
 
   useEffect(() => {
-    if (restaurant?.platformLanguage && restaurant.platformLanguage !== i18n.language) {
-      i18n.changeLanguage(restaurant.platformLanguage);
+    if (merchant?.platformLanguage && merchant.platformLanguage !== i18n.language) {
+      i18n.changeLanguage(merchant.platformLanguage);
     }
-  }, [restaurant?.platformLanguage, i18n]);
+  }, [merchant?.platformLanguage, i18n]);
 }
 
-export function useStorefrontLanguage(restaurantId?: string) {
+export function useStorefrontLanguage(merchantId?: string) {
   const { i18n } = useTranslation();
-  const { data: restaurant } = useQuery<Restaurant>({
-    queryKey: restaurantId ? [`/api/storefront/restaurant/${restaurantId}`] : ["/api/restaurants/me"],
-    enabled: !!restaurantId || true,
+  const { data: merchant } = useQuery<Merchant>({
+    queryKey: merchantId ? [`/api/storefront/merchant/${merchantId}`] : ["/api/merchants/me"],
+    enabled: !!merchantId || true,
   });
 
   useEffect(() => {
-    if (restaurant?.storefrontLanguage && restaurant.storefrontLanguage !== i18n.language) {
-      i18n.changeLanguage(restaurant.storefrontLanguage);
+    if (merchant?.storefrontLanguage && merchant.storefrontLanguage !== i18n.language) {
+      i18n.changeLanguage(merchant.storefrontLanguage);
     }
-  }, [restaurant?.storefrontLanguage, i18n]);
+  }, [merchant?.storefrontLanguage, i18n]);
 }

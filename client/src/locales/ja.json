@@ -28,8 +28,6 @@
     "analytics": "分析",
     "growth": "成長",
     "markets": "マーケット",
-    "allRestaurants": "すべての加盟店",
-    "restaurantManagement": "加盟店管理",
     "platformManagement": "プラットフォーム管理",
     "marketing": "マーケティング",
     "campaigns": "キャンペーン",
@@ -62,7 +60,9 @@
     "finance": "財務",
     "products": "商品",
     "growthMarketing": "成長とマーケティング",
-    "salesChannels": "販売チャネル"
+    "salesChannels": "販売チャネル",
+    "allMerchants": "すべての加盟店",
+    "merchantManagement": "加盟店管理"
   },
   "storefront": {
     "menu": "メニュー",

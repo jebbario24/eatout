@@ -11,7 +11,7 @@ interface OrderPreviewModalProps {
     total: string;
     deliveryAddress: string;
     estimatedEarnings: string;
-    restaurant: {
+    merchant: {
       name: string;
       address: string;
       phone: string;
@@ -82,7 +82,7 @@ export function OrderPreviewModal({
             </div>
           </div>
 
-          {/* Restaurant Info */}
+          {/* Merchant Info */}
           <div className="space-y-3">
             <div className="flex items-start justify-between p-3 border rounded-lg">
               <div className="flex items-start gap-3 flex-1">
@@ -90,27 +90,27 @@ export function OrderPreviewModal({
                   <Store className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold">{order.restaurant.name}</p>
-                  <p className="text-sm text-muted-foreground">{order.restaurant.address}</p>
-                  <p className="text-sm text-muted-foreground">{order.restaurant.phone}</p>
+                  <p className="font-semibold">{order.merchant.name}</p>
+                  <p className="text-sm text-muted-foreground">{order.merchant.address}</p>
+                  <p className="text-sm text-muted-foreground">{order.merchant.phone}</p>
                 </div>
               </div>
               <div className="flex gap-1">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => openNavigation(order.restaurant.address)}
+                  onClick={() => openNavigation(order.merchant.address)}
                   className="h-8 w-8 p-0"
-                  title="Navigate to Restaurant"
+                  title="Navigate to Merchant"
                 >
                   <Navigation className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => window.open(`tel:${order.restaurant.phone}`)}
+                  onClick={() => window.open(`tel:${order.merchant.phone}`)}
                   className="h-8 w-8 p-0"
-                  title="Call Restaurant"
+                  title="Call Merchant"
                 >
                   <Phone className="h-4 w-4" />
                 </Button>

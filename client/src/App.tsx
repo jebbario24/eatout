@@ -8,7 +8,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { TopBar } from "@/components/TopBar";
 import { SubscriptionGuard } from "@/components/SubscriptionGuard";
-import { RestaurantSetupGuard } from "@/components/RestaurantSetupGuard";
+import { MerchantSetupGuard } from "@/components/MerchantSetupGuard";
 import { useAuth } from "@/hooks/useAuth";
 import { usePlatformLanguage } from "@/hooks/useLanguage";
 import "./i18n";
@@ -29,7 +29,7 @@ import Subscribe from "@/pages/Subscribe";
 import Billing from "@/pages/Billing";
 import AdminDashboard from "@/pages/AdminDashboard";
 import AdminOrders from "@/pages/AdminOrders";
-import AdminRestaurants from "@/pages/AdminRestaurants";
+import AdminMerchants from "@/pages/AdminMerchants";
 import AdminSubscriptions from "@/pages/AdminSubscriptions";
 import AdminSettings from "@/pages/AdminSettings";
 import AdminFinancials from "@/pages/AdminFinancials";
@@ -99,7 +99,7 @@ function AuthenticatedRouter() {
         <Route path="/" component={AdminDashboard} />
         <Route path="/admin" component={AdminDashboard} />
         <Route path="/admin/orders" component={AdminOrders} />
-        <Route path="/admin/restaurants" component={AdminRestaurants} />
+        <Route path="/admin/merchants" component={AdminMerchants} />
         <Route path="/admin/subscriptions" component={AdminSubscriptions} />
         <Route path="/admin/users" component={AdminUsers} />
         <Route path="/admin/financials" component={AdminFinancials} />
@@ -113,7 +113,7 @@ function AuthenticatedRouter() {
     );
   }
 
-  // Restaurant owner routes
+  // Merchant owner routes
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
@@ -200,7 +200,7 @@ function AppContent() {
   if (isEditorPath) {
     return (
       <SubscriptionGuard>
-        <RestaurantSetupGuard>
+        <MerchantSetupGuard>
           {/* StoreEditor's own root uses h-full, which needs an explicit-height
               ancestor to resolve against — normally the h-screen wrapper below
               supplies that (via main/flex-1). Without a sidebar/topbar wrapper
@@ -209,15 +209,15 @@ function AppContent() {
           <div className="h-screen w-full overflow-hidden">
             <AuthenticatedRouter />
           </div>
-        </RestaurantSetupGuard>
+        </MerchantSetupGuard>
       </SubscriptionGuard>
     );
   }
 
-  // Restaurant owner and admin layout
+  // Merchant owner and admin layout
   return (
     <SubscriptionGuard>
-      <RestaurantSetupGuard>
+      <MerchantSetupGuard>
         <SidebarProvider style={style as React.CSSProperties}>
           <div className="flex flex-col h-screen w-full">
             <TopBar />
@@ -231,7 +231,7 @@ function AppContent() {
             </div>
           </div>
         </SidebarProvider>
-      </RestaurantSetupGuard>
+      </MerchantSetupGuard>
     </SubscriptionGuard>
   );
 }

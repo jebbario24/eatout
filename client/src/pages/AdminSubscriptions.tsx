@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CheckCircle, XCircle, Clock, DollarSign, Key, AlertTriangle, MoreVertical, Ban, Trash2, CalendarPlus } from "lucide-react";
 
-interface Restaurant {
+interface Merchant {
   id: string;
   name: string;
   subdomain: string;
@@ -62,7 +62,7 @@ const BUSINESS_TYPE_LABELS: Record<string, string> = {
 
 export default function AdminSubscriptions() {
   const { toast } = useToast();
-  const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
+  const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
   const [showGrantDialog, setShowGrantDialog] = useState(false);
   const [showRevokeDialog, setShowRevokeDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -73,23 +73,23 @@ export default function AdminSubscriptions() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const { data: restaurants = [], isLoading } = useQuery<Restaurant[]>({
+  const { data: merchants = [], isLoading } = useQuery<Merchant[]>({
     queryKey: ['/api/admin/subscriptions'],
   });
 
   const grantAccessMutation = useMutation({
-    mutationFn: async ({ restaurantId, notes }: { restaurantId: string; notes: string }) => {
-      return await apiRequest(`/api/admin/restaurants/${restaurantId}/grant-access`, 'POST', { notes });
+    mutationFn: async ({ merchantId, notes }: { merchantId: string; notes: string }) => {
+      return await apiRequest(`/api/admin/merchants/${merchantId}/grant-access`, 'POST', { notes });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/restaurants'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/merchants'] });
       toast({
         title: "Access Granted",
         description: "Merchant can now access the platform without subscription.",
       });
       setShowGrantDialog(false);
-      setSelectedRestaurant(null);
+      setSelectedMerchant(null);
       setAccessNotes("");
     },
     onError: () => {
@@ -102,18 +102,18 @@ export default function AdminSubscriptions() {
   });
 
   const revokeAccessMutation = useMutation({
-    mutationFn: async (restaurantId: string) => {
-      return await apiRequest(`/api/admin/restaurants/${restaurantId}/revoke-access`, 'POST');
+    mutationFn: async (merchantId: string) => {
+      return await apiRequest(`/api/admin/merchants/${merchantId}/revoke-access`, 'POST');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/restaurants'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/merchants'] });
       toast({
         title: "Access Revoked",
         description: "Manual access has been revoked. Subscription rules now apply.",
       });
       setShowRevokeDialog(false);
-      setSelectedRestaurant(null);
+      setSelectedMerchant(null);
     },
     onError: () => {
       toast({
@@ -124,32 +124,32 @@ export default function AdminSubscriptions() {
     },
   });
 
-  const handleGrantAccess = (restaurant: Restaurant) => {
-    setSelectedRestaurant(restaurant);
+  const handleGrantAccess = (merchant: Merchant) => {
+    setSelectedMerchant(merchant);
     setShowGrantDialog(true);
   };
 
-  const handleRevokeAccess = (restaurant: Restaurant) => {
-    setSelectedRestaurant(restaurant);
+  const handleRevokeAccess = (merchant: Merchant) => {
+    setSelectedMerchant(merchant);
     setShowRevokeDialog(true);
   };
 
   const handleGrantConfirm = () => {
-    if (!selectedRestaurant) return;
+    if (!selectedMerchant) return;
     grantAccessMutation.mutate({ 
-      restaurantId: selectedRestaurant.id, 
+      merchantId: selectedMerchant.id, 
       notes: accessNotes 
     });
   };
 
   const handleRevokeConfirm = () => {
-    if (!selectedRestaurant) return;
-    revokeAccessMutation.mutate(selectedRestaurant.id);
+    if (!selectedMerchant) return;
+    revokeAccessMutation.mutate(selectedMerchant.id);
   };
 
   const cancelSubscriptionMutation = useMutation({
-    mutationFn: async (restaurantId: string) => {
-      return await apiRequest(`/api/admin/restaurants/${restaurantId}/cancel-subscription`, 'POST');
+    mutationFn: async (merchantId: string) => {
+      return await apiRequest(`/api/admin/merchants/${merchantId}/cancel-subscription`, 'POST');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
@@ -158,7 +158,7 @@ export default function AdminSubscriptions() {
         description: "The merchant's subscription has been cancelled.",
       });
       setShowCancelDialog(false);
-      setSelectedRestaurant(null);
+      setSelectedMerchant(null);
     },
     onError: () => {
       toast({
@@ -169,32 +169,32 @@ export default function AdminSubscriptions() {
     },
   });
 
-  const deleteRestaurantMutation = useMutation({
-    mutationFn: async (restaurantId: string) => {
-      return await apiRequest(`/api/admin/restaurants/${restaurantId}`, 'DELETE');
+  const deleteMerchantMutation = useMutation({
+    mutationFn: async (merchantId: string) => {
+      return await apiRequest(`/api/admin/merchants/${merchantId}`, 'DELETE');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/restaurants'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/merchants'] });
       toast({
         title: "Merchant Deleted",
         description: "The merchant and all its data has been permanently deleted.",
       });
       setShowDeleteDialog(false);
-      setSelectedRestaurant(null);
+      setSelectedMerchant(null);
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to delete restaurant.",
+        description: "Failed to delete merchant.",
         variant: "destructive",
       });
     },
   });
 
   const extendTrialMutation = useMutation({
-    mutationFn: async ({ restaurantId, days }: { restaurantId: string; days: number }) => {
-      return await apiRequest(`/api/admin/restaurants/${restaurantId}/extend-trial`, 'POST', { days });
+    mutationFn: async ({ merchantId, days }: { merchantId: string; days: number }) => {
+      return await apiRequest(`/api/admin/merchants/${merchantId}/extend-trial`, 'POST', { days });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/subscriptions'] });
@@ -203,7 +203,7 @@ export default function AdminSubscriptions() {
         description: `Trial period has been extended by ${extendDays} days.`,
       });
       setShowExtendDialog(false);
-      setSelectedRestaurant(null);
+      setSelectedMerchant(null);
       setExtendDays("7");
     },
     onError: () => {
@@ -215,8 +215,8 @@ export default function AdminSubscriptions() {
     },
   });
 
-  const getStatusBadge = (restaurant: Restaurant) => {
-    if (restaurant.manuallyGrantedAccess) {
+  const getStatusBadge = (merchant: Merchant) => {
+    if (merchant.manuallyGrantedAccess) {
       return (
         <Badge variant="default" data-testid="badge-manual-access">
           <Key className="w-3 h-3 mr-1" />
@@ -225,7 +225,7 @@ export default function AdminSubscriptions() {
       );
     }
 
-    if (restaurant.subscriptionStatus === 'active') {
+    if (merchant.subscriptionStatus === 'active') {
       return (
         <Badge variant="default" data-testid="badge-active">
           <CheckCircle className="w-3 h-3 mr-1" />
@@ -234,7 +234,7 @@ export default function AdminSubscriptions() {
       );
     }
 
-    if (restaurant.subscriptionStatus === 'trial' || restaurant.subscriptionStatus === 'trialing') {
+    if (merchant.subscriptionStatus === 'trial' || merchant.subscriptionStatus === 'trialing') {
       return (
         <Badge variant="secondary" data-testid="badge-trial">
           <Clock className="w-3 h-3 mr-1" />
@@ -246,18 +246,18 @@ export default function AdminSubscriptions() {
     return (
       <Badge variant="destructive" data-testid="badge-inactive">
         <XCircle className="w-3 h-3 mr-1" />
-        {restaurant.subscriptionStatus || 'Inactive'}
+        {merchant.subscriptionStatus || 'Inactive'}
       </Badge>
     );
   };
 
-  const typeCounts = restaurants.reduce<Record<string, number>>((counts, r) => {
+  const typeCounts = merchants.reduce<Record<string, number>>((counts, r) => {
     const type = r.businessType || 'retail';
     counts[type] = (counts[type] || 0) + 1;
     return counts;
   }, {});
 
-  const filteredRestaurants = restaurants.filter(r => {
+  const filteredMerchants = merchants.filter(r => {
     const matchesType = typeFilter === "all" || (r.businessType || 'retail') === typeFilter;
     const matchesSearch =
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -266,13 +266,13 @@ export default function AdminSubscriptions() {
     return matchesType && matchesSearch;
   });
 
-  const activeSubscriptions = restaurants.filter(r => 
+  const activeSubscriptions = merchants.filter(r => 
     r.subscriptionStatus === 'active' && !r.manuallyGrantedAccess
   ).length;
-  const trialSubscriptions = restaurants.filter(r => 
+  const trialSubscriptions = merchants.filter(r => 
     (r.subscriptionStatus === 'trial' || r.subscriptionStatus === 'trialing') && !r.manuallyGrantedAccess
   ).length;
-  const manualAccessCount = restaurants.filter(r => r.manuallyGrantedAccess).length;
+  const manualAccessCount = merchants.filter(r => r.manuallyGrantedAccess).length;
   const mrr = activeSubscriptions * 79;
 
   if (isLoading) {
@@ -352,7 +352,7 @@ export default function AdminSubscriptions() {
           className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${typeFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "hover-elevate"}`}
           data-testid="button-filter-type-all"
         >
-          All ({restaurants.length})
+          All ({merchants.length})
         </button>
         {BUSINESS_TYPES.map((type) => (
           <button
@@ -378,40 +378,40 @@ export default function AdminSubscriptions() {
 
       {/* Merchants List */}
       <div className="grid gap-4">
-        {filteredRestaurants.map((restaurant) => (
-          <Card key={restaurant.id} data-testid={`card-restaurant-${restaurant.id}`}>
+        {filteredMerchants.map((merchant) => (
+          <Card key={merchant.id} data-testid={`card-merchant-${merchant.id}`}>
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle className="text-lg flex items-center gap-2 flex-wrap">
-                    {restaurant.name}
+                    {merchant.name}
                     <Badge variant="secondary" className="no-default-hover-elevate font-normal text-xs">
-                      {BUSINESS_TYPE_LABELS[restaurant.businessType || 'retail'] || restaurant.businessType}
+                      {BUSINESS_TYPE_LABELS[merchant.businessType || 'retail'] || merchant.businessType}
                     </Badge>
                   </CardTitle>
                   <CardDescription>
-                    {restaurant.subdomain} • {restaurant.ownerEmail}
+                    {merchant.subdomain} • {merchant.ownerEmail}
                   </CardDescription>
                 </div>
-                {getStatusBadge(restaurant)}
+                {getStatusBadge(merchant)}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Manual Access Info */}
-              {restaurant.manuallyGrantedAccess && (
+              {merchant.manuallyGrantedAccess && (
                 <div className="bg-primary/10 border border-primary/20 rounded-md p-3">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-primary mt-0.5" />
                     <div className="flex-1 space-y-1">
                       <p className="text-sm font-medium">Manual Access Granted</p>
-                      {restaurant.accessNotes && (
+                      {merchant.accessNotes && (
                         <p className="text-sm text-muted-foreground">
-                          Note: {restaurant.accessNotes}
+                          Note: {merchant.accessNotes}
                         </p>
                       )}
-                      {restaurant.accessGrantedAt && (
+                      {merchant.accessGrantedAt && (
                         <p className="text-xs text-muted-foreground">
-                          Granted on {new Date(restaurant.accessGrantedAt).toLocaleDateString()}
+                          Granted on {new Date(merchant.accessGrantedAt).toLocaleDateString()}
                         </p>
                       )}
                     </div>
@@ -420,24 +420,24 @@ export default function AdminSubscriptions() {
               )}
 
               {/* Subscription Info */}
-              {!restaurant.manuallyGrantedAccess && (
+              {!merchant.manuallyGrantedAccess && (
                 <div className="text-sm space-y-1">
-                  {restaurant.trialEndsAt && (
+                  {merchant.trialEndsAt && (
                     <p>
                       <span className="text-muted-foreground">Trial ends:</span>{' '}
-                      {new Date(restaurant.trialEndsAt).toLocaleDateString()}
+                      {new Date(merchant.trialEndsAt).toLocaleDateString()}
                     </p>
                   )}
-                  {restaurant.subscriptionEndsAt && (
+                  {merchant.subscriptionEndsAt && (
                     <p>
                       <span className="text-muted-foreground">Subscription ends:</span>{' '}
-                      {new Date(restaurant.subscriptionEndsAt).toLocaleDateString()}
+                      {new Date(merchant.subscriptionEndsAt).toLocaleDateString()}
                     </p>
                   )}
-                  {restaurant.createdAt && (
+                  {merchant.createdAt && (
                     <p>
                       <span className="text-muted-foreground">Created:</span>{' '}
-                      {new Date(restaurant.createdAt).toLocaleDateString()}
+                      {new Date(merchant.createdAt).toLocaleDateString()}
                     </p>
                   )}
                 </div>
@@ -445,10 +445,10 @@ export default function AdminSubscriptions() {
 
               {/* Actions */}
               <div className="flex gap-2">
-                {restaurant.manuallyGrantedAccess ? (
+                {merchant.manuallyGrantedAccess ? (
                   <Button
                     variant="destructive"
-                    onClick={() => handleRevokeAccess(restaurant)}
+                    onClick={() => handleRevokeAccess(merchant)}
                     disabled={revokeAccessMutation.isPending}
                     data-testid="button-revoke-access"
                   >
@@ -457,7 +457,7 @@ export default function AdminSubscriptions() {
                   </Button>
                 ) : (
                   <Button
-                    onClick={() => handleGrantAccess(restaurant)}
+                    onClick={() => handleGrantAccess(merchant)}
                     disabled={grantAccessMutation.isPending}
                     data-testid="button-grant-access"
                   >
@@ -475,7 +475,7 @@ export default function AdminSubscriptions() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
                       onClick={() => {
-                        setSelectedRestaurant(restaurant);
+                        setSelectedMerchant(merchant);
                         setShowExtendDialog(true);
                       }}
                       data-testid="action-extend-trial"
@@ -484,10 +484,10 @@ export default function AdminSubscriptions() {
                       Extend Trial
                     </DropdownMenuItem>
                     
-                    {restaurant.subscriptionStatus === 'active' && (
+                    {merchant.subscriptionStatus === 'active' && (
                       <DropdownMenuItem
                         onClick={() => {
-                          setSelectedRestaurant(restaurant);
+                          setSelectedMerchant(merchant);
                           setShowCancelDialog(true);
                         }}
                         data-testid="action-cancel-subscription"
@@ -501,11 +501,11 @@ export default function AdminSubscriptions() {
                     
                     <DropdownMenuItem
                       onClick={() => {
-                        setSelectedRestaurant(restaurant);
+                        setSelectedMerchant(merchant);
                         setShowDeleteDialog(true);
                       }}
                       className="text-destructive focus:text-destructive"
-                      data-testid="action-delete-restaurant"
+                      data-testid="action-delete-merchant"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete Merchant
@@ -517,7 +517,7 @@ export default function AdminSubscriptions() {
           </Card>
         ))}
 
-        {filteredRestaurants.length === 0 && (
+        {filteredMerchants.length === 0 && (
           <Card>
             <CardContent className="py-12 text-center text-muted-foreground">
               No merchants found
@@ -532,7 +532,7 @@ export default function AdminSubscriptions() {
           <DialogHeader>
             <DialogTitle>Grant Manual Access</DialogTitle>
             <DialogDescription>
-              This will give <strong>{selectedRestaurant?.name}</strong> full access to the platform
+              This will give <strong>{selectedMerchant?.name}</strong> full access to the platform
               without requiring a subscription. Use this for special arrangements or payment issues.
             </DialogDescription>
           </DialogHeader>
@@ -574,7 +574,7 @@ export default function AdminSubscriptions() {
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke Manual Access?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove manual access for <strong>{selectedRestaurant?.name}</strong>.
+              This will remove manual access for <strong>{selectedMerchant?.name}</strong>.
               Normal subscription rules will apply, and they may lose access if their subscription
               is not active.
             </AlertDialogDescription>
@@ -598,7 +598,7 @@ export default function AdminSubscriptions() {
           <DialogHeader>
             <DialogTitle>Extend Trial Period</DialogTitle>
             <DialogDescription>
-              Extend the trial period for <strong>{selectedRestaurant?.name}</strong>
+              Extend the trial period for <strong>{selectedMerchant?.name}</strong>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -625,7 +625,7 @@ export default function AdminSubscriptions() {
             </Button>
             <Button
               onClick={() => {
-                if (!selectedRestaurant) return;
+                if (!selectedMerchant) return;
                 const days = parseInt(extendDays);
                 if (isNaN(days) || days < 1) {
                   toast({
@@ -636,7 +636,7 @@ export default function AdminSubscriptions() {
                   return;
                 }
                 extendTrialMutation.mutate({ 
-                  restaurantId: selectedRestaurant.id, 
+                  merchantId: selectedMerchant.id, 
                   days 
                 });
               }}
@@ -655,7 +655,7 @@ export default function AdminSubscriptions() {
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will cancel the active subscription for <strong>{selectedRestaurant?.name}</strong>.
+              This will cancel the active subscription for <strong>{selectedMerchant?.name}</strong>.
               They will retain access until their current billing period ends, after which they will
               need to resubscribe or you can grant manual access.
             </AlertDialogDescription>
@@ -664,8 +664,8 @@ export default function AdminSubscriptions() {
             <AlertDialogCancel data-testid="button-cancel-cancel">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (!selectedRestaurant) return;
-                cancelSubscriptionMutation.mutate(selectedRestaurant.id);
+                if (!selectedMerchant) return;
+                cancelSubscriptionMutation.mutate(selectedMerchant.id);
               }}
               disabled={cancelSubscriptionMutation.isPending}
               data-testid="button-confirm-cancel"
@@ -676,15 +676,15 @@ export default function AdminSubscriptions() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Restaurant Dialog */}
+      {/* Delete Merchant Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent data-testid="dialog-delete-restaurant">
+        <AlertDialogContent data-testid="dialog-delete-merchant">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Merchant?</AlertDialogTitle>
             <AlertDialogDescription>
               <span className="text-destructive font-semibold">Warning: This action cannot be undone!</span>
               <br /><br />
-              This will permanently delete <strong>{selectedRestaurant?.name}</strong> and all associated data including:
+              This will permanently delete <strong>{selectedMerchant?.name}</strong> and all associated data including:
               <ul className="list-disc list-inside mt-2 space-y-1">
                 <li>All catalog items and categories</li>
                 <li>All orders and order history</li>
@@ -698,10 +698,10 @@ export default function AdminSubscriptions() {
             <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (!selectedRestaurant) return;
-                deleteRestaurantMutation.mutate(selectedRestaurant.id);
+                if (!selectedMerchant) return;
+                deleteMerchantMutation.mutate(selectedMerchant.id);
               }}
-              disabled={deleteRestaurantMutation.isPending}
+              disabled={deleteMerchantMutation.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               data-testid="button-confirm-delete"
             >

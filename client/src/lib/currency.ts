@@ -8,7 +8,7 @@ export interface DisplayMarket {
 /**
  * Converts a base-currency price to a market's display currency using the
  * market's merchant-entered fixed rate (no live FX). Display-only — checkout
- * always totals in the restaurant's base currency regardless of the market shown.
+ * always totals in the merchant's base currency regardless of the market shown.
  */
 export function convertAndFormatPrice(
   basePrice: number,

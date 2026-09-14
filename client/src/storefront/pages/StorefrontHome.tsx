@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { RestaurantThemeSettings, ThemeSection, CustomerReview } from "@shared/schema";
+import type { MerchantThemeSettings, ThemeSection, CustomerReview } from "@shared/schema";
 import { convertAndFormatPrice } from "@/lib/currency";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
 import { useCart } from "@/storefront/lib/cartStore";
@@ -9,7 +9,7 @@ import { CartDrawer } from "@/storefront/components/CartDrawer";
 import type { StorefrontProduct } from "@/storefront/components/ProductCard";
 import { PixelScripts, trackAddToCart } from "@/components/PixelScripts";
 
-interface StorefrontRestaurant {
+interface StorefrontMerchant {
   id: string;
   name: string;
   slug: string;
@@ -20,7 +20,7 @@ interface StorefrontRestaurant {
   primaryColor: string | null;
   secondaryColor: string | null;
   accentColor: string | null;
-  themeSettings: RestaurantThemeSettings | null;
+  themeSettings: MerchantThemeSettings | null;
   socialLinks: Record<string, string> | null;
   seoTitle: string | null;
   seoDescription: string | null;
@@ -33,20 +33,20 @@ interface StorefrontRestaurant {
 const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
 
 export function StorefrontHome({ slug }: { slug: string }) {
-  const [draft, setDraft] = useState<{ themeSettings?: RestaurantThemeSettings } | null>(null);
+  const [draft, setDraft] = useState<{ themeSettings?: MerchantThemeSettings } | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const cart = useCart(slug);
 
-  const { data: restaurant, isLoading, isError } = useQuery<StorefrontRestaurant>({
+  const { data: merchant, isLoading, isError } = useQuery<StorefrontMerchant>({
     queryKey: [`/api/storefront/${slug}`],
   });
   const { data: products } = useQuery<StorefrontProduct[]>({
     queryKey: [`/api/storefront/${slug}/products`],
-    enabled: !!restaurant,
+    enabled: !!merchant,
   });
   const { data: reviews } = useQuery<CustomerReview[]>({
     queryKey: [`/api/storefront/${slug}/reviews`],
-    enabled: !!restaurant,
+    enabled: !!merchant,
   });
 
   // A store can now have more than one "featuredProducts" section (each
@@ -54,7 +54,7 @@ export function StorefrontHome({ slug }: { slug: string }) {
   // — fetch every distinct collection referenced in one query, keyed by its
   // sorted handle list so it only refetches when that set actually changes.
   const featuredCollectionHandles = Array.from(new Set(
-    (restaurant?.themeSettings?.layout?.sections || [])
+    (merchant?.themeSettings?.layout?.sections || [])
       .filter((s) => s.type === "featuredProducts" && s.fields?.collectionHandle)
       .map((s) => s.fields.collectionHandle as string)
   )).sort();
@@ -68,7 +68,7 @@ export function StorefrontHome({ slug }: { slug: string }) {
       }));
       return Object.fromEntries(entries);
     },
-    enabled: !!restaurant && featuredCollectionHandles.length > 0,
+    enabled: !!merchant && featuredCollectionHandles.length > 0,
   });
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export function StorefrontHome({ slug }: { slug: string }) {
   if (isLoading) {
     return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Loading store...</div>;
   }
-  if (isError || !restaurant) {
+  if (isError || !merchant) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-2 text-center">
         <h1 className="text-2xl font-bold">Store not found</h1>
@@ -94,7 +94,7 @@ export function StorefrontHome({ slug }: { slug: string }) {
     );
   }
 
-  const themeSettings = draft?.themeSettings || restaurant.themeSettings;
+  const themeSettings = draft?.themeSettings || merchant.themeSettings;
   const sections: ThemeSection[] = themeSettings?.layout?.sections || [];
   const theme = resolveTheme(themeSettings?.theme);
   const T = STOREFRONT_THEMES[theme];
@@ -102,13 +102,13 @@ export function StorefrontHome({ slug }: { slug: string }) {
   if (sections.length === 0) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-2 text-center">
-        <h1 className="text-2xl font-bold">{restaurant.name}</h1>
+        <h1 className="text-2xl font-bold">{merchant.name}</h1>
         <p className="text-muted-foreground">This store is being set up — check back soon.</p>
       </div>
     );
   }
 
-  const formatPrice = (n: number) => convertAndFormatPrice(n, restaurant.currency, null);
+  const formatPrice = (n: number) => convertAndFormatPrice(n, merchant.currency, null);
   const items = products || [];
   const base = `/store/${slug}`;
 
@@ -123,12 +123,12 @@ export function StorefrontHome({ slug }: { slug: string }) {
     }, 1);
     if (!isPreview) {
       trackAddToCart(
-        { id: item.id, name: item.name, price: Number(item.price), currency: restaurant.currency },
+        { id: item.id, name: item.name, price: Number(item.price), currency: merchant.currency },
         {
-          metaPixelId: restaurant.metaPixelId || undefined,
-          tiktokPixelId: restaurant.tiktokPixelId || undefined,
-          googleAnalyticsId: restaurant.googleAnalyticsId || undefined,
-          googleAdsId: restaurant.googleAdsId || undefined,
+          metaPixelId: merchant.metaPixelId || undefined,
+          tiktokPixelId: merchant.tiktokPixelId || undefined,
+          googleAnalyticsId: merchant.googleAnalyticsId || undefined,
+          googleAdsId: merchant.googleAdsId || undefined,
         }
       );
     }
@@ -137,10 +137,10 @@ export function StorefrontHome({ slug }: { slug: string }) {
 
   const pixelScripts = !isPreview && (
     <PixelScripts
-      metaPixelId={restaurant.metaPixelId || undefined}
-      tiktokPixelId={restaurant.tiktokPixelId || undefined}
-      googleAnalyticsId={restaurant.googleAnalyticsId || undefined}
-      googleAdsId={restaurant.googleAdsId || undefined}
+      metaPixelId={merchant.metaPixelId || undefined}
+      tiktokPixelId={merchant.tiktokPixelId || undefined}
+      googleAnalyticsId={merchant.googleAnalyticsId || undefined}
+      googleAdsId={merchant.googleAdsId || undefined}
     />
   );
 
@@ -187,11 +187,11 @@ export function StorefrontHome({ slug }: { slug: string }) {
     <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
       {pixelScripts}
       {headerSection && (
-        <T.Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
       )}
       <main>{bodySections.map(renderSection)}</main>
       {footerSection && (
-        <T.Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
+        <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
       )}
       <CartDrawer
         open={cartOpen}

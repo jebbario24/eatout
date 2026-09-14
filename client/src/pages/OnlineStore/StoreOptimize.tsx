@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Restaurant } from "@shared/schema";
+import type { Merchant } from "@shared/schema";
 
 interface OptimizeChange {
   section: string;
@@ -21,7 +21,7 @@ interface OptimizeResult {
 export default function StoreOptimize() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: restaurant } = useQuery<Restaurant | null>({ queryKey: ["/api/restaurants/me"] });
+  const { data: merchant } = useQuery<Merchant | null>({ queryKey: ["/api/merchants/me"] });
   const [isRunning, setIsRunning] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
   const [result, setResult] = useState<OptimizeResult | null>(null);
@@ -35,7 +35,7 @@ export default function StoreOptimize() {
       const res = await apiRequest("/api/store/optimize", "POST");
       const data: OptimizeResult = await res.json();
       setResult(data);
-      await queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/merchants/me"] });
     } catch {
       toast({ variant: "destructive", title: "Optimization failed", description: "Please try again." });
     } finally {
@@ -49,7 +49,7 @@ export default function StoreOptimize() {
     try {
       await apiRequest(`/api/store/generations/${result.id}/undo`, "POST");
       setUndone(true);
-      await queryClient.invalidateQueries({ queryKey: ["/api/restaurants/me"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/merchants/me"] });
       toast({ title: "Changes undone" });
     } catch {
       toast({ variant: "destructive", title: "Failed to undo", description: "Please try again." });
@@ -108,10 +108,10 @@ export default function StoreOptimize() {
         </CardContent>
       </Card>
 
-      {restaurant?.slug && (
+      {merchant?.slug && (
         <div className="mt-4 flex justify-end gap-4 text-sm">
           <a href="/online-store/editor" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Open Store Editor</a>
-          <a href={`/store/${restaurant.slug}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+          <a href={`/store/${merchant.slug}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
             View live store
           </a>
         </div>

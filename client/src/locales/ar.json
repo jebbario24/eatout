@@ -28,8 +28,6 @@
     "analytics": "التحليلات",
     "growth": "النمو",
     "markets": "الأسواق",
-    "allRestaurants": "جميع التجار",
-    "restaurantManagement": "إدارة التجار",
     "platformManagement": "إدارة المنصة",
     "marketing": "التسويق",
     "campaigns": "الحملات",
@@ -62,7 +60,9 @@
     "finance": "المالية",
     "products": "المنتجات",
     "growthMarketing": "النمو والتسويق",
-    "salesChannels": "قنوات البيع"
+    "salesChannels": "قنوات البيع",
+    "allMerchants": "جميع التجار",
+    "merchantManagement": "إدارة التجار"
   },
   "storefront": {
     "menu": "القائمة",
