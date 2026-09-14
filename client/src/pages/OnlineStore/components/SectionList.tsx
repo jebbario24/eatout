@@ -1,8 +1,9 @@
 import { Share2, Layout, Image as ImageIcon, ShieldCheck, Grid3x3, Star, Megaphone, Users, Mail, PanelBottom, Code2, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import type { ThemeSection, ThemeSectionType } from "@shared/schema";
 
-const SECTION_META: Record<ThemeSectionType, { label: string; icon: typeof Layout }> = {
+export const SECTION_META: Record<ThemeSectionType, { label: string; icon: typeof Layout }> = {
   header: { label: "Header", icon: Layout },
   hero: { label: "Hero Section", icon: ImageIcon },
   trustBadges: { label: "Trust Badges", icon: ShieldCheck },
@@ -17,15 +18,19 @@ const SECTION_META: Record<ThemeSectionType, { label: string; icon: typeof Layou
 };
 
 const LOCKED: ThemeSectionType[] = ["header", "footer"];
+// Every section type a merchant can add another instance of — anything but
+// the one-per-store header/footer. Picking one from the menu adds a fresh
+// instance with starter content, exactly like the existing ones.
+const ADDABLE_TYPES: ThemeSectionType[] = (Object.keys(SECTION_META) as ThemeSectionType[]).filter((t) => !LOCKED.includes(t));
 
 const sectionKey = (s: ThemeSection) => s.id || s.type;
 
-export function SectionList({ sections, selectedKey, onSelect, onToggle, onAddEmbed, onRemove, onMove, testimonialsEligible, bestSellersEligible }: {
+export function SectionList({ sections, selectedKey, onSelect, onToggle, onAdd, onRemove, onMove, testimonialsEligible, bestSellersEligible }: {
   sections: ThemeSection[];
   selectedKey: string;
   onSelect: (key: string) => void;
   onToggle: (key: string, enabled: boolean) => void;
-  onAddEmbed: () => void;
+  onAdd: (type: ThemeSectionType) => void;
   onRemove: (key: string) => void;
   onMove: (key: string, direction: "up" | "down") => void;
   testimonialsEligible: boolean;
@@ -69,7 +74,11 @@ export function SectionList({ sections, selectedKey, onSelect, onToggle, onAddEm
           if (!meta) return null;
           const Icon = meta.icon;
           const key = sectionKey(section);
-          const removable = section.type === "customEmbed";
+          // Only sections added via "+ Add section" carry an id — the
+          // original AI-generated ones don't, and stay toggle-only so they
+          // can't be deleted by accident (matches the existing "hide, don't
+          // lose" pattern header/footer already have via LOCKED).
+          const removable = !!section.id;
           const hint = section.type === "testimonials" && !testimonialsEligible
             ? "Hidden until 3+ reviews rated 4-5★"
             : section.type === "bestSellers" && !bestSellersEligible
@@ -128,14 +137,29 @@ export function SectionList({ sections, selectedKey, onSelect, onToggle, onAddEm
           );
         })}
 
-        <button
-          onClick={onAddEmbed}
-          className="mt-1 flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-primary hover:bg-accent/50"
-          data-testid="button-add-section"
-        >
-          <Plus className="h-4 w-4" />
-          Add custom HTML section
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="mt-1 flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-primary hover:bg-accent/50"
+              data-testid="button-add-section"
+            >
+              <Plus className="h-4 w-4" />
+              Add section
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            {ADDABLE_TYPES.map((type) => {
+              const meta = SECTION_META[type];
+              const Icon = meta.icon;
+              return (
+                <DropdownMenuItem key={type} onClick={() => onAdd(type)} data-testid={`menuitem-add-${type}`}>
+                  <Icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                  {meta.label}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {sections.filter((s) => s.type === "footer").map((section) => {

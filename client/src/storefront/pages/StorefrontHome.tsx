@@ -44,18 +44,26 @@ export function StorefrontHome({ slug }: { slug: string }) {
     enabled: !!restaurant,
   });
 
-  // The featured-products section can be scoped to one collection — a
-  // separate, handle-filtered fetch since it's a different subset than the
-  // page's main `products` list (which bestSellers also draws from).
-  const featuredCollectionHandle = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "featuredProducts")?.fields?.collectionHandle as string | null | undefined;
-  const { data: collectionProducts } = useQuery<StorefrontProduct[]>({
-    queryKey: [`/api/storefront/${slug}/products`, "collection", featuredCollectionHandle],
+  // A store can now have more than one "featuredProducts" section (each
+  // addable independently), and each can be scoped to a different collection
+  // — fetch every distinct collection referenced in one query, keyed by its
+  // sorted handle list so it only refetches when that set actually changes.
+  const featuredCollectionHandles = Array.from(new Set(
+    (restaurant?.themeSettings?.layout?.sections || [])
+      .filter((s) => s.type === "featuredProducts" && s.fields?.collectionHandle)
+      .map((s) => s.fields.collectionHandle as string)
+  )).sort();
+  const { data: collectionProductsByHandle } = useQuery<Record<string, StorefrontProduct[]>>({
+    queryKey: [`/api/storefront/${slug}/products`, "collections", featuredCollectionHandles.join(",")],
     queryFn: async () => {
-      const res = await fetch(`/api/storefront/${slug}/products?collection=${encodeURIComponent(featuredCollectionHandle!)}`, { credentials: "include" });
-      if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
-      return res.json();
+      const entries = await Promise.all(featuredCollectionHandles.map(async (handle) => {
+        const res = await fetch(`/api/storefront/${slug}/products?collection=${encodeURIComponent(handle)}`, { credentials: "include" });
+        if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+        return [handle, await res.json()] as const;
+      }));
+      return Object.fromEntries(entries);
     },
-    enabled: !!restaurant && !!featuredCollectionHandle,
+    enabled: !!restaurant && featuredCollectionHandles.length > 0,
   });
 
   useEffect(() => {
@@ -113,33 +121,34 @@ export function StorefrontHome({ slug }: { slug: string }) {
 
   const renderSection = (section: ThemeSection) => {
     if (!section.enabled) return null;
+    const key = section.id || section.type;
     switch (section.type) {
       case "hero":
-        return <T.Hero key="hero" fields={section.fields as any} shopHref={`${base}/shop`} />;
+        return <T.Hero key={key} fields={section.fields as any} shopHref={`${base}/shop`} />;
       case "trustBadges":
-        return <T.TrustBadges key="trustBadges" fields={section.fields as any} />;
+        return <T.TrustBadges key={key} fields={section.fields as any} />;
       case "featuredProducts": {
-        const featuredItems = section.fields.collectionHandle ? (collectionProducts || []) : items;
+        const featuredItems = section.fields.collectionHandle ? (collectionProductsByHandle?.[section.fields.collectionHandle] || []) : items;
         return (
-          <div id="featured" key="featuredProducts">
+          <div key={key} id={key === "featuredProducts" ? "featured" : undefined}>
             <T.ProductGrid heading={section.fields.heading || "Featured"} items={featuredItems.slice(0, section.fields.limit || 8)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} emptyHint="New arrivals coming soon." onQuickAdd={handleQuickAdd} />
           </div>
         );
       }
       case "bestSellers":
         return bestSellers.length === 0 ? null : (
-          <T.ProductGrid key="bestSellers" heading={section.fields.heading || "Best Sellers"} items={bestSellers.slice(0, section.fields.limit || 4)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} onQuickAdd={handleQuickAdd} />
+          <T.ProductGrid key={key} heading={section.fields.heading || "Best Sellers"} items={bestSellers.slice(0, section.fields.limit || 4)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} onQuickAdd={handleQuickAdd} />
         );
       case "banner":
-        return <T.Banner key="banner" fields={section.fields as any} />;
+        return <T.Banner key={key} fields={section.fields as any} />;
       case "aboutUs":
-        return <T.AboutUs key="aboutUs" fields={section.fields as any} />;
+        return <T.AboutUs key={key} fields={section.fields as any} />;
       case "testimonials":
-        return <T.Testimonials key="testimonials" fields={section.fields as any} reviews={reviews || []} />;
+        return <T.Testimonials key={key} fields={section.fields as any} reviews={reviews || []} />;
       case "newsletter":
-        return <T.Newsletter key="newsletter" fields={section.fields as any} slug={slug} />;
+        return <T.Newsletter key={key} fields={section.fields as any} slug={slug} />;
       case "customEmbed":
-        return <T.CustomEmbed key={section.id} fields={section.fields as any} />;
+        return <T.CustomEmbed key={key} fields={section.fields as any} />;
       default:
         return null;
     }

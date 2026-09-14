@@ -4,12 +4,27 @@ import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Restaurant, RestaurantThemeSettings, ThemeSection, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
+import type { Restaurant, RestaurantThemeSettings, ThemeSection, ThemeSectionType, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
 import { SectionList } from "./components/SectionList";
 import { FieldPanel } from "./components/FieldPanel";
 import { DeviceSwitcher, DEVICE_WIDTHS, type DeviceMode } from "./components/DeviceSwitcher";
 import { hasValidThemeSettings } from "@/storefront/lib/themeSettings";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+// Starter fields for a freshly-added instance of each type — same shape
+// `storeIntelligence.ts` uses for the AI-generated originals, just generic
+// copy instead of business-specific content the merchant hasn't given yet.
+const SECTION_DEFAULTS: Record<Exclude<ThemeSectionType, "header" | "footer">, Record<string, any>> = {
+  hero: { backgroundImageUrl: null, secondaryImageUrl: null, heading: "New heading", subheading: "", buttonText: "Shop Now", buttonStyle: "solid", textAlign: "left", overlayOpacity: 20 },
+  trustBadges: { items: [{ icon: "truck", label: "Free shipping", detail: "On all orders" }] },
+  featuredProducts: { collectionHandle: null, heading: "Featured Products", limit: 8 },
+  bestSellers: { heading: "Best Sellers", limit: 4 },
+  banner: { imageUrl: null, heading: "New banner", buttonText: "", buttonUrl: "" },
+  aboutUs: { heading: "About Us", body: "", imageUrl: null },
+  testimonials: { heading: "What our customers say" },
+  newsletter: { heading: "Join our newsletter", subheading: "" },
+  customEmbed: { html: "", fullBleed: false },
+};
 
 export default function StoreEditor() {
   const { toast } = useToast();
@@ -78,10 +93,10 @@ export default function StoreEditor() {
     setThemeSettings((prev) => (prev ? { ...prev, theme } : prev));
   };
 
-  const handleAddEmbed = () => {
-    const id = `customEmbed-${crypto.randomUUID()}`;
+  const handleAddSection = (type: ThemeSectionType) => {
+    const id = `${type}-${crypto.randomUUID()}`;
     const footerIndex = sections.findIndex((s) => s.type === "footer");
-    const newSection: ThemeSection = { id, type: "customEmbed", enabled: true, fields: { html: "", fullBleed: false } };
+    const newSection: ThemeSection = { id, type, enabled: true, fields: { ...SECTION_DEFAULTS[type as Exclude<ThemeSectionType, "header" | "footer">] } };
     const next = [...sections];
     if (footerIndex === -1) next.push(newSection);
     else next.splice(footerIndex, 0, newSection);
@@ -161,7 +176,7 @@ export default function StoreEditor() {
             selectedKey={selectedKey}
             onSelect={setSelectedKey}
             onToggle={handleToggle}
-            onAddEmbed={handleAddEmbed}
+            onAdd={handleAddSection}
             onRemove={handleRemove}
             onMove={handleMove}
             testimonialsEligible={testimonialsEligible}
