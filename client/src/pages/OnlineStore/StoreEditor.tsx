@@ -5,7 +5,7 @@ import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Restaurant, RestaurantThemeSettings, ThemeSectionType, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
+import type { Restaurant, RestaurantThemeSettings, ThemeSection, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
 import { SectionList } from "./components/SectionList";
 import { FieldPanel } from "./components/FieldPanel";
 import { DeviceSwitcher, DEVICE_WIDTHS, type DeviceMode } from "./components/DeviceSwitcher";
@@ -64,7 +64,8 @@ export default function StoreEditor() {
   }
 
   const sections = themeSettings.layout.sections;
-  const activeSection = sections.find((s) => s.type === selectedKey);
+  const sectionKey = (s: ThemeSection) => s.id || s.type;
+  const activeSection = sections.find((s) => sectionKey(s) === selectedKey);
   const testimonialsEligible = reviews.filter((r) => r.isPublished && r.rating >= 4).length >= 3;
   const bestSellersEligible = items.some((i: any) => i.isAvailable && i.visibleOnline && (i.tags || []).some((t: string) => /bestseller/i.test(t)));
 
@@ -72,16 +73,44 @@ export default function StoreEditor() {
     setThemeSettings((prev) => (prev ? { ...prev, layout: { ...prev.layout, sections: next } } : prev));
   };
 
-  const handleToggle = (type: ThemeSectionType, enabled: boolean) => {
-    updateSections(sections.map((s) => (s.type === type ? { ...s, enabled } : s)));
+  const handleToggle = (key: string, enabled: boolean) => {
+    updateSections(sections.map((s) => (sectionKey(s) === key ? { ...s, enabled } : s)));
   };
 
-  const handleFieldsChange = (type: ThemeSectionType, fields: Record<string, any>) => {
-    updateSections(sections.map((s) => (s.type === type ? { ...s, fields } : s)));
+  const handleFieldsChange = (key: string, fields: Record<string, any>) => {
+    updateSections(sections.map((s) => (sectionKey(s) === key ? { ...s, fields } : s)));
   };
 
   const handleThemeChange = (theme: StorefrontThemeId) => {
     setThemeSettings((prev) => (prev ? { ...prev, theme } : prev));
+  };
+
+  const handleAddEmbed = () => {
+    const id = `customEmbed-${crypto.randomUUID()}`;
+    const footerIndex = sections.findIndex((s) => s.type === "footer");
+    const newSection: ThemeSection = { id, type: "customEmbed", enabled: true, fields: { html: "", fullBleed: false } };
+    const next = [...sections];
+    if (footerIndex === -1) next.push(newSection);
+    else next.splice(footerIndex, 0, newSection);
+    updateSections(next);
+    setSelectedKey(id);
+  };
+
+  const handleRemove = (key: string) => {
+    updateSections(sections.filter((s) => sectionKey(s) !== key));
+    if (selectedKey === key) setSelectedKey("hero");
+  };
+
+  const handleMove = (key: string, direction: "up" | "down") => {
+    const bodyTypes = sections.filter((s) => s.type !== "header" && s.type !== "footer");
+    const from = bodyTypes.findIndex((s) => sectionKey(s) === key);
+    const to = direction === "up" ? from - 1 : from + 1;
+    if (from === -1 || to < 0 || to >= bodyTypes.length) return;
+    const reordered = [...bodyTypes];
+    [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
+    const header = sections.find((s) => s.type === "header");
+    const footer = sections.find((s) => s.type === "footer");
+    updateSections([...(header ? [header] : []), ...reordered, ...(footer ? [footer] : [])]);
   };
 
   const save = async (publish: boolean) => {
@@ -132,6 +161,9 @@ export default function StoreEditor() {
             selectedKey={selectedKey}
             onSelect={setSelectedKey}
             onToggle={handleToggle}
+            onAddEmbed={handleAddEmbed}
+            onRemove={handleRemove}
+            onMove={handleMove}
             testimonialsEligible={testimonialsEligible}
             bestSellersEligible={bestSellersEligible}
           />

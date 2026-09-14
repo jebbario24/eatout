@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineImageUploader } from "@/components/InlineImageUploader";
-import type { ThemeSection, ThemeSectionType } from "@shared/schema";
+import type { ThemeSection } from "@shared/schema";
 
 interface Collection {
   id: string;
@@ -59,7 +59,9 @@ export function FieldPanel({ selectedKey, section, colors, onFieldsChange, onCol
   selectedKey: string;
   section: ThemeSection | undefined;
   colors: { primaryColor: string; secondaryColor: string; accentColor: string };
-  onFieldsChange: (type: ThemeSectionType, fields: Record<string, any>) => void;
+  // Keyed by `section.id || section.type` — plain `type` isn't unique once a
+  // store can have more than one "customEmbed" section.
+  onFieldsChange: (key: string, fields: Record<string, any>) => void;
   onColorsChange: (colors: { primaryColor: string; secondaryColor: string; accentColor: string }) => void;
 }) {
   const { data: collections = [] } = useQuery<Collection[]>({
@@ -98,11 +100,11 @@ export function FieldPanel({ selectedKey, section, colors, onFieldsChange, onCol
   }
 
   const fields = section.fields || {};
-  const set = (patch: Record<string, any>) => onFieldsChange(section.type, { ...fields, ...patch });
+  const set = (patch: Record<string, any>) => onFieldsChange(section.id || section.type, { ...fields, ...patch });
 
   return (
     <div className="space-y-5 p-4">
-      <h3 className="font-semibold">{section.type === "aboutUs" ? "About Us" : section.type[0].toUpperCase() + section.type.slice(1).replace(/([A-Z])/g, " $1")}</h3>
+      <h3 className="font-semibold">{section.type === "aboutUs" ? "About Us" : section.type === "customEmbed" ? "Custom HTML" : section.type[0].toUpperCase() + section.type.slice(1).replace(/([A-Z])/g, " $1")}</h3>
 
       {section.type === "header" && (
         <>
@@ -264,6 +266,25 @@ export function FieldPanel({ selectedKey, section, colors, onFieldsChange, onCol
         <>
           <ToggleRow label="Show social links" checked={fields.showSocialLinks} onChange={(v) => set({ showSocialLinks: v })} testId="toggle-footer-social" />
           <ToggleRow label="Show payment icons" checked={fields.showPaymentIcons} onChange={(v) => set({ showPaymentIcons: v })} testId="toggle-footer-payment" />
+        </>
+      )}
+
+      {section.type === "customEmbed" && (
+        <>
+          <p className="text-xs text-muted-foreground">
+            Paste any HTML — a chat widget, a tracking pixel, an embedded video, a third-party form. Script tags run exactly as they would on a normal page.
+          </p>
+          <Field label="HTML / embed code">
+            <Textarea
+              value={fields.html || ""}
+              onChange={(e) => set({ html: e.target.value })}
+              rows={10}
+              className="font-mono text-xs"
+              placeholder='<iframe src="https://www.youtube.com/embed/..." />'
+              data-testid="input-embed-html"
+            />
+          </Field>
+          <ToggleRow label="Full width (no side padding)" checked={!!fields.fullBleed} onChange={(v) => set({ fullBleed: v })} testId="toggle-embed-fullbleed" />
         </>
       )}
     </div>

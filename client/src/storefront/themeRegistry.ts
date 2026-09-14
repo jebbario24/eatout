@@ -9,6 +9,7 @@ import { AboutUs as FarfetchAboutUs } from "@/storefront/components/AboutUs";
 import { Testimonials as FarfetchTestimonials } from "@/storefront/components/Testimonials";
 import { Newsletter as FarfetchNewsletter } from "@/storefront/components/Newsletter";
 import { Footer as FarfetchFooter } from "@/storefront/components/Footer";
+import { CustomEmbed } from "@/storefront/components/CustomEmbed";
 
 import { Header as AdanolaHeader } from "@/storefront/themes/adanola/Header";
 import { Hero as AdanolaHero } from "@/storefront/themes/adanola/Hero";
@@ -36,6 +37,7 @@ export const STOREFRONT_THEMES = {
     Testimonials: FarfetchTestimonials,
     Newsletter: FarfetchNewsletter,
     Footer: FarfetchFooter,
+    CustomEmbed,
   },
   adanola: {
     Header: AdanolaHeader,
@@ -47,6 +49,7 @@ export const STOREFRONT_THEMES = {
     Testimonials: AdanolaTestimonials,
     Newsletter: AdanolaNewsletter,
     Footer: AdanolaFooter,
+    CustomEmbed,
   },
 } satisfies Record<StorefrontThemeId, unknown>;
 

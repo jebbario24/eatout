@@ -122,6 +122,8 @@ export function StorefrontHome({ slug }: { slug: string }) {
         return <T.Testimonials key="testimonials" fields={section.fields as any} reviews={reviews || []} />;
       case "newsletter":
         return <T.Newsletter key="newsletter" fields={section.fields as any} slug={slug} />;
+      case "customEmbed":
+        return <T.CustomEmbed key={section.id} fields={section.fields as any} />;
       default:
         return null;
     }

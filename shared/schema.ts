@@ -1662,17 +1662,23 @@ export type InsertRestaurant = z.infer<typeof insertRestaurantSchema>;
 export type Restaurant = typeof restaurants.$inferSelect;
 
 // Shape of the `restaurants.themeSettings` jsonb column, shared by client and
-// server. A fixed, ordered list of named page regions — not a freeform/addable
-// block system — each independently togglable except header/footer. Colors live
-// in the separate primaryColor/secondaryColor/accentColor columns, not here.
+// server. Mostly a fixed, ordered list of named page regions — each togglable
+// except header/footer — but "customEmbed" is the one freeform/addable/
+// removable block type (a merchant's own HTML/script snippet), so more than
+// one can exist; that's what `id` disambiguates. Colors live in the separate
+// primaryColor/secondaryColor/accentColor columns, not here.
 export type ThemeSectionType =
   | "header" | "hero" | "trustBadges" | "featuredProducts" | "bestSellers"
-  | "banner" | "aboutUs" | "testimonials" | "newsletter" | "footer";
+  | "banner" | "aboutUs" | "testimonials" | "newsletter" | "footer" | "customEmbed";
 
 export interface ThemeSection {
   type: ThemeSectionType;
   enabled: boolean;
   fields: Record<string, any>;
+  // Only set (and only needed) for "customEmbed" sections, since a store can
+  // have several of those — every other type appears at most once, so its
+  // `type` alone is already a stable identity/selection key.
+  id?: string;
 }
 
 // Which visual system renders the section data below. Purely additive/optional
