@@ -3417,6 +3417,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/storefront/:slug/categories', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await restaurantBySlugPublic(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const [categories, items] = await Promise.all([
+        storage.getMenuCategories(restaurant.id),
+        storage.getMenuItems(restaurant.id),
+      ]);
+      const usedIds = new Set(items.filter((i) => i.isAvailable && i.visibleOnline).map((i) => i.categoryId));
+      const visible = categories
+        .filter((c) => usedIds.has(c.id))
+        .map((c) => ({ id: c.id, name: c.name }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      res.json(visible);
+    } catch (error) {
+      logError("Storefront categories list failed", error);
+      res.status(500).json({ message: "Failed to load categories" });
+    }
+  });
+
   app.get('/api/storefront/:slug/products/:handle', storefrontLimiter, async (req, res) => {
     try {
       const restaurant = await restaurantBySlugPublic(req.params.slug);

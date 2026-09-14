@@ -87,7 +87,6 @@ export function StorefrontHome({ slug }: { slug: string }) {
     );
   }
 
-  const activeColors = draft?.colors || { primaryColor: restaurant.primaryColor, secondaryColor: restaurant.secondaryColor, accentColor: restaurant.accentColor };
   const formatPrice = (n: number) => convertAndFormatPrice(n, restaurant.currency, null);
   const items = products || [];
   const base = `/store/${slug}`;
@@ -98,18 +97,18 @@ export function StorefrontHome({ slug }: { slug: string }) {
     if (!section.enabled) return null;
     switch (section.type) {
       case "hero":
-        return <Hero key="hero" fields={section.fields as any} shopHref={`${base}#featured`} />;
+        return <Hero key="hero" fields={section.fields as any} shopHref={`${base}/shop`} />;
       case "trustBadges":
         return <TrustBadges key="trustBadges" fields={section.fields as any} />;
       case "featuredProducts":
         return (
           <div id="featured" key="featuredProducts">
-            <ProductGrid heading={section.fields.heading || "Featured"} items={items} slug={slug} formatPrice={formatPrice} emptyHint="New arrivals coming soon." />
+            <ProductGrid heading={section.fields.heading || "Featured"} items={items.slice(0, section.fields.limit || 8)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} emptyHint="New arrivals coming soon." />
           </div>
         );
       case "bestSellers":
         return bestSellers.length === 0 ? null : (
-          <ProductGrid key="bestSellers" heading={section.fields.heading || "Best Sellers"} items={bestSellers} slug={slug} formatPrice={formatPrice} />
+          <ProductGrid key="bestSellers" heading={section.fields.heading || "Best Sellers"} items={bestSellers.slice(0, section.fields.limit || 4)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} />
         );
       case "banner":
         return <Banner key="banner" fields={section.fields as any} />;
@@ -129,7 +128,7 @@ export function StorefrontHome({ slug }: { slug: string }) {
   const bodySections = sections.filter((s) => s.type !== "header" && s.type !== "footer");
 
   return (
-    <div className="min-h-screen bg-background" style={storefrontColorVars(activeColors)}>
+    <div className="min-h-screen bg-background" style={storefrontColorVars()}>
       {headerSection && (
         <Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
       )}

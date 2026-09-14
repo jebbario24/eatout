@@ -102,7 +102,7 @@ function defaultSections(restaurant: Restaurant, facts: StoreFacts): ThemeSectio
     ] } },
     { type: "featuredProducts", enabled: facts.productCount > 0, fields: { collectionId: null, heading: "Featured Products", limit: 8 } },
     { type: "bestSellers", enabled: facts.bestsellerTagCount > 0, fields: { heading: "Best Sellers", limit: 4 } },
-    { type: "banner", enabled: false, fields: { imageUrl: null, heading: "", buttonText: "", buttonUrl: "" } },
+    { type: "banner", enabled: facts.productCount > 0, fields: { imageUrl: null, heading: "New Arrivals", buttonText: "Shop Now", buttonUrl: `/store/${restaurant.slug}/shop` } },
     { type: "aboutUs", enabled: true, fields: { heading: "About Us", body: "", imageUrl: restaurant.coverImageUrl || null } },
     { type: "testimonials", enabled: facts.reviewCount >= 3, fields: { heading: "What our customers say" } },
     { type: "newsletter", enabled: true, fields: { heading: "Join our newsletter", subheading: "Get updates on new products and offers" } },

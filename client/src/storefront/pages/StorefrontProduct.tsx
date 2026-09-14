@@ -117,11 +117,18 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
   };
 
   return (
-    <div className="min-h-screen bg-background" style={restaurant ? storefrontColorVars(restaurant) : undefined}>
+    <div className="min-h-screen bg-background" style={storefrontColorVars()}>
       {headerSection && (
         <Header storeName={restaurant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
       )}
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <nav className="mb-6 text-xs text-muted-foreground">
+          <Link href={`/store/${slug}`} className="hover:text-foreground">Home</Link>
+          <span className="mx-2">/</span>
+          <Link href={`/store/${slug}/shop`} className="hover:text-foreground">Shop</Link>
+          <span className="mx-2">/</span>
+          <span className="text-foreground">{product.name}</span>
+        </nav>
         <div className="grid gap-4 md:grid-cols-[88px_1fr_minmax(320px,420px)] md:gap-10">
           {gallery.length > 1 && (
             <div className="order-2 flex gap-3 overflow-x-auto md:order-1 md:flex-col md:overflow-visible">
