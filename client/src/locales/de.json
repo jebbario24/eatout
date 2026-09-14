@@ -55,7 +55,14 @@
     "activityLogs": "Aktivitätsprotokolle",
     "platformSettings": "Plattformeinstellungen",
     "collections": "Kollektionen",
-    "catalogSection": "{{catalog}} & Katalog"
+    "catalogSection": "{{catalog}} & Katalog",
+    "home": "Start",
+    "discounts": "Rabatte",
+    "content": "Inhalte",
+    "finance": "Finanzen",
+    "products": "Produkte",
+    "growthMarketing": "Wachstum & Marketing",
+    "salesChannels": "Verkaufskanäle"
   },
   "storefront": {
     "menu": "Speisekarte",

@@ -55,7 +55,14 @@
     "activityLogs": "Registros de Actividad",
     "platformSettings": "Configuración de la Plataforma",
     "collections": "Colecciones",
-    "catalogSection": "{{catalog}} y Catálogo"
+    "catalogSection": "{{catalog}} y Catálogo",
+    "home": "Inicio",
+    "discounts": "Descuentos",
+    "content": "Contenido",
+    "finance": "Finanzas",
+    "products": "Productos",
+    "growthMarketing": "Crecimiento y Marketing",
+    "salesChannels": "Canales de Venta"
   },
   "storefront": {
     "menu": "Menú",

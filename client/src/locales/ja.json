@@ -55,7 +55,14 @@
     "activityLogs": "アクティビティログ",
     "platformSettings": "プラットフォーム設定",
     "collections": "コレクション",
-    "catalogSection": "{{catalog}}とカタログ"
+    "catalogSection": "{{catalog}}とカタログ",
+    "home": "ホーム",
+    "discounts": "割引",
+    "content": "コンテンツ",
+    "finance": "財務",
+    "products": "商品",
+    "growthMarketing": "成長とマーケティング",
+    "salesChannels": "販売チャネル"
   },
   "storefront": {
     "menu": "メニュー",

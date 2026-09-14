@@ -55,7 +55,14 @@
     "activityLogs": "活动日志",
     "platformSettings": "平台设置",
     "collections": "系列",
-    "catalogSection": "{{catalog}}与目录"
+    "catalogSection": "{{catalog}}与目录",
+    "home": "首页",
+    "discounts": "折扣",
+    "content": "内容",
+    "finance": "财务",
+    "products": "产品",
+    "growthMarketing": "增长与营销",
+    "salesChannels": "销售渠道"
   },
   "storefront": {
     "menu": "菜单",

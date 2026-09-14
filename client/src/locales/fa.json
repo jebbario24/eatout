@@ -55,7 +55,14 @@
     "activityLogs": "گزارش‌های فعالیت",
     "platformSettings": "تنظیمات پلتفرم",
     "collections": "مجموعه‌ها",
-    "catalogSection": "{{catalog}} و کاتالوگ"
+    "catalogSection": "{{catalog}} و کاتالوگ",
+    "home": "خانه",
+    "discounts": "تخفیف‌ها",
+    "content": "محتوا",
+    "finance": "مالی",
+    "products": "محصولات",
+    "growthMarketing": "رشد و بازاریابی",
+    "salesChannels": "کانال‌های فروش"
   },
   "storefront": {
     "menu": "Menu",

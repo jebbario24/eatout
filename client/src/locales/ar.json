@@ -55,7 +55,14 @@
     "activityLogs": "سجلات النشاط",
     "platformSettings": "إعدادات المنصة",
     "collections": "المجموعات",
-    "catalogSection": "{{catalog}} والكتالوج"
+    "catalogSection": "{{catalog}} والكتالوج",
+    "home": "الرئيسية",
+    "discounts": "الخصومات",
+    "content": "المحتوى",
+    "finance": "المالية",
+    "products": "المنتجات",
+    "growthMarketing": "النمو والتسويق",
+    "salesChannels": "قنوات البيع"
   },
   "storefront": {
     "menu": "القائمة",

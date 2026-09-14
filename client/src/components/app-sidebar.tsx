@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard,
+  Home,
   ShoppingCart,
   Users,
   Package,
@@ -20,7 +20,9 @@ import {
   Send,
   TrendingUp,
   Globe,
-  Store
+  Store,
+  Tag,
+  LayoutDashboard
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -41,12 +43,12 @@ import { useQuery } from "@tanstack/react-query";
 import type { Restaurant } from "@shared/schema";
 import { getBusinessTypeConfig } from "@/lib/businessType";
 
-// Core sections
+// Top-level, ungrouped — mirrors Shopify's own Home/Orders rows
 const coreItems = [
   {
-    titleKey: "navigation.dashboard",
+    titleKey: "navigation.home",
     url: "/dashboard",
-    icon: LayoutDashboard,
+    icon: Home,
   },
   {
     titleKey: "navigation.orders",
@@ -55,8 +57,19 @@ const coreItems = [
   },
 ];
 
-// Marketing section
+// Growth section — folds in Shopify's separate "Discounts" row alongside our
+// existing marketing tools, since we don't split discounts into their own hub
 const marketingItems = [
+  {
+    titleKey: "navigation.growth",
+    url: "/growth",
+    icon: TrendingUp,
+  },
+  {
+    titleKey: "navigation.discounts",
+    url: "/marketing/promos",
+    icon: Tag,
+  },
   {
     titleKey: "navigation.marketing",
     url: "/marketing",
@@ -87,23 +100,26 @@ const baseOperationsItems = [
   },
 ];
 
-// Reports & Payments section
-const reportsItems = [
+// Content section — Shopify's Content covers pages; ours are the storefront's
+const contentItems = [
   {
-    titleKey: "navigation.analytics",
-    url: "/analytics",
-    icon: BarChart3,
-  },
-  {
-    titleKey: "navigation.growth",
-    url: "/growth",
-    icon: TrendingUp,
-  },
-  {
-    titleKey: "navigation.reports",
-    url: "/reports",
+    titleKey: "navigation.storefrontPages",
+    url: "/online-store/pages",
     icon: FileText,
   },
+];
+
+// Markets section
+const marketsItems = [
+  {
+    titleKey: "navigation.markets",
+    url: "/markets",
+    icon: Globe,
+  },
+];
+
+// Finance section
+const financeItems = [
   {
     titleKey: "navigation.payouts",
     url: "/payouts",
@@ -111,7 +127,21 @@ const reportsItems = [
   },
 ];
 
-// Customer section
+// Analytics section
+const reportsItems = [
+  {
+    titleKey: "navigation.analytics",
+    url: "/analytics",
+    icon: BarChart3,
+  },
+  {
+    titleKey: "navigation.reports",
+    url: "/reports",
+    icon: FileText,
+  },
+];
+
+// Customers section
 const customerItems = [
   {
     titleKey: "navigation.customers",
@@ -125,17 +155,12 @@ const customerItems = [
   },
 ];
 
-// Store section
+// Sales channels section — our single channel is the online store itself
 const storeItems = [
   {
     titleKey: "navigation.storeBuilder",
     url: "/online-store",
     icon: Store,
-  },
-  {
-    titleKey: "navigation.storefrontPages",
-    url: "/online-store/pages",
-    icon: FileText,
   },
   {
     titleKey: "navigation.pixelsTracking",
@@ -146,11 +171,6 @@ const storeItems = [
     titleKey: "navigation.domainVerification",
     url: "/marketing/domain-verification",
     icon: Shield,
-  },
-  {
-    titleKey: "navigation.markets",
-    url: "/markets",
-    icon: Globe,
   },
 ];
 
@@ -219,11 +239,14 @@ export function getSearchableRoutes(businessConfig: ReturnType<typeof getBusines
   return [
     ...coreItems,
     ...catalogItems,
-    ...marketingItems,
-    ...operationsItems,
-    ...reportsItems,
     ...customerItems,
+    ...marketingItems,
+    ...contentItems,
+    ...marketsItems,
+    ...financeItems,
+    ...reportsItems,
     ...storeItems,
+    ...operationsItems,
     { titleKey: "navigation.billing", url: "/billing", icon: CreditCard },
     { titleKey: "navigation.settings", url: "/settings", icon: Settings },
   ];
@@ -305,12 +328,15 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
         ) : (
           <>
             {renderMenuGroup(coreItems)}
-            {renderMenuGroup(menuItems, t('navigation.catalogSection', { catalog: catalogLabel }))}
-            {renderMenuGroup(marketingItems, t('navigation.marketing'))}
+            {renderMenuGroup(menuItems, t('navigation.products'))}
+            {renderMenuGroup(customerItems, t('navigation.customers'))}
+            {renderMenuGroup(marketingItems, t('navigation.growthMarketing'))}
+            {renderMenuGroup(contentItems, t('navigation.content'))}
+            {renderMenuGroup(marketsItems, t('navigation.markets'))}
+            {renderMenuGroup(financeItems, t('navigation.finance'))}
+            {renderMenuGroup(reportsItems, t('navigation.analytics'))}
+            {renderMenuGroup(storeItems, t('navigation.salesChannels'))}
             {renderMenuGroup(operationsItems, t('navigation.operations'))}
-            {renderMenuGroup(reportsItems, t('navigation.reportsFinance'))}
-            {renderMenuGroup(customerItems, t('navigation.customer'))}
-            {renderMenuGroup(storeItems, t('navigation.onlineStore'))}
           </>
         )}
 

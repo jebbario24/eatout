@@ -55,7 +55,14 @@
     "activityLogs": "سرگرمی لاگز",
     "platformSettings": "پلیٹ فارم کی ترتیبات",
     "collections": "کلیکشنز",
-    "catalogSection": "{{catalog}} اور کیٹلاگ"
+    "catalogSection": "{{catalog}} اور کیٹلاگ",
+    "home": "ہوم",
+    "discounts": "رعایتیں",
+    "content": "مواد",
+    "finance": "مالیات",
+    "products": "مصنوعات",
+    "growthMarketing": "ترقی اور مارکیٹنگ",
+    "salesChannels": "سیلز چینلز"
   },
   "storefront": {
     "menu": "Menu",

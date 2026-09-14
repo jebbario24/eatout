@@ -55,7 +55,14 @@
     "activityLogs": "יומני פעילות",
     "platformSettings": "הגדרות פלטפורמה",
     "collections": "אוספים",
-    "catalogSection": "{{catalog}} וקטלוג"
+    "catalogSection": "{{catalog}} וקטלוג",
+    "home": "בית",
+    "discounts": "הנחות",
+    "content": "תוכן",
+    "finance": "כספים",
+    "products": "מוצרים",
+    "growthMarketing": "צמיחה ושיווק",
+    "salesChannels": "ערוצי מכירה"
   },
   "storefront": {
     "menu": "Menu",
