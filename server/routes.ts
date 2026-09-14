@@ -7,14 +7,14 @@ import { env, getBaseUrl } from "./env";
 import { storage } from "./storage";
 import { passport, hashPassword, verifyPassword } from "./auth";
 import {
-  insertRestaurantSchema,
+  insertMerchantSchema,
   insertMenuCategorySchema,
   insertMenuItemSchema,
   insertStaffSchema,
   insertInventorySchema,
   insertContactMessageSchema,
   BUSINESS_TYPES,
-  type RestaurantThemeSettings,
+  type MerchantThemeSettings,
 } from "@shared/schema";
 import { buildBlueprint, type StoreBrief } from "./services/storeIntelligence";
 import { draftCopy } from "./services/storeCopywriter";
@@ -57,8 +57,8 @@ const paypalClient = (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_
 const paypalOrdersController = paypalClient ? new OrdersController(paypalClient) : null;
 
 // Helper function to generate sequential order numbers
-async function generateOrderNumber(restaurantId: string, prefix: 'ORD' | 'WEB'): Promise<string> {
-  const lastOrder = await storage.getLastOrderByPrefix(restaurantId, prefix);
+async function generateOrderNumber(merchantId: string, prefix: 'ORD' | 'WEB'): Promise<string> {
+  const lastOrder = await storage.getLastOrderByPrefix(merchantId, prefix);
   
   if (!lastOrder) {
     return `${prefix}-001`;
@@ -290,31 +290,31 @@ export async function processScheduledPayouts(storage: any, stripe: any) {
   }
 
   try {
-    // Get all restaurants
-    const allRestaurants = await storage.getAllRestaurants();
+    // Get all merchants
+    const allMerchants = await storage.getAllMerchants();
 
-    for (const restaurantData of allRestaurants) {
-      const restaurant = restaurantData;
+    for (const merchantData of allMerchants) {
+      const merchant = merchantData;
       
       try {
         // Skip if no Stripe Connect account
-        if (!restaurant.stripeAccountId) {
+        if (!merchant.stripeAccountId) {
           results.skipped++;
           continue;
         }
 
         // Verify Connect account is fully onboarded
-        const connectedAccount = await stripe.accounts.retrieve(restaurant.stripeAccountId);
+        const connectedAccount = await stripe.accounts.retrieve(merchant.stripeAccountId);
         if (!connectedAccount.payouts_enabled) {
           results.skipped++;
           continue;
         }
 
         // Get payout account for schedule preference
-        const payoutAccount = await storage.getPayoutAccount(restaurant.id);
+        const payoutAccount = await storage.getPayoutAccount(merchant.id);
         
         // Check if payout is due based on schedule
-        const lastPayout = await storage.getPayoutRuns(restaurant.id);
+        const lastPayout = await storage.getPayoutRuns(merchant.id);
         const mostRecentPayout = lastPayout[0];
         
         const now = new Date();
@@ -340,7 +340,7 @@ export async function processScheduledPayouts(storage: any, stripe: any) {
         }
 
         // Get pending earnings
-        const pendingEarnings = await storage.getPendingEarnings(restaurant.id);
+        const pendingEarnings = await storage.getPendingEarnings(merchant.id);
         const amountInDollars = parseFloat(pendingEarnings.total);
 
         // Skip if below minimum payout threshold
@@ -350,8 +350,8 @@ export async function processScheduledPayouts(storage: any, stripe: any) {
         }
 
         // Get pending ledger entries
-        const ledgerEntries = await storage.getEarningsLedger(restaurant.id);
-        const pendingEntries = ledgerEntries.filter((entry: any) => entry.restaurantPayoutStatus === 'pending');
+        const ledgerEntries = await storage.getEarningsLedger(merchant.id);
+        const pendingEntries = ledgerEntries.filter((entry: any) => entry.merchantPayoutStatus === 'pending');
         const ledgerEntryIds = pendingEntries.map((entry: any) => entry.id);
 
         if (ledgerEntryIds.length === 0) {
@@ -361,7 +361,7 @@ export async function processScheduledPayouts(storage: any, stripe: any) {
 
         // Create payout run
         const payoutRun = await storage.createPayoutRun(
-          restaurant.id,
+          merchant.id,
           amountInDollars,
           'stripe',
           new Date()
@@ -374,12 +374,16 @@ export async function processScheduledPayouts(storage: any, stripe: any) {
           const transfer = await stripe.transfers.create({
             amount: amountInCents,
             currency: 'usd',
-            destination: restaurant.stripeAccountId,
-            description: `Scheduled payout for ${restaurant.name}`,
+            destination: merchant.stripeAccountId,
+            description: `Scheduled payout for ${merchant.name}`,
+            // Stripe metadata key NAMES are an external, third-party-visible
+            // contract, and historical Stripe transfer objects already have
+            // these exact keys permanently — keep them as restaurantId/
+            // restaurantName rather than "completing" this rename here.
             metadata: {
-              restaurantId: restaurant.id,
+              restaurantId: merchant.id,
               payoutRunId: payoutRun.id,
-              restaurantName: restaurant.name,
+              restaurantName: merchant.name,
               automated: 'true',
             },
           });
@@ -390,17 +394,17 @@ export async function processScheduledPayouts(storage: any, stripe: any) {
           results.processed++;
           results.totalAmount += amountInDollars;
           results.details.push({
-            restaurantId: restaurant.id,
-            restaurantName: restaurant.name,
+            merchantId: merchant.id,
+            merchantName: merchant.name,
             amount: amountInDollars,
             status: 'success',
             transferId: transfer.id,
           });
 
-          console.log(`[Payout] Success: ${restaurant.name} - $${amountInDollars} (${transfer.id})`);
+          console.log(`[Payout] Success: ${merchant.name} - $${amountInDollars} (${transfer.id})`);
 
         } catch (stripeError: any) {
-          console.error(`[Payout] Stripe transfer error for restaurant ${restaurant.id}:`, stripeError);
+          console.error(`[Payout] Stripe transfer error for merchant ${merchant.id}:`, stripeError);
           
           await storage.updatePayoutRunStatus(
             payoutRun.id,
@@ -411,8 +415,8 @@ export async function processScheduledPayouts(storage: any, stripe: any) {
 
           results.failed++;
           results.details.push({
-            restaurantId: restaurant.id,
-            restaurantName: restaurant.name,
+            merchantId: merchant.id,
+            merchantName: merchant.name,
             amount: amountInDollars,
             status: 'failed',
             error: stripeError.message,
@@ -420,11 +424,11 @@ export async function processScheduledPayouts(storage: any, stripe: any) {
         }
 
       } catch (error: any) {
-        console.error(`[Payout] Error processing payout for restaurant ${restaurant.id}:`, error);
+        console.error(`[Payout] Error processing payout for merchant ${merchant.id}:`, error);
         results.failed++;
         results.details.push({
-          restaurantId: restaurant.id,
-          restaurantName: restaurant.name,
+          merchantId: merchant.id,
+          merchantName: merchant.name,
           status: 'failed',
           error: error.message,
         });
@@ -542,7 +546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     })(req, res, next);
   });
 
-  // Google OAuth routes (Restaurant Owners)
+  // Google OAuth routes (Merchant Owners)
   app.get('/api/auth/google',
     passport.authenticate('google', { scope: ['profile', 'email'] })
   );
@@ -770,8 +774,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if admin manually granted access - this overrides all subscription checks
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      const manualAccessGranted = restaurant?.manuallyGrantedAccess || false;
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      const manualAccessGranted = merchant?.manuallyGrantedAccess || false;
       
       if (manualAccessGranted) {
         return res.json({
@@ -969,33 +973,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Restaurant routes
-  app.get('/api/restaurants/me', isAuthenticated, async (req: any, res) => {
+  // Merchant routes
+  app.get('/api/merchants/me', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
+      const merchant = await storage.getMerchantByOwnerId(userId);
       
-      if (!restaurant) {
+      if (!merchant) {
         return res.json(null);
       }
 
       // Fetch payout account data
-      const payoutAccount = await storage.getPayoutAccount(restaurant.id);
+      const payoutAccount = await storage.getPayoutAccount(merchant.id);
       
       res.json({
-        ...restaurant,
+        ...merchant,
         payoutAccount: payoutAccount || null
       });
     } catch (error) {
-      console.error("Error fetching restaurant:", error);
-      res.status(500).json({ message: "Failed to fetch restaurant" });
+      console.error("Error fetching merchant:", error);
+      res.status(500).json({ message: "Failed to fetch merchant" });
     }
   });
 
-  app.post('/api/restaurants', isAuthenticated, async (req: any, res) => {
+  app.post('/api/merchants', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const data = insertRestaurantSchema.parse({ ...req.body, ownerId: userId });
+      const data = insertMerchantSchema.parse({ ...req.body, ownerId: userId });
       
       // Convert empty strings to null for optional unique fields
       if (data.customDomain === '') data.customDomain = null;
@@ -1004,30 +1008,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate unique slug if conflict exists
       let slug = data.slug;
       let counter = 1;
-      while (await storage.getRestaurantBySlug(slug)) {
+      while (await storage.getMerchantBySlug(slug)) {
         slug = `${data.slug}-${counter}`;
         counter++;
       }
       data.slug = slug;
       
-      const restaurant = await storage.createRestaurant(data);
-      res.json(restaurant);
+      const merchant = await storage.createMerchant(data);
+      res.json(merchant);
     } catch (error) {
-      console.error("Error creating restaurant:", error);
-      res.status(400).json({ message: "Failed to create restaurant" });
+      console.error("Error creating merchant:", error);
+      res.status(400).json({ message: "Failed to create merchant" });
     }
   });
 
-  app.put('/api/restaurants/:id', isAuthenticated, async (req: any, res) => {
+  app.put('/api/merchants/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
+      const merchant = await storage.getMerchantByOwnerId(userId);
       
-      if (!restaurant || restaurant.id !== req.params.id) {
-        return res.status(403).json({ message: "Forbidden: You can only update your own restaurant" });
+      if (!merchant || merchant.id !== req.params.id) {
+        return res.status(403).json({ message: "Forbidden: You can only update your own merchant" });
       }
       
-      const data = insertRestaurantSchema.partial().parse(req.body);
+      const data = insertMerchantSchema.partial().parse(req.body);
       
       // Convert empty strings to null for optional unique fields
       if (data.customDomain === '') data.customDomain = null;
@@ -1039,54 +1043,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check subdomain uniqueness if provided and different from current
-      if (data.subdomain && data.subdomain !== restaurant.subdomain) {
-        const existing = await storage.getRestaurantBySubdomain(data.subdomain);
-        if (existing && existing.id !== restaurant.id) {
+      if (data.subdomain && data.subdomain !== merchant.subdomain) {
+        const existing = await storage.getMerchantBySubdomain(data.subdomain);
+        if (existing && existing.id !== merchant.id) {
           return res.status(400).json({ message: "This subdomain is already taken" });
         }
       }
       
       // Check custom domain uniqueness if provided and different from current
-      if (data.customDomain && data.customDomain !== restaurant.customDomain) {
-        const existing = await storage.getRestaurantByCustomDomain(data.customDomain);
-        if (existing && existing.id !== restaurant.id) {
+      if (data.customDomain && data.customDomain !== merchant.customDomain) {
+        const existing = await storage.getMerchantByCustomDomain(data.customDomain);
+        if (existing && existing.id !== merchant.id) {
           return res.status(400).json({ message: "This custom domain is already in use" });
         }
       }
       
       // Re-geocode when the address changes, so route optimization has fresh coordinates
-      if (data.address && data.address !== restaurant.address) {
+      if (data.address && data.address !== merchant.address) {
         try {
           const { googleMapsService } = await import('./services/googleMaps');
           const geocoded = await googleMapsService.geocode(
-            [data.address, data.country ?? restaurant.country].filter(Boolean).join(', ')
+            [data.address, data.country ?? merchant.country].filter(Boolean).join(', ')
           );
           (data as any).latitude = geocoded.lat.toString();
           (data as any).longitude = geocoded.lng.toString();
         } catch (error) {
-          logError('Failed to geocode restaurant address (non-critical)', error);
+          logError('Failed to geocode merchant address (non-critical)', error);
         }
       }
 
-      const updated = await storage.updateRestaurant(req.params.id, data);
+      const updated = await storage.updateMerchant(req.params.id, data);
       res.json(updated);
     } catch (error) {
-      console.error("Error updating restaurant:", error);
-      res.status(400).json({ message: "Failed to update restaurant" });
+      console.error("Error updating merchant:", error);
+      res.status(400).json({ message: "Failed to update merchant" });
     }
   });
 
-  app.put('/api/restaurants/:id/marketing', isAuthenticated, async (req: any, res) => {
+  app.put('/api/merchants/:id/marketing', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
+      const merchant = await storage.getMerchantByOwnerId(userId);
       
-      if (!restaurant || restaurant.id !== req.params.id) {
-        return res.status(403).json({ message: "Forbidden: You can only update your own restaurant" });
+      if (!merchant || merchant.id !== req.params.id) {
+        return res.status(403).json({ message: "Forbidden: You can only update your own merchant" });
       }
       
-      // Update marketing settings in the restaurant's marketingSettings JSONB field
-      const updated = await storage.updateRestaurant(req.params.id, {
+      // Update marketing settings in the merchant's marketingSettings JSONB field
+      const updated = await storage.updateMerchant(req.params.id, {
         marketingSettings: req.body
       });
       res.json(updated);
@@ -1100,11 +1104,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/menu/categories', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const categories = await storage.getMenuCategories(restaurant.id);
+      const categories = await storage.getMenuCategories(merchant.id);
       res.json(categories);
     } catch (error) {
       console.error("Error fetching categories:", error);
@@ -1115,11 +1119,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/menu/categories', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
-      const data = insertMenuCategorySchema.parse({ ...req.body, restaurantId: restaurant.id });
+      const data = insertMenuCategorySchema.parse({ ...req.body, merchantId: merchant.id });
       const category = await storage.createMenuCategory(data);
       res.json(category);
     } catch (error) {
@@ -1131,9 +1135,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/menu/categories/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       const data = insertMenuCategorySchema.partial().parse(req.body);
       const updated = await storage.updateMenuCategory(req.params.id, data);
@@ -1147,9 +1151,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/menu/categories/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       await storage.deleteMenuCategory(req.params.id);
       res.json({ success: true });
@@ -1163,11 +1167,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/menu/items', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const items = await storage.getMenuItems(restaurant.id);
+      const items = await storage.getMenuItems(merchant.id);
       res.json(items);
     } catch (error) {
       console.error("Error fetching items:", error);
@@ -1178,9 +1182,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/menu/items', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       console.log("[MENU ITEM CREATE] Request body received:", JSON.stringify(req.body, null, 2));
       
@@ -1203,12 +1207,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       
-      const data = insertMenuItemSchema.parse({ ...requestData, restaurantId: restaurant.id });
+      const data = insertMenuItemSchema.parse({ ...requestData, merchantId: merchant.id });
 
       // Every product needs a real handle to be reachable on the storefront
       // at all (its product-card link falls back to the store homepage
       // otherwise) — always resolve one, using the name when none was typed.
-      data.handle = await storage.resolveMenuItemHandle(restaurant.id, data.handle, data.name);
+      data.handle = await storage.resolveMenuItemHandle(merchant.id, data.handle, data.name);
 
       // If imageUrl is provided, make it publicly accessible
       if (data.imageUrl) {
@@ -1233,9 +1237,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/menu/items/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
       // Get the original item before updating to check for content changes
@@ -1243,7 +1247,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!originalItem) {
         return res.status(404).json({ message: "Menu item not found" });
       }
-      if (originalItem.restaurantId !== restaurant.id) {
+      if (originalItem.merchantId !== merchant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
       
@@ -1264,7 +1268,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // storefront this whole time (handle was never set) now that it's
       // being touched anyway.
       if (data.handle !== undefined || !originalItem.handle) {
-        data.handle = await storage.resolveMenuItemHandle(restaurant.id, data.handle ?? originalItem.handle, data.name ?? originalItem.name, req.params.id);
+        data.handle = await storage.resolveMenuItemHandle(merchant.id, data.handle ?? originalItem.handle, data.name ?? originalItem.name, req.params.id);
       }
 
       // If imageUrl is provided, make it publicly accessible
@@ -1286,7 +1290,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const descriptionChanged = data.description !== undefined && data.description !== originalItem.description;
       
       if (nameChanged || descriptionChanged) {
-        await storage.markTranslationsAsNeedingReview(restaurant.id, 'menu_item', req.params.id);
+        await storage.markTranslationsAsNeedingReview(merchant.id, 'menu_item', req.params.id);
         console.log(`[TRANSLATION SYNC] Marked translations for menu item ${req.params.id} as needing review`);
       }
       
@@ -1300,17 +1304,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/menu/items/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
-      // Verify the item belongs to the user's restaurant
+      // Verify the item belongs to the user's merchant
       const item = await storage.getMenuItem(req.params.id);
       if (!item) {
         return res.status(404).json({ message: "Menu item not found" });
       }
-      if (item.restaurantId !== restaurant.id) {
+      if (item.merchantId !== merchant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
       
@@ -1324,19 +1328,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ---- Product variants (Tier 8) ----
   app.get('/api/menu/items/:id/variants', isAuthenticated, async (req: any, res) => {
-    const restaurant = await storage.getRestaurantByOwnerId(req.user.id);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const merchant = await storage.getMerchantByOwnerId(req.user.id);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
     const item = await storage.getMenuItem(req.params.id);
-    if (!item || item.restaurantId !== restaurant.id) return res.status(404).json({ message: "Menu item not found" });
+    if (!item || item.merchantId !== merchant.id) return res.status(404).json({ message: "Menu item not found" });
     res.json({ optionNames: (item as any).variantOptions || [], variants: await storage.listVariants(item.id) });
   });
 
   app.put('/api/menu/items/:id/variants', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(req.user.id);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(req.user.id);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const item = await storage.getMenuItem(req.params.id);
-      if (!item || item.restaurantId !== restaurant.id) return res.status(404).json({ message: "Menu item not found" });
+      if (!item || item.merchantId !== merchant.id) return res.status(404).json({ message: "Menu item not found" });
 
       const optionNames = Array.isArray(req.body?.optionNames) ? req.body.optionNames.map((s: any) => String(s).slice(0, 60)) : [];
       const variants = Array.isArray(req.body?.variants) ? req.body.variants : [];
@@ -1344,7 +1348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!v.name || !String(v.name).trim()) return res.status(400).json({ message: "Every variant needs a name" });
         if (!(Number(v.priceCents) >= 0)) return res.status(400).json({ message: `${v.name}: invalid price` });
       }
-      const saved = await storage.setMenuItemVariants(item.id, restaurant.id, { optionNames, variants });
+      const saved = await storage.setMenuItemVariants(item.id, merchant.id, { optionNames, variants });
       res.json({ optionNames, variants: saved });
     } catch (e: any) {
       logError("Save variants failed", e);
@@ -1355,9 +1359,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/menu/items/:id/duplicate', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
       // Get the original item
@@ -1366,8 +1370,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Menu item not found" });
       }
       
-      // Verify the item belongs to the user's restaurant
-      if (originalItem.restaurantId !== restaurant.id) {
+      // Verify the item belongs to the user's merchant
+      if (originalItem.merchantId !== merchant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
       
@@ -1381,12 +1385,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         categoryId: originalItem.categoryId,
         imageUrl: originalItem.imageUrl,
         isAvailable: originalItem.isAvailable,
-        restaurantId: restaurant.id,
+        merchantId: merchant.id,
         currency: originalItem.currency,
         options: originalItem.options as any,
         allergensJson: originalItem.allergensJson as any,
         tags: originalItem.tags || undefined,
-        handle: await storage.resolveMenuItemHandle(restaurant.id, null, duplicateName),
+        handle: await storage.resolveMenuItemHandle(merchant.id, null, duplicateName),
       };
 
       const newItem = await storage.createMenuItem(duplicateData);
@@ -1401,9 +1405,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/translations', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
       const { entityType, entityId, locale } = req.query;
@@ -1412,7 +1416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const translations = await storage.getTranslations(
-        restaurant.id,
+        merchant.id,
         entityType as string,
         entityId as string,
         locale as string | undefined
@@ -1427,12 +1431,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/translations/locale/:locale', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
-      const translations = await storage.getTranslationsByLocale(restaurant.id, req.params.locale);
+      const translations = await storage.getTranslationsByLocale(merchant.id, req.params.locale);
       res.json(translations);
     } catch (error) {
       console.error("Error fetching translations by locale:", error);
@@ -1443,9 +1447,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/translations', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
       const { entityType, entityId, locale, field, value } = req.body;
@@ -1453,7 +1457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "entityType, entityId, locale, field, and value are required" });
       }
 
-      const translation = await storage.createOrUpdateTranslation(restaurant.id, {
+      const translation = await storage.createOrUpdateTranslation(merchant.id, {
         entityType,
         entityId,
         locale,
@@ -1471,9 +1475,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/translations/bulk', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
       const { translations } = req.body;
@@ -1481,7 +1485,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "translations must be an array" });
       }
 
-      await storage.bulkUpsertTranslations(restaurant.id, translations);
+      await storage.bulkUpsertTranslations(merchant.id, translations);
       res.json({ success: true, count: translations.length });
     } catch (error) {
       console.error("Error bulk upserting translations:", error);
@@ -1492,14 +1496,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/translations/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
       // Get the translation to verify ownership
       const translation = await storage.getTranslationById(req.params.id);
-      if (!translation || translation.restaurantId !== restaurant.id) {
+      if (!translation || translation.merchantId !== merchant.id) {
         return res.status(404).json({ message: "Translation not found" });
       }
 
@@ -1515,11 +1519,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/promos', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const promos = await storage.getPromos(restaurant.id);
+      const promos = await storage.getPromos(merchant.id);
       res.json(promos);
     } catch (error) {
       console.error("Error fetching promos:", error);
@@ -1530,9 +1534,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/promos', isAuthenticated, async (req: any, res) => {
   try {
     const userId = req.user.id;
-    const restaurant = await storage.getRestaurantByOwnerId(userId);
-    if (!restaurant) {
-      return res.status(404).json({ message: "Restaurant not found" });
+    const merchant = await storage.getMerchantByOwnerId(userId);
+    if (!merchant) {
+      return res.status(404).json({ message: "Merchant not found" });
     }
 
     // Validate required fields - match what frontend sends
@@ -1546,7 +1550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Build promo data with correct field names matching database schema
     const promoData = {
-      restaurantId: restaurant.id,
+      merchantId: merchant.id,
       name,
       description: description || null,
       promoCode,
@@ -1586,17 +1590,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/promos/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
-      // Verify the promo belongs to the user's restaurant
+      // Verify the promo belongs to the user's merchant
       const promo = await storage.getPromo(req.params.id);
       if (!promo) {
         return res.status(404).json({ message: "Promo not found" });
       }
-      if (promo.restaurantId !== restaurant.id) {
+      if (promo.merchantId !== merchant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
@@ -1624,17 +1628,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/promos/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
-      // Verify the promo belongs to the user's restaurant
+      // Verify the promo belongs to the user's merchant
       const promo = await storage.getPromo(req.params.id);
       if (!promo) {
         return res.status(404).json({ message: "Promo not found" });
       }
-      if (promo.restaurantId !== restaurant.id) {
+      if (promo.merchantId !== merchant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
       
@@ -1649,11 +1653,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/promos/performance', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const performance = await storage.getPromoPerformance(restaurant.id);
+      const performance = await storage.getPromoPerformance(merchant.id);
       res.json(performance);
     } catch (error) {
       console.error("Error fetching promo performance:", error);
@@ -1663,15 +1667,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Market routes — named regions for storefront display-currency conversion.
   // Currency conversion here is display-only; checkout always totals in the
-  // restaurant's base currency. Country coverage is informational only.
+  // merchant's base currency. Country coverage is informational only.
   app.get('/api/markets', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const marketsList = await storage.getMarkets(restaurant.id);
+      const marketsList = await storage.getMarkets(merchant.id);
       res.json(marketsList);
     } catch (error) {
       console.error("Error fetching markets:", error);
@@ -1682,9 +1686,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/markets', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
       const { name, currency, conversionRate, taxRate, countries, isActive } = req.body;
@@ -1693,7 +1697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const marketData = {
-        restaurantId: restaurant.id,
+        merchantId: merchant.id,
         name,
         currency,
         conversionRate: conversionRate ? conversionRate.toString() : '1',
@@ -1713,16 +1717,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/markets/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
       const market = await storage.getMarket(req.params.id);
       if (!market) {
         return res.status(404).json({ message: "Market not found" });
       }
-      if (market.restaurantId !== restaurant.id) {
+      if (market.merchantId !== merchant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
@@ -1746,16 +1750,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/markets/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
       const market = await storage.getMarket(req.params.id);
       if (!market) {
         return res.status(404).json({ message: "Market not found" });
       }
-      if (market.restaurantId !== restaurant.id) {
+      if (market.merchantId !== merchant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
@@ -1771,11 +1775,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/orders', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const orders = await storage.getOrders(restaurant.id);
+      const orders = await storage.getOrders(merchant.id);
       res.json(orders);
     } catch (error) {
       console.error("Error fetching orders:", error);
@@ -1786,11 +1790,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/order-items', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const orderItems = await storage.getAllOrderItems(restaurant.id);
+      const orderItems = await storage.getAllOrderItems(merchant.id);
       res.json(orderItems);
     } catch (error) {
       console.error("Error fetching order items:", error);
@@ -1801,11 +1805,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/orders/recent', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const orders = await storage.getRecentOrders(restaurant.id, 5);
+      const orders = await storage.getRecentOrders(merchant.id, 5);
       res.json(orders);
     } catch (error) {
       console.error("Error fetching recent orders:", error);
@@ -1816,13 +1820,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/orders/new-count', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json({ count: 0 });
       }
       
-      // Get all pending orders for the restaurant
-      const orders = await storage.getOrders(restaurant.id);
+      // Get all pending orders for the merchant
+      const orders = await storage.getOrders(merchant.id);
       const newOrders = orders.filter(order => order.status === 'pending');
       
       res.json({ count: newOrders.length });
@@ -1835,16 +1839,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/orders', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
       const data = orderSchema.parse(req.body);
-      const orderNumber = await generateOrderNumber(restaurant.id, 'ORD');
+      const orderNumber = await generateOrderNumber(merchant.id, 'ORD');
       
       const order = await storage.createOrder({
-        restaurantId: restaurant.id,
+        merchantId: merchant.id,
         orderNumber,
         orderType: data.orderType,
         tableId: data.tableId || null,
@@ -1874,12 +1878,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // PHASE 6: Make prep time prediction when order is created
       try {
         const { prepTimePredictionService } = await import('./services/prepTimePrediction');
-        const prediction = await prepTimePredictionService.predictPrepTime(restaurant.id, {
+        const prediction = await prepTimePredictionService.predictPrepTime(merchant.id, {
           itemCount: data.items.length,
           orderValue: data.total,
           hasSpecialInstructions: data.items.some((item: any) => item.notes),
         });
-        await prepTimePredictionService.savePrediction(order.id, restaurant.id, prediction, {
+        await prepTimePredictionService.savePrediction(order.id, merchant.id, prediction, {
           itemCount: data.items.length,
           orderValue: data.total,
         });
@@ -1899,9 +1903,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
       const orderData = await storage.getOrderWithItems(id);
@@ -1909,8 +1913,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Order not found" });
       }
       
-      // Verify order belongs to this restaurant
-      if (orderData.order.restaurantId !== restaurant.id) {
+      // Verify order belongs to this merchant
+      if (orderData.order.merchantId !== merchant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
       
@@ -1926,9 +1930,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { status, trackingNumber, shippingCarrier } = req.body;
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
       // Get order to verify ownership
@@ -1937,7 +1941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Order not found" });
       }
       
-      if (orderData.order.restaurantId !== restaurant.id) {
+      if (orderData.order.merchantId !== merchant.id) {
         return res.status(403).json({ message: "Unauthorized" });
       }
 
@@ -1949,7 +1953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updated = await storage.updateOrderStatus(id, status, { trackingNumber, shippingCarrier });
       await storage.logOrderEvent({
         orderId: id,
-        restaurantId: restaurant.id,
+        merchantId: merchant.id,
         type: "status",
         message: `Status changed from ${fromStatus} to ${status}`,
         meta: { from: fromStatus, to: status },
@@ -1966,16 +1970,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ORDER OPERATIONS — drafts, refunds, timeline (Tier 3)
   // ==========================================
 
-  const ownerRestaurantForOrders = async (req: any) => storage.getRestaurantByOwnerId(req.user.id);
+  const ownerMerchantForOrders = async (req: any) => storage.getMerchantByOwnerId(req.user.id);
 
-  // Load an order and confirm it belongs to the caller's restaurant.
+  // Load an order and confirm it belongs to the caller's merchant.
   async function loadOwnedOrder(req: any) {
-    const restaurant = await ownerRestaurantForOrders(req);
-    if (!restaurant) return { error: res_404("Restaurant not found") };
+    const merchant = await ownerMerchantForOrders(req);
+    if (!merchant) return { error: res_404("Merchant not found") };
     const data = await storage.getOrderWithItems(req.params.id);
     if (!data) return { error: res_404("Order not found") };
-    if (data.order.restaurantId !== restaurant.id) return { error: { status: 403, message: "Unauthorized" } };
-    return { restaurant, data };
+    if (data.order.merchantId !== merchant.id) return { error: { status: 403, message: "Unauthorized" } };
+    return { merchant, data };
   }
   function res_404(message: string) { return { status: 404, message }; }
 
@@ -2025,16 +2029,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create a draft order
   app.post('/api/orders/draft', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurantForOrders(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchantForOrders(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const data = draftOrderSchema.parse(req.body);
-      const taxRate = data.taxRate ?? (restaurant.taxRate ? parseFloat(restaurant.taxRate) / 100 : 0);
+      const taxRate = data.taxRate ?? (merchant.taxRate ? parseFloat(merchant.taxRate) / 100 : 0);
       const deliveryFee = data.deliveryFee ? parseFloat(data.deliveryFee) : 0;
       const { lineRows, subtotal, tax, total } = computeDraftTotals(data.items, taxRate, deliveryFee);
-      const orderNumber = await generateOrderNumber(restaurant.id, 'ORD');
+      const orderNumber = await generateOrderNumber(merchant.id, 'ORD');
 
       const order = await storage.createDraftOrder({
-        restaurantId: restaurant.id,
+        merchantId: merchant.id,
         orderNumber,
         orderType: data.orderType,
         customerName: data.customerName || null,
@@ -2049,7 +2053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } as any, lineRows as any);
 
       await storage.logOrderEvent({
-        orderId: order.id, restaurantId: restaurant.id, type: "draft",
+        orderId: order.id, merchantId: merchant.id, type: "draft",
         message: "Draft order created", createdBy: req.user.id,
       }).catch(() => {});
       res.json(order);
@@ -2068,7 +2072,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!owned.data.order.isDraft) return res.status(400).json({ message: "Only draft orders can be edited" });
 
       const data = draftOrderSchema.parse(req.body);
-      const taxRate = data.taxRate ?? (owned.restaurant.taxRate ? parseFloat(owned.restaurant.taxRate) / 100 : 0);
+      const taxRate = data.taxRate ?? (owned.merchant.taxRate ? parseFloat(owned.merchant.taxRate) / 100 : 0);
       const deliveryFee = data.deliveryFee ? parseFloat(data.deliveryFee) : 0;
       const { lineRows, subtotal, tax, total } = computeDraftTotals(data.items, taxRate, deliveryFee);
 
@@ -2103,7 +2107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Link to a customer profile + rewards, same as storefront checkout.
       try {
-        const c = await storage.upsertGuestCustomer(owned.restaurant.id, {
+        const c = await storage.upsertGuestCustomer(owned.merchant.id, {
           name: order.customerName, email: order.customerEmail, phone: order.customerPhone,
         });
         if (c) {
@@ -2116,12 +2120,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (e) { logError("Draft finalize: customer/loyalty link failed (non-critical)", e); }
 
       await storage.logOrderEvent({
-        orderId: order.id, restaurantId: owned.restaurant.id, type: "draft",
+        orderId: order.id, merchantId: owned.merchant.id, type: "draft",
         message: markPaid ? "Draft finalized and marked paid" : "Draft finalized",
         meta: { markPaid, paymentMethod }, createdBy: req.user.id,
       }).catch(() => {});
 
-      wsManager.broadcastToRestaurant(owned.restaurant.id, { type: "new_order", data: { orderId: order.id } });
+      wsManager.broadcastToMerchant(owned.merchant.id, { type: "new_order", data: { orderId: order.id } });
       res.json(order);
     } catch (error: any) {
       logError("Finalize draft failed", error);
@@ -2192,7 +2196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!order.customerId) {
           return res.status(400).json({ message: "This order has no customer profile to credit" });
         }
-        await storage.applyStoreCredit(owned.restaurant.id, order.customerId, Math.round(body.amount * 100), "refund", {
+        await storage.applyStoreCredit(owned.merchant.id, order.customerId, Math.round(body.amount * 100), "refund", {
           orderId: order.id,
           reason: body.reason || `Refund for ${order.orderNumber}`,
           createdBy: req.user.id,
@@ -2201,7 +2205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { refund, order: updated } = await storage.recordOrderRefund({
         orderId: order.id,
-        restaurantId: owned.restaurant.id,
+        merchantId: owned.merchant.id,
         amount: body.amount,
         reason: body.reason || null,
         method,
@@ -2212,7 +2216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       await storage.logOrderEvent({
-        orderId: order.id, restaurantId: owned.restaurant.id, type: "refund",
+        orderId: order.id, merchantId: owned.merchant.id, type: "refund",
         message: `Refunded $${body.amount.toFixed(2)} via ${method.replace("_", " ")}${body.restock ? " · items restocked" : ""}`,
         meta: { amount: body.amount, method, reason: body.reason, stripeRefundId },
         createdBy: req.user.id,
@@ -2233,7 +2237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const note = String(req.body?.note || "").trim();
     if (!note) return res.status(400).json({ message: "Note is empty" });
     await storage.logOrderEvent({
-      orderId: req.params.id, restaurantId: owned.restaurant.id, type: "note",
+      orderId: req.params.id, merchantId: owned.merchant.id, type: "note",
       message: note, createdBy: req.user.id,
     });
     res.json({ ok: true });
@@ -2261,11 +2265,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/inbox/messages', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const messages = await storage.getInboxMessages(restaurant.id);
+      const messages = await storage.getInboxMessages(merchant.id);
       res.json(messages);
     } catch (error) {
       console.error("Error fetching inbox messages:", error);
@@ -2278,9 +2282,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { response } = req.body;
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
       const updated = await storage.respondToMessage(id, response);
@@ -2296,9 +2300,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { status } = req.body;
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
       const updated = await storage.updateMessageStatus(id, status);
@@ -2312,11 +2316,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/reviews', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const reviews = await storage.getCustomerReviews(restaurant.id);
+      const reviews = await storage.getCustomerReviews(merchant.id);
       res.json(reviews);
     } catch (error) {
       console.error("Error fetching reviews:", error);
@@ -2329,9 +2333,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { response } = req.body;
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
       const updated = await storage.respondToReview(id, response);
@@ -2346,11 +2350,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/bundles', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const bundles = await storage.getBundles(restaurant.id);
+      const bundles = await storage.getBundles(merchant.id);
       res.json(bundles);
     } catch (error) {
       console.error("Error fetching bundles:", error);
@@ -2361,13 +2365,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/bundles', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       const bundle = await storage.createBundle({
         ...req.body,
-        restaurantId: restaurant.id,
+        merchantId: merchant.id,
         sales: req.body.sales || 0,
       });
       res.json(bundle);
@@ -2380,9 +2384,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/bundles/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       const { id } = req.params;
       const bundle = await storage.updateBundle(id, req.body);
@@ -2396,9 +2400,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/bundles/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       const { id } = req.params;
       await storage.deleteBundle(id);
@@ -2411,14 +2415,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ---- Loyalty & store credit (merchant) ----
 
-  const ownerRestaurant = async (req: any) => storage.getRestaurantByOwnerId(req.user.id);
+  const ownerMerchant = async (req: any) => storage.getMerchantByOwnerId(req.user.id);
 
   app.get('/api/loyalty/program', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.json(null);
-      const program = (await storage.getLoyaltyProgram(restaurant.id)) || null;
-      const tiers = await storage.listLoyaltyTiers(restaurant.id);
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.json(null);
+      const program = (await storage.getLoyaltyProgram(merchant.id)) || null;
+      const tiers = await storage.listLoyaltyTiers(merchant.id);
       res.json({ program, tiers });
     } catch (e) {
       logError("Fetch loyalty program failed", e);
@@ -2428,8 +2432,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/loyalty/program', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const b = req.body || {};
       const patch: any = {};
       if (b.isEnabled !== undefined) patch.isEnabled = !!b.isEnabled;
@@ -2439,7 +2443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (b.minRedeemPoints !== undefined) patch.minRedeemPoints = Math.max(0, Math.floor(Number(b.minRedeemPoints) || 0));
       if (b.maxRedeemFraction !== undefined) patch.maxRedeemFraction = String(Math.min(1, Math.max(0, Number(b.maxRedeemFraction) || 0)));
       if (b.earnOnDeliveryFee !== undefined) patch.earnOnDeliveryFee = !!b.earnOnDeliveryFee;
-      const program = await storage.upsertLoyaltyProgram(restaurant.id, patch);
+      const program = await storage.upsertLoyaltyProgram(merchant.id, patch);
       res.json(program);
     } catch (e) {
       logError("Update loyalty program failed", e);
@@ -2449,12 +2453,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/loyalty/tiers', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const b = req.body || {};
       if (!b.name || !String(b.name).trim()) return res.status(400).json({ message: "Tier name is required" });
       const tier = await storage.createLoyaltyTier({
-        restaurantId: restaurant.id,
+        merchantId: merchant.id,
         name: String(b.name).trim().slice(0, 100),
         minPoints: Math.max(0, Math.floor(Number(b.minPoints) || 0)),
         benefits: b.benefits ?? null,
@@ -2470,8 +2474,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/loyalty/tiers/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const b = req.body || {};
       const patch: any = {};
       if (typeof b.name === "string") patch.name = b.name.trim().slice(0, 100);
@@ -2479,7 +2483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (b.benefits !== undefined) patch.benefits = b.benefits;
       if (b.displayOrder !== undefined) patch.displayOrder = Math.floor(Number(b.displayOrder) || 0);
       if (b.isActive !== undefined) patch.isActive = !!b.isActive;
-      const tier = await storage.updateLoyaltyTier(req.params.id, restaurant.id, patch);
+      const tier = await storage.updateLoyaltyTier(req.params.id, merchant.id, patch);
       if (!tier) return res.status(404).json({ message: "Tier not found" });
       res.json(tier);
     } catch (e) {
@@ -2489,17 +2493,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete('/api/loyalty/tiers/:id', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-    await storage.deleteLoyaltyTier(req.params.id, restaurant.id);
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+    await storage.deleteLoyaltyTier(req.params.id, merchant.id);
     res.json({ ok: true });
   });
 
   app.get('/api/loyalty/stats', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-      const stats = await storage.getLoyaltyReportStats(restaurant.id);
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+      const stats = await storage.getLoyaltyReportStats(merchant.id);
       res.json(stats);
     } catch (e) {
       logError("Loyalty stats failed", e);
@@ -2510,10 +2514,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Merchant customers list + detail (Tier 2 — minimal CRM)
   app.get('/api/customers', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.json([]);
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.json([]);
       const search = typeof req.query.q === "string" ? req.query.q : undefined;
-      const rows = await storage.listRestaurantCustomers(restaurant.id, search);
+      const rows = await storage.listMerchantCustomers(merchant.id, search);
       res.json(rows);
     } catch (e) {
       logError("List customers failed", e);
@@ -2523,15 +2527,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/customers/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const customer = await storage.getCustomerById(req.params.id);
-      if (!customer || customer.restaurantId !== restaurant.id) {
+      if (!customer || customer.merchantId !== merchant.id) {
         return res.status(404).json({ message: "Customer not found" });
       }
       const [orders, loyaltyAccount, creditTx] = await Promise.all([
         storage.getCustomerOrders(customer.id),
-        storage.getLoyaltyAccount(restaurant.id, customer.id),
+        storage.getLoyaltyAccount(merchant.id, customer.id),
         storage.listCreditTransactions(customer.id, 20),
       ]);
       const loyaltyTx = loyaltyAccount ? await storage.listLoyaltyTransactions(loyaltyAccount.id, 20) : [];
@@ -2544,13 +2548,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/customers/:id/loyalty-adjust', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const customer = await storage.getCustomerById(req.params.id);
-      if (!customer || customer.restaurantId !== restaurant.id) return res.status(404).json({ message: "Customer not found" });
+      if (!customer || customer.merchantId !== merchant.id) return res.status(404).json({ message: "Customer not found" });
       const points = Math.trunc(Number(req.body?.points) || 0);
       if (!points) return res.status(400).json({ message: "Enter a non-zero point amount" });
-      const account = await storage.adjustLoyaltyPoints(restaurant.id, customer.id, points, req.body?.reason || "Manual adjustment");
+      const account = await storage.adjustLoyaltyPoints(merchant.id, customer.id, points, req.body?.reason || "Manual adjustment");
       res.json(account);
     } catch (e: any) {
       res.status(400).json({ message: e?.message || "Adjustment failed" });
@@ -2559,13 +2563,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/customers/:id/credit-adjust', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const customer = await storage.getCustomerById(req.params.id);
-      if (!customer || customer.restaurantId !== restaurant.id) return res.status(404).json({ message: "Customer not found" });
+      if (!customer || customer.merchantId !== merchant.id) return res.status(404).json({ message: "Customer not found" });
       const amountCents = Math.trunc(Number(req.body?.amountCents) || 0);
       if (!amountCents) return res.status(400).json({ message: "Enter a non-zero amount" });
-      const balance = await storage.applyStoreCredit(restaurant.id, customer.id, amountCents, "adjustment", {
+      const balance = await storage.applyStoreCredit(merchant.id, customer.id, amountCents, "adjustment", {
         reason: req.body?.reason || "Manual adjustment",
         createdBy: req.user.id,
       });
@@ -2579,10 +2583,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/gift-cards', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.json([]);
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.json([]);
       const search = typeof req.query.q === "string" ? req.query.q : undefined;
-      res.json(await storage.listGiftCards(restaurant.id, search));
+      res.json(await storage.listGiftCards(merchant.id, search));
     } catch (e) {
       logError("List gift cards failed", e);
       res.status(500).json({ message: "Failed to load gift cards" });
@@ -2602,17 +2606,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/gift-cards', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const b = issueGiftCardSchema.parse(req.body);
       if (b.code) {
-        const clash = await storage.getGiftCardByCode(restaurant.id, b.code);
+        const clash = await storage.getGiftCardByCode(merchant.id, b.code);
         if (clash) return res.status(409).json({ message: "That code is already in use" });
       }
       const card = await storage.issueGiftCard({
-        restaurantId: restaurant.id,
+        merchantId: merchant.id,
         amount: b.amount,
-        currency: restaurant.currency || "USD",
+        currency: merchant.currency || "USD",
         code: b.code,
         recipientName: b.recipientName ?? null,
         recipientEmail: b.recipientEmail ?? null,
@@ -2632,10 +2636,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/gift-cards/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const card = await storage.getGiftCardById(req.params.id);
-      if (!card || card.restaurantId !== restaurant.id) return res.status(404).json({ message: "Gift card not found" });
+      if (!card || card.merchantId !== merchant.id) return res.status(404).json({ message: "Gift card not found" });
       const transactions = await storage.listGiftCardTransactions(card.id);
       res.json({ card, transactions });
     } catch (e) {
@@ -2646,20 +2650,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/gift-cards/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const card = await storage.getGiftCardById(req.params.id);
-      if (!card || card.restaurantId !== restaurant.id) return res.status(404).json({ message: "Gift card not found" });
+      if (!card || card.merchantId !== merchant.id) return res.status(404).json({ message: "Gift card not found" });
 
       if (typeof req.body?.status === "string" && ["active", "disabled"].includes(req.body.status)) {
-        const updated = await storage.setGiftCardStatus(card.id, restaurant.id, req.body.status);
+        const updated = await storage.setGiftCardStatus(card.id, merchant.id, req.body.status);
         return res.json(updated);
       }
       const delta = Number(req.body?.adjustAmount);
       if (delta) {
         const { card: updated } = await storage.applyGiftCardDelta({
           giftCardId: card.id,
-          restaurantId: restaurant.id,
+          merchantId: merchant.id,
           delta,
           type: "adjustment",
           note: req.body?.note || "Manual adjustment",
@@ -2678,9 +2682,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/collections', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.json([]);
-      res.json(await storage.listCollections(restaurant.id));
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.json([]);
+      res.json(await storage.listCollections(merchant.id));
     } catch (e) {
       logError("List collections failed", e);
       res.status(500).json({ message: "Failed to load collections" });
@@ -2689,10 +2693,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/collections/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const collection = await storage.getCollection(req.params.id);
-      if (!collection || collection.restaurantId !== restaurant.id) return res.status(404).json({ message: "Collection not found" });
+      if (!collection || collection.merchantId !== merchant.id) return res.status(404).json({ message: "Collection not found" });
       const items = await storage.listCollectionItems(collection.id);
       res.json({ collection, items });
     } catch (e) {
@@ -2703,10 +2707,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/collections', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       if (!req.body?.title || !String(req.body.title).trim()) return res.status(400).json({ message: "Title is required" });
-      const collection = await storage.createCollection(restaurant.id, req.body);
+      const collection = await storage.createCollection(merchant.id, req.body);
       if (Array.isArray(req.body.menuItemIds)) {
         await storage.setCollectionItems(collection.id, req.body.menuItemIds);
       }
@@ -2719,11 +2723,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/collections/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const collection = await storage.getCollection(req.params.id);
-      if (!collection || collection.restaurantId !== restaurant.id) return res.status(404).json({ message: "Collection not found" });
-      const updated = await storage.updateCollection(req.params.id, restaurant.id, req.body);
+      if (!collection || collection.merchantId !== merchant.id) return res.status(404).json({ message: "Collection not found" });
+      const updated = await storage.updateCollection(req.params.id, merchant.id, req.body);
       if (Array.isArray(req.body.menuItemIds)) {
         await storage.setCollectionItems(req.params.id, req.body.menuItemIds);
       }
@@ -2736,9 +2740,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/collections/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-      await storage.deleteCollection(req.params.id, restaurant.id);
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+      await storage.deleteCollection(req.params.id, merchant.id);
       res.json({ ok: true });
     } catch (e) {
       logError("Delete collection failed", e);
@@ -2751,17 +2755,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==========================================
 
   app.get('/api/store/pages', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.json([]);
-    res.json(await storage.listStorefrontPages(restaurant.id));
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.json([]);
+    res.json(await storage.listStorefrontPages(merchant.id));
   });
 
   app.get('/api/store/pages/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const page = await storage.getStorefrontPage(req.params.id);
-      if (!page || page.restaurantId !== restaurant.id) return res.status(404).json({ message: "Page not found" });
+      if (!page || page.merchantId !== merchant.id) return res.status(404).json({ message: "Page not found" });
       res.json(page);
     } catch (e) {
       logError("Storefront page detail failed", e);
@@ -2771,10 +2775,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/store/pages', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       if (!req.body?.title || !String(req.body.title).trim()) return res.status(400).json({ message: "Title is required" });
-      const page = await storage.createStorefrontPage(restaurant.id, req.body);
+      const page = await storage.createStorefrontPage(merchant.id, req.body);
       res.json(page);
     } catch (e: any) {
       logError("Create storefront page failed", e);
@@ -2784,11 +2788,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/store/pages/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const page = await storage.getStorefrontPage(req.params.id);
-      if (!page || page.restaurantId !== restaurant.id) return res.status(404).json({ message: "Page not found" });
-      const updated = await storage.updateStorefrontPage(req.params.id, restaurant.id, req.body);
+      if (!page || page.merchantId !== merchant.id) return res.status(404).json({ message: "Page not found" });
+      const updated = await storage.updateStorefrontPage(req.params.id, merchant.id, req.body);
       res.json(updated);
     } catch (e: any) {
       logError("Update storefront page failed", e);
@@ -2798,9 +2802,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/store/pages/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-      await storage.deleteStorefrontPage(req.params.id, restaurant.id);
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+      await storage.deleteStorefrontPage(req.params.id, merchant.id);
       res.json({ ok: true });
     } catch (e) {
       logError("Delete storefront page failed", e);
@@ -2811,16 +2815,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ---- Contact page inbox ----
 
   app.get('/api/store/contact-messages', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.json([]);
-    res.json(await storage.listContactMessages(restaurant.id));
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.json([]);
+    res.json(await storage.listContactMessages(merchant.id));
   });
 
   app.patch('/api/store/contact-messages/:id', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-      const updated = await storage.markContactMessageRead(req.params.id, restaurant.id, req.body?.isRead !== false);
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+      const updated = await storage.markContactMessageRead(req.params.id, merchant.id, req.body?.isRead !== false);
       if (!updated) return res.status(404).json({ message: "Message not found" });
       res.json(updated);
     } catch (e) {
@@ -2835,16 +2839,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ---- Customer segments ----
   app.get('/api/segments', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.json([]);
-    res.json(await storage.listSegments(restaurant.id));
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.json([]);
+    res.json(await storage.listSegments(merchant.id));
   });
 
   app.post('/api/segments', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-      const seg = await storage.createSegment(restaurant.id, req.body);
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+      const seg = await storage.createSegment(merchant.id, req.body);
       const count = await storage.recomputeSegment(seg.id);
       res.json({ ...seg, memberCount: count });
     } catch (e: any) {
@@ -2854,42 +2858,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('/api/segments/:id', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
     const seg = await storage.getSegment(req.params.id);
-    if (!seg || seg.restaurantId !== restaurant.id) return res.status(404).json({ message: "Segment not found" });
+    if (!seg || seg.merchantId !== merchant.id) return res.status(404).json({ message: "Segment not found" });
     res.json({ segment: seg, customers: await storage.listSegmentCustomers(seg.id) });
   });
 
   app.patch('/api/segments/:id', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-    const updated = await storage.updateSegment(req.params.id, restaurant.id, req.body);
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+    const updated = await storage.updateSegment(req.params.id, merchant.id, req.body);
     if (!updated) return res.status(404).json({ message: "Segment not found" });
     const count = await storage.recomputeSegment(updated.id);
     res.json({ ...updated, memberCount: count });
   });
 
   app.post('/api/segments/:id/recompute', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
     const seg = await storage.getSegment(req.params.id);
-    if (!seg || seg.restaurantId !== restaurant.id) return res.status(404).json({ message: "Segment not found" });
+    if (!seg || seg.merchantId !== merchant.id) return res.status(404).json({ message: "Segment not found" });
     res.json({ memberCount: await storage.recomputeSegment(seg.id) });
   });
 
   // Preview how many customers a rule set would match, without saving.
   app.post('/api/segments/preview', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.json({ count: 0 });
-    const matches = await storage.evaluateSegmentCustomers(restaurant.id, req.body?.rules || {});
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.json({ count: 0 });
+    const matches = await storage.evaluateSegmentCustomers(merchant.id, req.body?.rules || {});
     res.json({ count: matches.length, sample: matches.slice(0, 5).map((c: any) => ({ name: c.name, email: c.email })) });
   });
 
   app.delete('/api/segments/:id', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-    await storage.deleteSegment(req.params.id, restaurant.id);
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+    await storage.deleteSegment(req.params.id, merchant.id);
     res.json({ ok: true });
   });
 
@@ -2900,17 +2904,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('/api/campaigns', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.json([]);
-    res.json(await storage.listCampaigns(restaurant.id));
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.json([]);
+    res.json(await storage.listCampaigns(merchant.id));
   });
 
   app.post('/api/campaigns', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       if (!req.body?.message || !String(req.body.message).trim()) return res.status(400).json({ message: "Message is required" });
-      res.json(await storage.createCampaign(restaurant.id, req.body));
+      res.json(await storage.createCampaign(merchant.id, req.body));
     } catch (e: any) {
       logError("Create campaign failed", e);
       res.status(400).json({ message: e?.message || "Failed to create campaign" });
@@ -2918,34 +2922,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('/api/campaigns/:id', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
     const c = await storage.getCampaign(req.params.id);
-    if (!c || c.restaurantId !== restaurant.id) return res.status(404).json({ message: "Campaign not found" });
+    if (!c || c.merchantId !== merchant.id) return res.status(404).json({ message: "Campaign not found" });
     res.json({ campaign: c, runs: await storage.listCampaignRuns(c.id), deliveries: await storage.listCampaignDeliveries(c.id, 50) });
   });
 
   app.patch('/api/campaigns/:id', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-    const updated = await storage.updateCampaign(req.params.id, restaurant.id, req.body);
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+    const updated = await storage.updateCampaign(req.params.id, merchant.id, req.body);
     if (!updated) return res.status(404).json({ message: "Campaign not found" });
     res.json(updated);
   });
 
   app.delete('/api/campaigns/:id', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-    await storage.deleteCampaign(req.params.id, restaurant.id);
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+    await storage.deleteCampaign(req.params.id, merchant.id);
     res.json({ ok: true });
   });
 
   app.post('/api/campaigns/:id/send', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const c = await storage.getCampaign(req.params.id);
-      if (!c || c.restaurantId !== restaurant.id) return res.status(404).json({ message: "Campaign not found" });
+      if (!c || c.merchantId !== merchant.id) return res.status(404).json({ message: "Campaign not found" });
       const run = await storage.sendCampaignNow(c.id);
       res.json(run);
     } catch (e: any) {
@@ -2956,23 +2960,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ---- Abandoned carts ----
   app.get('/api/abandoned-carts', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.json([]);
-    res.json(await storage.listAbandonedCarts(restaurant.id));
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.json([]);
+    res.json(await storage.listAbandonedCarts(merchant.id));
   });
 
   // ---- Boosts ----
   app.get('/api/boosts', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-    res.json(await storage.getBoostState(restaurant.id));
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+    res.json(await storage.getBoostState(merchant.id));
   });
 
   app.post('/api/boosts', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurant(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-      const slot = await storage.createBoostSlot(restaurant.id, {
+      const merchant = await ownerMerchant(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+      const slot = await storage.createBoostSlot(merchant.id, {
         slotType: req.body?.slotType || "home_featured",
         hours: Number(req.body?.hours) || 4,
       });
@@ -2983,9 +2987,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.delete('/api/boosts/:id', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurant(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
-    await storage.cancelBoostSlot(req.params.id, restaurant.id);
+    const merchant = await ownerMerchant(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
+    await storage.cancelBoostSlot(req.params.id, merchant.id);
     res.json({ ok: true });
   });
 
@@ -2993,11 +2997,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/upsells', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const rules = await storage.getUpsellRules(restaurant.id);
+      const rules = await storage.getUpsellRules(merchant.id);
       res.json(rules);
     } catch (error) {
       console.error("Error fetching upsell rules:", error);
@@ -3008,16 +3012,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/upsells', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       const { name, triggerItemId, suggestionItemId, isActive } = req.body;
       if (!name || !triggerItemId || !suggestionItemId) {
         return res.status(400).json({ message: "name, triggerItemId, and suggestionItemId are required" });
       }
       const rule = await storage.createUpsellRule({
-        restaurantId: restaurant.id,
+        merchantId: merchant.id,
         name,
         triggerType: 'item',
         triggerItemId,
@@ -3034,13 +3038,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/upsells/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       const { id } = req.params;
       const existing = await storage.getUpsellRule(id);
-      if (!existing || existing.restaurantId !== restaurant.id) {
+      if (!existing || existing.merchantId !== merchant.id) {
         return res.status(404).json({ message: "Upsell rule not found" });
       }
       const { name, triggerItemId, suggestionItemId, isActive } = req.body;
@@ -3060,13 +3064,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/upsells/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       const { id } = req.params;
       const existing = await storage.getUpsellRule(id);
-      if (!existing || existing.restaurantId !== restaurant.id) {
+      if (!existing || existing.merchantId !== merchant.id) {
         return res.status(404).json({ message: "Upsell rule not found" });
       }
       await storage.deleteUpsellRule(id);
@@ -3081,11 +3085,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/staff', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const staff = await storage.getStaff(restaurant.id);
+      const staff = await storage.getStaff(merchant.id);
       res.json(staff);
     } catch (error) {
       console.error("Error fetching staff:", error);
@@ -3096,11 +3100,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/staff', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
-      const data = insertStaffSchema.parse({ ...req.body, restaurantId: restaurant.id });
+      const data = insertStaffSchema.parse({ ...req.body, merchantId: merchant.id });
       const staff = await storage.createStaff(data);
       res.json(staff);
     } catch (error) {
@@ -3112,9 +3116,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/staff/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       const data = insertStaffSchema.partial().parse(req.body);
       const updatedStaff = await storage.updateStaff(req.params.id, data);
@@ -3128,9 +3132,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/staff/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       await storage.deleteStaff(req.params.id);
       res.json({ success: true });
@@ -3144,11 +3148,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/inventory', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json([]);
       }
-      const inventory = await storage.getInventory(restaurant.id);
+      const inventory = await storage.getInventory(merchant.id);
       res.json(inventory);
     } catch (error) {
       console.error("Error fetching inventory:", error);
@@ -3159,11 +3163,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/inventory', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
-      const data = insertInventorySchema.parse({ ...req.body, restaurantId: restaurant.id });
+      const data = insertInventorySchema.parse({ ...req.body, merchantId: merchant.id });
       const inventory = await storage.createInventory(data);
       res.json(inventory);
     } catch (error) {
@@ -3175,9 +3179,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/inventory/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       const data = insertInventorySchema.partial().parse(req.body);
       const updatedInventory = await storage.updateInventory(req.params.id, data);
@@ -3191,9 +3195,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/inventory/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       await storage.deleteInventory(req.params.id);
       res.json({ success: true });
@@ -3207,13 +3211,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/analytics/stats', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json({});
       }
       
-      const orders = await storage.getOrders(restaurant.id);
-      const staff = await storage.getStaff(restaurant.id);
+      const orders = await storage.getOrders(merchant.id);
+      const staff = await storage.getStaff(merchant.id);
       
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -3242,8 +3246,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/analytics/detailed', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
         return res.json({});
       }
       
@@ -3251,7 +3255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dateFilter = req.query.dateFilter || 'year';
       const { startDate, endDate } = resolveDateFilter(dateFilter);
 
-      const allOrders = await storage.getOrders(restaurant.id);
+      const allOrders = await storage.getOrders(merchant.id);
 
       // Filter orders by date range
       const orders = allOrders.filter(order => {
@@ -3272,7 +3276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 'shipping' (businessType.ts's canonical convention — hyphen, not underscore)
       // — this previously matched 'dine-in'(*)/'takeout'/'delivery'/'online', where
       // only the *unhyphenated* dine-in case would ever have matched, so the
-      // breakdown showed $0 for takeout/delivery/online for every restaurant.
+      // breakdown showed $0 for takeout/delivery/online for every merchant.
       let totalRevenue = 0;
       let dineInRevenue = 0;
       let pickupRevenue = 0;
@@ -3321,7 +3325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const averageOrderChangePercent = pctChange(parseFloat(averageOrder), prevAverageOrder);
       
       // Fetch all order items in one batched query
-      const allOrderItems = await storage.getAllOrderItems(restaurant.id);
+      const allOrderItems = await storage.getAllOrderItems(merchant.id);
       
       // Create a Set of filtered order IDs for efficient lookup
       const filteredOrderIds = new Set(orders.map(order => order.id));
@@ -3392,12 +3396,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Growth: sessions by channel + sessions over time, from real storefront_sessions rows
   app.get('/api/growth/sessions', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(req.user.id);
-      if (!restaurant) return res.json({ byChannel: [], overTime: [] });
+      const merchant = await storage.getMerchantByOwnerId(req.user.id);
+      if (!merchant) return res.json({ byChannel: [], overTime: [] });
       const { startDate, endDate } = resolveDateFilter(req.query.dateFilter || 'year');
       const [byChannel, overTime] = await Promise.all([
-        storage.getSessionsByChannel(restaurant.id, startDate, endDate),
-        storage.getSessionsOverTime(restaurant.id, startDate, endDate),
+        storage.getSessionsByChannel(merchant.id, startDate, endDate),
+        storage.getSessionsOverTime(merchant.id, startDate, endDate),
       ]);
       res.json({ byChannel, overTime });
     } catch (error) {
@@ -3409,10 +3413,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Growth: sales attributed to a marketing channel (same-browser checkout match only)
   app.get('/api/growth/sales-by-channel', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(req.user.id);
-      if (!restaurant) return res.json([]);
+      const merchant = await storage.getMerchantByOwnerId(req.user.id);
+      if (!merchant) return res.json([]);
       const { startDate, endDate } = resolveDateFilter(req.query.dateFilter || 'year');
-      const salesByChannel = await storage.getSalesByChannel(restaurant.id, startDate, endDate);
+      const salesByChannel = await storage.getSalesByChannel(merchant.id, startDate, endDate);
       res.json(salesByChannel);
     } catch (error) {
       console.error("Error fetching sales by channel:", error);
@@ -3424,57 +3428,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // PUBLIC STOREFRONT (no auth required)
   // ==========================================
 
-  const restaurantBySlugPublic = async (slug: string) => {
-    const restaurant = await storage.getRestaurantBySlug(slug);
-    return restaurant && restaurant.isActive ? restaurant : undefined;
+  const merchantBySlugPublic = async (slug: string) => {
+    const merchant = await storage.getMerchantBySlug(slug);
+    return merchant && merchant.isActive ? merchant : undefined;
   };
 
   app.get('/api/storefront/:slug', storefrontLimiter, async (req, res) => {
     try {
-      const restaurant = await restaurantBySlugPublic(req.params.slug);
-      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
       res.json({
-        id: restaurant.id,
-        name: restaurant.name,
-        slug: restaurant.slug,
-        description: restaurant.description,
-        logoUrl: restaurant.logoUrl,
-        coverImageUrl: restaurant.coverImageUrl,
-        currency: restaurant.currency,
-        primaryColor: restaurant.primaryColor,
-        secondaryColor: restaurant.secondaryColor,
-        accentColor: restaurant.accentColor,
-        themeSettings: restaurant.themeSettings,
-        socialLinks: restaurant.socialLinks,
-        seoTitle: restaurant.seoTitle,
-        seoDescription: restaurant.seoDescription,
+        id: merchant.id,
+        name: merchant.name,
+        slug: merchant.slug,
+        description: merchant.description,
+        logoUrl: merchant.logoUrl,
+        coverImageUrl: merchant.coverImageUrl,
+        currency: merchant.currency,
+        primaryColor: merchant.primaryColor,
+        secondaryColor: merchant.secondaryColor,
+        accentColor: merchant.accentColor,
+        themeSettings: merchant.themeSettings,
+        socialLinks: merchant.socialLinks,
+        seoTitle: merchant.seoTitle,
+        seoDescription: merchant.seoDescription,
         // Pixel/analytics IDs are meant to be public — they're embedded in
         // the page source on every real storefront so the vendor's script
         // can read them client-side, same as Shopify/Meta/GA docs show.
-        metaPixelId: restaurant.metaPixelId,
-        tiktokPixelId: restaurant.tiktokPixelId,
-        googleAnalyticsId: restaurant.googleAnalyticsId,
-        googleAdsId: restaurant.googleAdsId,
+        metaPixelId: merchant.metaPixelId,
+        tiktokPixelId: merchant.tiktokPixelId,
+        googleAnalyticsId: merchant.googleAnalyticsId,
+        googleAdsId: merchant.googleAdsId,
       });
     } catch (error) {
-      logError("Storefront restaurant lookup failed", error);
+      logError("Storefront merchant lookup failed", error);
       res.status(500).json({ message: "Failed to load store" });
     }
   });
 
   app.get('/api/storefront/:slug/products', storefrontLimiter, async (req, res) => {
     try {
-      const restaurant = await restaurantBySlugPublic(req.params.slug);
-      if (!restaurant) return res.status(404).json({ message: "Store not found" });
-      let items = (await storage.getMenuItems(restaurant.id)).filter((i) => i.isAvailable && i.visibleOnline);
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
+      let items = (await storage.getMenuItems(merchant.id)).filter((i) => i.isAvailable && i.visibleOnline);
       const collectionHandle = typeof req.query.collection === "string" ? req.query.collection : undefined;
       if (collectionHandle) {
-        const collection = await storage.getCollectionByHandle(restaurant.id, collectionHandle);
+        const collection = await storage.getCollectionByHandle(merchant.id, collectionHandle);
         if (!collection) return res.json([]);
         const memberIds = new Set((await storage.listCollectionItems(collection.id)).map((i: any) => i.id));
         items = items.filter((i) => memberIds.has(i.id));
       }
-      const productReviews = await storage.getPublishedProductReviews(restaurant.id);
+      const productReviews = await storage.getPublishedProductReviews(merchant.id);
       const ratingByItem = new Map<string, { sum: number; count: number }>();
       for (const r of productReviews) {
         const agg = ratingByItem.get(r.menuItemId!) || { sum: 0, count: 0 };
@@ -3493,11 +3497,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/storefront/:slug/categories', storefrontLimiter, async (req, res) => {
     try {
-      const restaurant = await restaurantBySlugPublic(req.params.slug);
-      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
       const [categories, items] = await Promise.all([
-        storage.getMenuCategories(restaurant.id),
-        storage.getMenuItems(restaurant.id),
+        storage.getMenuCategories(merchant.id),
+        storage.getMenuItems(merchant.id),
       ]);
       const usedIds = new Set(items.filter((i) => i.isAvailable && i.visibleOnline).map((i) => i.categoryId));
       const visible = categories
@@ -3513,14 +3517,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/storefront/:slug/products/:handle', storefrontLimiter, async (req, res) => {
     try {
-      const restaurant = await restaurantBySlugPublic(req.params.slug);
-      if (!restaurant) return res.status(404).json({ message: "Store not found" });
-      const item = await storage.getMenuItemByHandle(restaurant.id, req.params.handle);
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
+      const item = await storage.getMenuItemByHandle(merchant.id, req.params.handle);
       if (!item || !item.isAvailable || !item.visibleOnline) return res.status(404).json({ message: "Product not found" });
       const [variants, reviews, allItems] = await Promise.all([
         item.hasVariants ? storage.listVariants(item.id) : Promise.resolve([]),
         storage.getPublishedReviewsByMenuItem(item.id),
-        storage.getMenuItems(restaurant.id),
+        storage.getMenuItems(merchant.id),
       ]);
       const related = allItems
         .filter((i) => i.id !== item.id && i.categoryId === item.categoryId && i.isAvailable && i.visibleOnline)
@@ -3535,9 +3539,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/storefront/:slug/reviews', storefrontLimiter, async (req, res) => {
     try {
-      const restaurant = await restaurantBySlugPublic(req.params.slug);
-      if (!restaurant) return res.status(404).json({ message: "Store not found" });
-      res.json(await storage.getCustomerReviews(restaurant.id));
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
+      res.json(await storage.getCustomerReviews(merchant.id));
     } catch (error) {
       logError("Storefront reviews failed", error);
       res.status(500).json({ message: "Failed to load reviews" });
@@ -3546,11 +3550,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/storefront/:slug/newsletter', storefrontLimiter, async (req, res) => {
     try {
-      const restaurant = await restaurantBySlugPublic(req.params.slug);
-      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
       const email = String(req.body?.email || "").trim().toLowerCase();
       if (!email || !email.includes("@")) return res.status(400).json({ message: "A valid email is required" });
-      await storage.createNewsletterSubscriber(restaurant.id, email);
+      await storage.createNewsletterSubscriber(merchant.id, email);
       res.json({ ok: true });
     } catch (error) {
       logError("Newsletter signup failed", error);
@@ -3560,9 +3564,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/storefront/:slug/pages', storefrontLimiter, async (req, res) => {
     try {
-      const restaurant = await restaurantBySlugPublic(req.params.slug);
-      if (!restaurant) return res.status(404).json({ message: "Store not found" });
-      const pages = (await storage.listStorefrontPages(restaurant.id)).filter((p) => p.isPublished);
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
+      const pages = (await storage.listStorefrontPages(merchant.id)).filter((p) => p.isPublished);
       res.json(pages.map((p) => ({ id: p.id, title: p.title, handle: p.handle, showInFooter: p.showInFooter, footerGroup: p.footerGroup, sortOrder: p.sortOrder })));
     } catch (error) {
       logError("Storefront pages list failed", error);
@@ -3572,9 +3576,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/storefront/:slug/pages/:handle', storefrontLimiter, async (req, res) => {
     try {
-      const restaurant = await restaurantBySlugPublic(req.params.slug);
-      if (!restaurant) return res.status(404).json({ message: "Store not found" });
-      const page = await storage.getStorefrontPageByHandle(restaurant.id, req.params.handle);
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
+      const page = await storage.getStorefrontPageByHandle(merchant.id, req.params.handle);
       if (!page || !page.isPublished) return res.status(404).json({ message: "Page not found" });
       res.json({ title: page.title, body: page.body, seoTitle: page.seoTitle, seoDescription: page.seoDescription });
     } catch (error) {
@@ -3585,11 +3589,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/storefront/:slug/contact', storefrontLimiter, async (req, res) => {
     try {
-      const restaurant = await restaurantBySlugPublic(req.params.slug);
-      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
       const parsed = insertContactMessageSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Please fill in your name, email, and message." });
-      await storage.createContactMessage(restaurant.id, parsed.data);
+      await storage.createContactMessage(merchant.id, parsed.data);
       res.json({ ok: true });
     } catch (error) {
       logError("Contact form submission failed", error);
@@ -3601,26 +3605,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ONLINE STORE — AI store builder (merchant-authed)
   // ==========================================
 
-  const ownerRestaurantForStore = async (req: any) => storage.getRestaurantByOwnerId(req.user.id);
+  const ownerMerchantForStore = async (req: any) => storage.getMerchantByOwnerId(req.user.id);
 
   app.post('/api/store/generate', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurantForStore(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchantForStore(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const brief: StoreBrief = {
-        businessName: req.body?.businessName || restaurant.name,
-        industry: req.body?.industry || restaurant.businessType,
+        businessName: req.body?.businessName || merchant.name,
+        industry: req.body?.industry || merchant.businessType,
         targetAudience: req.body?.targetAudience,
         targetMarket: req.body?.targetMarket,
         stylePreference: req.body?.stylePreference,
       };
       const [items, reviews, collectionsList] = await Promise.all([
-        storage.getMenuItems(restaurant.id),
-        storage.getCustomerReviews(restaurant.id),
-        storage.listCollections(restaurant.id),
+        storage.getMenuItems(merchant.id),
+        storage.getCustomerReviews(merchant.id),
+        storage.listCollections(merchant.id),
       ]);
       const blueprint = buildBlueprint({
-        brief, restaurant, items, reviews,
+        brief, merchant, items, reviews,
         existingCollectionTitles: collectionsList.map((c) => c.title),
       });
       const copy = await draftCopy(brief, brief.businessName, blueprint.facts);
@@ -3635,7 +3639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         aboutSection.fields.heading = copy.aboutUsHeading;
         aboutSection.fields.body = copy.aboutUsBody;
       }
-      const generation = await storage.createStoreGeneration(restaurant.id, {
+      const generation = await storage.createStoreGeneration(merchant.id, {
         kind: 'initial', brief, blueprint, copy,
       });
       res.json(generation);
@@ -3646,31 +3650,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('/api/store/generations/:id', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurantForStore(req);
-    if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+    const merchant = await ownerMerchantForStore(req);
+    if (!merchant) return res.status(404).json({ message: "Merchant not found" });
     const generation = await storage.getStoreGeneration(req.params.id);
-    if (!generation || generation.restaurantId !== restaurant.id) return res.status(404).json({ message: "Not found" });
+    if (!generation || generation.merchantId !== merchant.id) return res.status(404).json({ message: "Not found" });
     res.json(generation);
   });
 
   app.get('/api/store/generations/latest', isAuthenticated, async (req: any, res) => {
-    const restaurant = await ownerRestaurantForStore(req);
-    if (!restaurant) return res.json(null);
+    const merchant = await ownerMerchantForStore(req);
+    if (!merchant) return res.json(null);
     const kind = typeof req.query.kind === "string" ? req.query.kind : undefined;
     const status = typeof req.query.status === "string" ? req.query.status : undefined;
-    res.json((await storage.getLatestStoreGeneration(restaurant.id, kind, status)) || null);
+    res.json((await storage.getLatestStoreGeneration(merchant.id, kind, status)) || null);
   });
 
   app.post('/api/store/generations/:id/apply', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurantForStore(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchantForStore(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const generation = await storage.getStoreGeneration(req.params.id);
-      if (!generation || generation.restaurantId !== restaurant.id) return res.status(404).json({ message: "Not found" });
+      if (!generation || generation.merchantId !== merchant.id) return res.status(404).json({ message: "Not found" });
       if (generation.status !== 'proposed') return res.status(400).json({ message: "Already applied or discarded" });
 
       const blueprint: any = generation.blueprint;
-      await storage.updateRestaurant(restaurant.id, {
+      await storage.updateMerchant(merchant.id, {
         themeSettings: { ...blueprint.themeSettings, meta: { ...blueprint.themeSettings.meta, lastPublishedAt: new Date().toISOString() } },
         primaryColor: blueprint.colors.primaryColor,
         secondaryColor: blueprint.colors.secondaryColor,
@@ -3679,11 +3683,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } as any);
 
       for (const plan of blueprint.collections || []) {
-        const created = await storage.createCollection(restaurant.id, { title: plan.title, showOnStorefront: true, isActive: true } as any);
+        const created = await storage.createCollection(merchant.id, { title: plan.title, showOnStorefront: true, isActive: true } as any);
         await storage.setCollectionItems(created.id, plan.menuItemIds);
       }
 
-      const updated = await storage.markStoreGenerationStatus(req.params.id, restaurant.id, 'applied');
+      const updated = await storage.markStoreGenerationStatus(req.params.id, merchant.id, 'applied');
       res.json(updated);
     } catch (error) {
       logError("Store apply failed", error);
@@ -3693,21 +3697,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/store/optimize', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurantForStore(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchantForStore(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const [items, reviews, collectionsList] = await Promise.all([
-        storage.getMenuItems(restaurant.id),
-        storage.getCustomerReviews(restaurant.id),
-        storage.listCollections(restaurant.id),
+        storage.getMenuItems(merchant.id),
+        storage.getCustomerReviews(merchant.id),
+        storage.listCollections(merchant.id),
       ]);
       const brief: StoreBrief = {
-        businessName: restaurant.name,
-        industry: restaurant.businessType,
-        ...(restaurant.brandProfile as any || {}),
+        businessName: merchant.name,
+        industry: merchant.businessType,
+        ...(merchant.brandProfile as any || {}),
       };
-      const currentThemeSettings = (restaurant.themeSettings as RestaurantThemeSettings | null) || null;
+      const currentThemeSettings = (merchant.themeSettings as MerchantThemeSettings | null) || null;
       const blueprint = buildBlueprint({
-        brief, restaurant, items, reviews,
+        brief, merchant, items, reviews,
         existingCollectionTitles: collectionsList.map((c) => c.title),
         current: currentThemeSettings,
       });
@@ -3723,33 +3727,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const snapshot = {
         themeSettings: currentThemeSettings,
-        primaryColor: restaurant.primaryColor,
-        secondaryColor: restaurant.secondaryColor,
-        accentColor: restaurant.accentColor,
+        primaryColor: merchant.primaryColor,
+        secondaryColor: merchant.secondaryColor,
+        accentColor: merchant.accentColor,
       };
 
       if (blueprint.changes.length === 0) {
         return res.json({ id: null, changes: [], message: "Your store is already optimized — nothing to change." });
       }
 
-      const generation = await storage.createStoreGeneration(restaurant.id, {
+      const generation = await storage.createStoreGeneration(merchant.id, {
         kind: 'optimize',
         brief: { ...brief, previousSnapshot: snapshot },
         blueprint,
         copy,
       });
 
-      await storage.updateRestaurant(restaurant.id, {
+      await storage.updateMerchant(merchant.id, {
         themeSettings: blueprint.themeSettings,
         primaryColor: blueprint.colors.primaryColor,
         secondaryColor: blueprint.colors.secondaryColor,
         accentColor: blueprint.colors.accentColor,
       } as any);
       for (const plan of blueprint.collections || []) {
-        const created = await storage.createCollection(restaurant.id, { title: plan.title, showOnStorefront: true, isActive: true } as any);
+        const created = await storage.createCollection(merchant.id, { title: plan.title, showOnStorefront: true, isActive: true } as any);
         await storage.setCollectionItems(created.id, plan.menuItemIds);
       }
-      await storage.markStoreGenerationStatus(generation.id, restaurant.id, 'applied');
+      await storage.markStoreGenerationStatus(generation.id, merchant.id, 'applied');
 
       res.json({ id: generation.id, changes: blueprint.changes });
     } catch (error) {
@@ -3760,19 +3764,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/store/generations/:id/undo', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurantForStore(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchantForStore(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const generation = await storage.getStoreGeneration(req.params.id);
-      if (!generation || generation.restaurantId !== restaurant.id) return res.status(404).json({ message: "Not found" });
+      if (!generation || generation.merchantId !== merchant.id) return res.status(404).json({ message: "Not found" });
       const snapshot = (generation.brief as any)?.previousSnapshot;
       if (!snapshot) return res.status(400).json({ message: "Nothing to undo" });
-      await storage.updateRestaurant(restaurant.id, {
+      await storage.updateMerchant(merchant.id, {
         themeSettings: snapshot.themeSettings,
         primaryColor: snapshot.primaryColor,
         secondaryColor: snapshot.secondaryColor,
         accentColor: snapshot.accentColor,
       } as any);
-      await storage.markStoreGenerationStatus(req.params.id, restaurant.id, 'discarded');
+      await storage.markStoreGenerationStatus(req.params.id, merchant.id, 'discarded');
       res.json({ ok: true });
     } catch (error) {
       logError("Store undo failed", error);
@@ -3782,8 +3786,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/store/theme', isAuthenticated, async (req: any, res) => {
     try {
-      const restaurant = await ownerRestaurantForStore(req);
-      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await ownerMerchantForStore(req);
+      if (!merchant) return res.status(404).json({ message: "Merchant not found" });
       const patch: any = {};
       if (req.body?.themeSettings) patch.themeSettings = req.body.themeSettings;
       if (req.body?.primaryColor) patch.primaryColor = req.body.primaryColor;
@@ -3791,9 +3795,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.body?.accentColor) patch.accentColor = req.body.accentColor;
       if (req.body?.socialLinks) patch.socialLinks = req.body.socialLinks;
       if (req.body?.publish) {
-        patch.themeSettings = { ...(patch.themeSettings || restaurant.themeSettings || {}), meta: { ...(patch.themeSettings?.meta || (restaurant.themeSettings as any)?.meta), lastPublishedAt: new Date().toISOString() } };
+        patch.themeSettings = { ...(patch.themeSettings || merchant.themeSettings || {}), meta: { ...(patch.themeSettings?.meta || (merchant.themeSettings as any)?.meta), lastPublishedAt: new Date().toISOString() } };
       }
-      const updated = await storage.updateRestaurant(restaurant.id, patch);
+      const updated = await storage.updateMerchant(merchant.id, patch);
       res.json(updated);
     } catch (error) {
       logError("Save theme failed", error);
@@ -3837,16 +3841,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ uploadURL, objectPath });
   });
 
-  app.put("/api/restaurant/logo", isAuthenticated, async (req: any, res) => {
+  app.put("/api/merchant/logo", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
     if (!req.body.logoUrl) {
       return res.status(400).json({ error: "logoUrl is required" });
     }
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
       const objectStorageService = new ObjectStorageService();
@@ -3855,7 +3859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { owner: userId, visibility: "public" }
       );
 
-      await storage.updateRestaurant(restaurant.id, { logoUrl: objectPath });
+      await storage.updateMerchant(merchant.id, { logoUrl: objectPath });
       res.status(200).json({ objectPath });
     } catch (error) {
       console.error("Error setting logo:", error);
@@ -3863,16 +3867,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/restaurant/cover-image", isAuthenticated, async (req: any, res) => {
+  app.put("/api/merchant/cover-image", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
     if (!req.body.coverImageUrl) {
       return res.status(400).json({ error: "coverImageUrl is required" });
     }
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
       const objectStorageService = new ObjectStorageService();
@@ -3881,7 +3885,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { owner: userId, visibility: "public" }
       );
 
-      await storage.updateRestaurant(restaurant.id, { coverImageUrl: objectPath });
+      await storage.updateMerchant(merchant.id, { coverImageUrl: objectPath });
       res.status(200).json({ objectPath });
     } catch (error) {
       console.error("Error setting cover image:", error);
@@ -3889,7 +3893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/restaurant/brand-colors", isAuthenticated, async (req: any, res) => {
+  app.put("/api/merchant/brand-colors", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
     const { primaryColor, secondaryColor, accentColor } = req.body;
 
@@ -3907,12 +3911,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      await storage.updateRestaurant(restaurant.id, {
+      await storage.updateMerchant(merchant.id, {
         primaryColor,
         secondaryColor,
         accentColor
@@ -3924,19 +3928,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/restaurant/opening-hours", isAuthenticated, async (req: any, res) => {
+  app.put("/api/merchant/opening-hours", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
     if (!req.body.openingHours) {
       return res.status(400).json({ error: "openingHours is required" });
     }
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      await storage.updateRestaurant(restaurant.id, { openingHours: req.body.openingHours });
+      await storage.updateMerchant(merchant.id, { openingHours: req.body.openingHours });
       res.status(200).json({ success: true });
     } catch (error) {
       console.error("Error updating opening hours:", error);
@@ -3944,17 +3948,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/restaurant/payment-settings", isAuthenticated, async (req: any, res) => {
+  app.put("/api/merchant/payment-settings", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
     const { stripePublicKey, stripeSecretKey, paypalClientId, paypalClientSecret } = req.body;
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      await storage.updateRestaurant(restaurant.id, {
+      await storage.updateMerchant(merchant.id, {
         stripePublicKey,
         stripeSecretKey,
         paypalClientId,
@@ -3967,19 +3971,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/restaurant/payment-methods", isAuthenticated, async (req: any, res) => {
+  app.put("/api/merchant/payment-methods", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
     if (!req.body.paymentMethods) {
       return res.status(400).json({ error: "paymentMethods is required" });
     }
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      await storage.updateRestaurant(restaurant.id, { paymentMethods: req.body.paymentMethods });
+      await storage.updateMerchant(merchant.id, { paymentMethods: req.body.paymentMethods });
       res.status(200).json({ success: true });
     } catch (error) {
       logError("Error updating payment methods", error);
@@ -3987,7 +3991,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/restaurant/order-types", isAuthenticated, async (req: any, res) => {
+  app.put("/api/merchant/order-types", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
     if (!req.body.orderTypes) {
       return res.status(400).json({ error: "orderTypes is required" });
@@ -4001,12 +4005,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      await storage.updateRestaurant(restaurant.id, { orderTypes: req.body.orderTypes });
+      await storage.updateMerchant(merchant.id, { orderTypes: req.body.orderTypes });
       res.status(200).json({ success: true });
     } catch (error) {
       console.error("Error updating order types:", error);
@@ -4014,7 +4018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/restaurant/regional-settings", isAuthenticated, async (req: any, res) => {
+  app.put("/api/merchant/regional-settings", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
     const { currency, country, platformLanguage, storefrontLanguage } = req.body;
 
@@ -4023,12 +4027,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      await storage.updateRestaurant(restaurant.id, { 
+      await storage.updateMerchant(merchant.id, { 
         currency, 
         country,
         ...(platformLanguage && { platformLanguage }),
@@ -4041,17 +4045,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/restaurant/tax-settings", isAuthenticated, async (req: any, res) => {
+  app.put("/api/merchant/tax-settings", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
     const { taxRate, taxIncludedInPrice, taxLabel } = req.body;
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      await storage.updateRestaurant(restaurant.id, { 
+      await storage.updateMerchant(merchant.id, { 
         taxRate: taxRate || "0.00",
         taxIncludedInPrice: taxIncludedInPrice || false,
         taxLabel: taxLabel || "Tax"
@@ -4064,7 +4068,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stripe Connect: Create Express Connected Account
-  app.post("/api/restaurant/connect/create-account", isAuthenticated, async (req: any, res) => {
+  app.post("/api/merchant/connect/create-account", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
 
     try {
@@ -4072,34 +4076,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ error: "Stripe is not configured" });
       }
 
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
       // Check if already has a connected account
-      if (restaurant.stripeAccountId) {
+      if (merchant.stripeAccountId) {
         return res.status(400).json({ error: "Stripe account already connected" });
       }
 
       // Create Stripe Express account
       const account = await stripe.accounts.create({
         type: 'express',
-        country: restaurant.country === 'United States' ? 'US' : 'US', // Default to US, expand later
-        email: restaurant.email || req.user.email,
+        country: merchant.country === 'United States' ? 'US' : 'US', // Default to US, expand later
+        email: merchant.email || req.user.email,
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },
         },
         business_type: 'individual', // Can be made dynamic
         business_profile: {
-          name: restaurant.name,
-          url: restaurant.customDomain ? `https://${restaurant.customDomain}` : `${getBaseUrl()}`,
+          name: merchant.name,
+          url: merchant.customDomain ? `https://${merchant.customDomain}` : `${getBaseUrl()}`,
         },
       });
 
-      // Save account ID to restaurant
-      await storage.updateRestaurant(restaurant.id, {
+      // Save account ID to merchant
+      await storage.updateMerchant(merchant.id, {
         stripeAccountId: account.id,
       });
 
@@ -4114,7 +4118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stripe Connect: Generate onboarding link
-  app.post("/api/restaurant/connect/onboarding-link", isAuthenticated, async (req: any, res) => {
+  app.post("/api/merchant/connect/onboarding-link", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
 
     try {
@@ -4123,41 +4127,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ error: "Stripe is not configured" });
       }
 
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      let stripeAccountId = restaurant.stripeAccountId;
+      let stripeAccountId = merchant.stripeAccountId;
 
       // Create Stripe account if doesn't exist
       if (!stripeAccountId) {
-        logInfo("Creating new Stripe Connect account", { restaurantId: restaurant.id });
+        logInfo("Creating new Stripe Connect account", { merchantId: merchant.id });
         
         const account = await stripe.accounts.create({
           type: 'express',
-          country: restaurant.country === 'United States' ? 'US' : 'US', // Default to US
-          email: restaurant.email || req.user.email,
+          country: merchant.country === 'United States' ? 'US' : 'US', // Default to US
+          email: merchant.email || req.user.email,
           capabilities: {
             card_payments: { requested: true },
             transfers: { requested: true },
           },
           business_type: 'individual',
           business_profile: {
-            name: restaurant.name,
-            url: restaurant.customDomain ? `https://${restaurant.customDomain}` : `${getBaseUrl()}`,
+            name: merchant.name,
+            url: merchant.customDomain ? `https://${merchant.customDomain}` : `${getBaseUrl()}`,
           },
         });
 
         stripeAccountId = account.id;
 
         // Save to database
-        await storage.updateRestaurant(restaurant.id, {
+        await storage.updateMerchant(merchant.id, {
           stripeAccountId: stripeAccountId,
         });
 
         logInfo("Stripe Connect account created", { 
-          restaurantId: restaurant.id, 
+          merchantId: merchant.id, 
           stripeAccountId 
         });
       }
@@ -4172,7 +4176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       logInfo("Stripe onboarding link generated", { 
-        restaurantId: restaurant.id,
+        merchantId: merchant.id,
         stripeAccountId 
       });
 
@@ -4186,7 +4190,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stripe Connect: Check account status
-  app.get("/api/restaurant/connect/status", isAuthenticated, async (req: any, res) => {
+  app.get("/api/merchant/connect/status", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
 
     try {
@@ -4194,12 +4198,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ error: "Stripe is not configured" });
       }
 
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      if (!restaurant.stripeAccountId) {
+      if (!merchant.stripeAccountId) {
         return res.json({
           connected: false,
           chargesEnabled: false,
@@ -4207,7 +4211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const account = await stripe.accounts.retrieve(restaurant.stripeAccountId);
+      const account = await stripe.accounts.retrieve(merchant.stripeAccountId);
 
       res.json({
         connected: true,
@@ -4222,16 +4226,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/restaurant/payout-settings", isAuthenticated, async (req: any, res) => {
+  app.get("/api/merchant/payout-settings", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      const payoutAccount = await storage.getPayoutAccount(restaurant.id);
+      const payoutAccount = await storage.getPayoutAccount(merchant.id);
       res.json({ payoutSchedule: payoutAccount?.payoutSchedule || "weekly" });
     } catch (error) {
       console.error("Error fetching payout settings:", error);
@@ -4239,27 +4243,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/restaurant/payout-settings", isAuthenticated, async (req: any, res) => {
+  app.put("/api/merchant/payout-settings", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
     const { payoutSchedule } = req.body;
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
       // Update only the payout schedule (bank details are in Stripe Connect)
-      const existingAccount = await storage.getPayoutAccount(restaurant.id);
+      const existingAccount = await storage.getPayoutAccount(merchant.id);
       
       if (existingAccount) {
-        await storage.createOrUpdatePayoutAccount(restaurant.id, {
+        await storage.createOrUpdatePayoutAccount(merchant.id, {
           ...existingAccount,
           payoutSchedule: payoutSchedule || "weekly"
         });
       } else {
         // Create minimal payout account with just schedule
-        await storage.createOrUpdatePayoutAccount(restaurant.id, {
+        await storage.createOrUpdatePayoutAccount(merchant.id, {
           accountHolderName: "",
           bankName: "",
           accountNumber: "",
@@ -4278,18 +4282,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get pending earnings for restaurant
-  app.get("/api/restaurant/payouts/pending", isAuthenticated, async (req: any, res) => {
+  // Get pending earnings for merchant
+  app.get("/api/merchant/payouts/pending", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      const pendingEarnings = await storage.getPendingEarnings(restaurant.id);
-      const payoutAccount = await storage.getPayoutAccount(restaurant.id);
+      const pendingEarnings = await storage.getPendingEarnings(merchant.id);
+      const payoutAccount = await storage.getPayoutAccount(merchant.id);
 
       res.json({
         pendingAmount: pendingEarnings.total,
@@ -4303,17 +4307,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get payout history for restaurant
-  app.get("/api/restaurant/payouts/history", isAuthenticated, async (req: any, res) => {
+  // Get payout history for merchant
+  app.get("/api/merchant/payouts/history", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      const payoutHistory = await storage.getPayoutRuns(restaurant.id);
+      const payoutHistory = await storage.getPayoutRuns(merchant.id);
       res.json(payoutHistory);
     } catch (error) {
       console.error("Error fetching payout history:", error);
@@ -4321,8 +4325,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Process payout for restaurant (manual trigger or automated)
-  app.post("/api/restaurant/payouts/process", isAuthenticated, async (req: any, res) => {
+  // Process payout for merchant (manual trigger or automated)
+  app.post("/api/merchant/payouts/process", isAuthenticated, async (req: any, res) => {
     const userId = req.user.id;
 
     try {
@@ -4330,24 +4334,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ error: "Stripe payout processing is not configured" });
       }
 
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
-      // Check if restaurant has Stripe Connect account set up
-      if (!restaurant.stripeAccountId) {
+      // Check if merchant has Stripe Connect account set up
+      if (!merchant.stripeAccountId) {
         return res.status(400).json({ error: "Please connect your bank account via Stripe first" });
       }
 
       // Verify Connect account is fully onboarded
-      const connectedAccount = await stripe.accounts.retrieve(restaurant.stripeAccountId);
+      const connectedAccount = await stripe.accounts.retrieve(merchant.stripeAccountId);
       if (!connectedAccount.payouts_enabled) {
         return res.status(400).json({ error: "Your Stripe account is not fully set up. Please complete onboarding." });
       }
 
       // Get pending earnings
-      const pendingEarnings = await storage.getPendingEarnings(restaurant.id);
+      const pendingEarnings = await storage.getPendingEarnings(merchant.id);
       const amountInDollars = parseFloat(pendingEarnings.total);
 
       if (amountInDollars <= 0) {
@@ -4360,8 +4364,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get pending ledger entries to mark as paid
-      const ledgerEntries = await storage.getEarningsLedger(restaurant.id);
-      const pendingEntries = ledgerEntries.filter((entry: any) => entry.restaurantPayoutStatus === 'pending');
+      const ledgerEntries = await storage.getEarningsLedger(merchant.id);
+      const pendingEntries = ledgerEntries.filter((entry: any) => entry.merchantPayoutStatus === 'pending');
       const ledgerEntryIds = pendingEntries.map((entry: any) => entry.id);
 
       if (ledgerEntryIds.length === 0) {
@@ -4370,7 +4374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create payout run record
       const payoutRun = await storage.createPayoutRun(
-        restaurant.id,
+        merchant.id,
         amountInDollars,
         'stripe',
         new Date()
@@ -4383,12 +4387,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const transfer = await stripe.transfers.create({
           amount: amountInCents,
           currency: 'usd',
-          destination: restaurant.stripeAccountId,
-          description: `Payout for ${restaurant.name}`,
+          destination: merchant.stripeAccountId,
+          description: `Payout for ${merchant.name}`,
+          // See the matching comment on the other stripe.transfers.create
+          // call above — Stripe metadata key names are an external contract.
           metadata: {
-            restaurantId: restaurant.id,
+            restaurantId: merchant.id,
             payoutRunId: payoutRun.id,
-            restaurantName: restaurant.name,
+            restaurantName: merchant.name,
           },
         });
 
@@ -4468,9 +4474,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     try {
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
       const objectStorageService = new ObjectStorageService();
@@ -4495,15 +4501,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(503).json({ error: "Stripe payment processing is not configured" });
       }
 
-      const { restaurantId, amount, currency, orderId } = req.body;
+      const { merchantId, amount, currency, orderId } = req.body;
 
-      if (!restaurantId || !amount || !currency) {
+      if (!merchantId || !amount || !currency) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      const restaurant = await storage.getRestaurant(restaurantId);
-      if (!restaurant) {
-        return res.status(404).json({ error: "Restaurant not found" });
+      const merchant = await storage.getMerchant(merchantId);
+      if (!merchant) {
+        return res.status(404).json({ error: "Merchant not found" });
       }
 
       const amountInCents = Math.round(parseFloat(amount) * 100);
@@ -4512,8 +4518,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInCents,
         currency: currency.toLowerCase(),
+        // See the comment on the stripe.transfers.create calls above —
+        // Stripe metadata key names are an external contract.
         metadata: {
-          restaurantId,
+          restaurantId: merchantId,
           orderId: orderId || '',
         },
       });
@@ -4548,7 +4556,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 currencyCode: 'USD',
                 value: parseFloat(total).toFixed(2)
               },
-              description: 'Restaurant order payment'
+              description: 'Merchant order payment'
             }
           ],
           applicationContext: {
@@ -4596,10 +4604,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           parseFloat(deliveryFee) || 0
         );
         
-        // Broadcast to restaurant
-        const restaurant = confirmedOrder.restaurantId ? await storage.getRestaurant(confirmedOrder.restaurantId) : undefined;
-        if (restaurant) {
-          wsManager.broadcastToRestaurant(restaurant.id, {
+        // Broadcast to merchant
+        const merchant = confirmedOrder.merchantId ? await storage.getMerchant(confirmedOrder.merchantId) : undefined;
+        if (merchant) {
+          wsManager.broadcastToMerchant(merchant.id, {
             type: 'new_order',
             data: confirmedOrder
           });
@@ -4621,17 +4629,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin Routes - Platform Management
-  app.get('/api/admin/restaurants', isAuthenticated, isAdmin, async (req: any, res) => {
+  app.get('/api/admin/merchants', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const restaurants = await storage.getAllRestaurants();
-      res.json(restaurants);
+      const merchants = await storage.getAllMerchants();
+      res.json(merchants);
     } catch (error) {
-      console.error("Error fetching all restaurants:", error);
-      res.status(500).json({ message: "Failed to fetch restaurants" });
+      console.error("Error fetching all merchants:", error);
+      res.status(500).json({ message: "Failed to fetch merchants" });
     }
   });
 
-  app.patch('/api/admin/restaurants/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+  app.patch('/api/admin/merchants/:id', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { name, subdomain, isActive, businessType } = req.body;
@@ -4648,7 +4656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Subdomain must be a non-empty string" });
         }
         // Check subdomain uniqueness
-        const existing = await storage.getRestaurantBySubdomain(subdomain.trim());
+        const existing = await storage.getMerchantBySubdomain(subdomain.trim());
         if (existing && existing.id !== id) {
           return res.status(400).json({ message: "Subdomain already in use" });
         }
@@ -4667,22 +4675,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.businessType = businessType;
       }
 
-      const restaurant = await storage.updateRestaurant(id, updates);
-      res.json(restaurant);
+      const merchant = await storage.updateMerchant(id, updates);
+      res.json(merchant);
     } catch (error) {
-      console.error("Error updating restaurant:", error);
-      res.status(500).json({ message: "Failed to update restaurant" });
+      console.error("Error updating merchant:", error);
+      res.status(500).json({ message: "Failed to update merchant" });
     }
   });
 
-  app.delete('/api/admin/restaurants/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+  app.delete('/api/admin/merchants/:id', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteRestaurant(id);
-      res.json({ message: "Restaurant deleted successfully" });
+      await storage.deleteMerchant(id);
+      res.json({ message: "Merchant deleted successfully" });
     } catch (error) {
-      console.error("Error deleting restaurant:", error);
-      res.status(500).json({ message: "Failed to delete restaurant" });
+      console.error("Error deleting merchant:", error);
+      res.status(500).json({ message: "Failed to delete merchant" });
     }
   });
 
@@ -4707,25 +4715,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/analytics', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const users = await storage.getAllUsers();
-      const restaurants = await storage.getAllRestaurants();
+      const merchants = await storage.getAllMerchants();
       
       // Calculate platform metrics
-      const totalRestaurants = restaurants.length;
+      const totalMerchants = merchants.length;
       const activeSubscriptions = users.filter(u => u.subscriptionStatus === 'active').length;
       const activeTrials = users.filter(u => u.subscriptionStatus === 'trial').length;
-      const mrr = activeSubscriptions * 79; // $79/month per restaurant
+      const mrr = activeSubscriptions * 79; // $79/month per merchant
       
       // Calculate commission revenue (this would need actual order data)
       // For now, return 0 - will be calculated from actual transactions
       const commissionRevenue = 0;
       
       res.json({
-        totalRestaurants,
+        totalMerchants,
         activeSubscriptions,
         activeTrials,
         mrr,
         commissionRevenue,
-        recentSignups: restaurants.slice(-10).reverse(), // Last 10 signups
+        recentSignups: merchants.slice(-10).reverse(), // Last 10 signups
       });
     } catch (error) {
       console.error("Error fetching admin analytics:", error);
@@ -4733,7 +4741,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin: Get all orders across all restaurants
+  // Admin: Get all orders across all merchants
   app.get('/api/admin/orders', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const allOrders = await storage.getAllOrders();
@@ -4748,7 +4756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/financials', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const summary = await storage.getFinancialSummary();
-      const restaurantBreakdown = await storage.getRestaurantFinancialBreakdown();
+      const merchantBreakdown = await storage.getMerchantFinancialBreakdown();
       const recentPayouts = await storage.getRecentPayoutRuns(20);
 
       res.json({
@@ -4756,7 +4764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalCommissions: summary.totalCommissions,
         totalPayouts: summary.totalPayouts,
         pendingPayouts: summary.pendingPayouts,
-        restaurantBreakdown,
+        merchantBreakdown,
         recentPayouts,
       });
     } catch (error) {
@@ -4899,26 +4907,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin: Get all subscriptions
   app.get('/api/admin/subscriptions', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
-      const restaurants = await storage.getAllRestaurants();
+      const merchants = await storage.getAllMerchants();
       const users = await storage.getAllUsers();
       
-      // Combine restaurant and user subscription data
-      const subscriptions = restaurants.map(restaurant => {
-        const owner = users.find(u => u.id === restaurant.ownerId);
+      // Combine merchant and user subscription data
+      const subscriptions = merchants.map(merchant => {
+        const owner = users.find(u => u.id === merchant.ownerId);
         return {
-          id: restaurant.id,
-          name: restaurant.name,
-          subdomain: restaurant.subdomain,
-          businessType: restaurant.businessType || 'retail',
+          id: merchant.id,
+          name: merchant.name,
+          subdomain: merchant.subdomain,
+          businessType: merchant.businessType || 'retail',
           ownerEmail: owner?.email || 'Unknown',
           subscriptionStatus: owner?.subscriptionStatus || 'inactive',
           trialEndsAt: owner?.trialEndsAt || null,
           subscriptionEndsAt: owner?.subscriptionEndsAt || null,
-          manuallyGrantedAccess: restaurant.manuallyGrantedAccess || false,
-          accessGrantedBy: restaurant.accessGrantedBy || null,
-          accessGrantedAt: restaurant.accessGrantedAt || null,
-          accessNotes: restaurant.accessNotes || null,
-          createdAt: restaurant.createdAt,
+          manuallyGrantedAccess: merchant.manuallyGrantedAccess || false,
+          accessGrantedBy: merchant.accessGrantedBy || null,
+          accessGrantedAt: merchant.accessGrantedAt || null,
+          accessNotes: merchant.accessNotes || null,
+          createdAt: merchant.createdAt,
         };
       });
       
@@ -4929,13 +4937,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin: Grant manual access to restaurant
-  app.post('/api/admin/restaurants/:id/grant-access', isAuthenticated, isAdmin, async (req: any, res) => {
+  // Admin: Grant manual access to merchant
+  app.post('/api/admin/merchants/:id/grant-access', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { notes } = req.body;
       
-      const updated = await storage.updateRestaurant(id, {
+      const updated = await storage.updateMerchant(id, {
         manuallyGrantedAccess: true,
         accessGrantedBy: req.user.id,
         accessGrantedAt: new Date(),
@@ -4949,12 +4957,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin: Revoke manual access from restaurant
-  app.post('/api/admin/restaurants/:id/revoke-access', isAuthenticated, isAdmin, async (req: any, res) => {
+  // Admin: Revoke manual access from merchant
+  app.post('/api/admin/merchants/:id/revoke-access', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
       
-      const updated = await storage.updateRestaurant(id, {
+      const updated = await storage.updateMerchant(id, {
         manuallyGrantedAccess: false,
         accessGrantedBy: null,
         accessGrantedAt: null,
@@ -4968,18 +4976,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin: Cancel restaurant subscription
-  app.post('/api/admin/restaurants/:id/cancel-subscription', isAuthenticated, isAdmin, async (req: any, res) => {
+  // Admin: Cancel merchant subscription
+  app.post('/api/admin/merchants/:id/cancel-subscription', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
 
-      const restaurant = await storage.getRestaurant(id);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchant(id);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
-      // Subscription status lives on the restaurant's owner account, not the restaurant itself
-      await storage.updateUser(restaurant.ownerId, {
+      // Subscription status lives on the merchant's owner account, not the merchant itself
+      await storage.updateUser(merchant.ownerId, {
         subscriptionStatus: 'cancelled',
         subscriptionEndsAt: new Date(), // End immediately
       });
@@ -4990,24 +4998,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userEmail: req.user.email,
         actionType: 'subscription_cancelled',
         actionCategory: 'subscription',
-        description: `Cancelled subscription for restaurant "${restaurant.name}"`,
+        description: `Cancelled subscription for merchant "${merchant.name}"`,
         targetId: id,
-        targetType: 'restaurant',
-        targetName: restaurant.name,
-        metadata: { restaurantId: id, restaurantName: restaurant.name },
+        targetType: 'merchant',
+        targetName: merchant.name,
+        metadata: { merchantId: id, merchantName: merchant.name },
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
       });
 
-      res.json(restaurant);
+      res.json(merchant);
     } catch (error) {
       console.error("Error cancelling subscription:", error);
       res.status(500).json({ message: "Failed to cancel subscription" });
     }
   });
 
-  // Admin: Extend restaurant trial
-  app.post('/api/admin/restaurants/:id/extend-trial', isAuthenticated, isAdmin, async (req: any, res) => {
+  // Admin: Extend merchant trial
+  app.post('/api/admin/merchants/:id/extend-trial', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
       const { days } = req.body;
@@ -5016,15 +5024,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Days must be at least 1" });
       }
       
-      const restaurant = await storage.getRestaurant(id);
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      const merchant = await storage.getMerchant(id);
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
 
-      // Trial tracking lives on the restaurant's owner account, not the restaurant itself
-      const owner = await storage.getUser(restaurant.ownerId);
+      // Trial tracking lives on the merchant's owner account, not the merchant itself
+      const owner = await storage.getUser(merchant.ownerId);
       if (!owner) {
-        return res.status(404).json({ message: "Restaurant owner not found" });
+        return res.status(404).json({ message: "Merchant owner not found" });
       }
 
       // Calculate new trial end date
@@ -5032,47 +5040,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const newTrialEnd = new Date(currentTrialEnd);
       newTrialEnd.setDate(newTrialEnd.getDate() + parseInt(days));
 
-      const updatedOwner = await storage.updateUser(restaurant.ownerId, {
+      const updatedOwner = await storage.updateUser(merchant.ownerId, {
         trialEndsAt: newTrialEnd,
       });
 
-      res.json({ ...restaurant, trialEndsAt: updatedOwner.trialEndsAt });
+      res.json({ ...merchant, trialEndsAt: updatedOwner.trialEndsAt });
     } catch (error) {
       console.error("Error extending trial:", error);
       res.status(500).json({ message: "Failed to extend trial" });
     }
   });
 
-  // Admin: Delete restaurant and all associated data
-  app.delete('/api/admin/restaurants/:id', isAuthenticated, isAdmin, async (req: any, res) => {
+  // Admin: Delete merchant and all associated data
+  app.delete('/api/admin/merchants/:id', isAuthenticated, isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
       
-      // Get restaurant details before deleting for logging
-      const restaurant = await storage.getRestaurant(id);
+      // Get merchant details before deleting for logging
+      const merchant = await storage.getMerchant(id);
       
       // Delete all associated data
-      await storage.deleteRestaurantCompletely(id);
+      await storage.deleteMerchantCompletely(id);
       
       // Log the action
       await logAdminActivity({
         userId: req.user.id,
         userEmail: req.user.email,
-        actionType: 'restaurant_deleted',
-        actionCategory: 'restaurant',
-        description: `Deleted restaurant "${restaurant?.name || id}" and all associated data`,
+        actionType: 'merchant_deleted',
+        actionCategory: 'merchant',
+        description: `Deleted merchant "${merchant?.name || id}" and all associated data`,
         targetId: id,
-        targetType: 'restaurant',
-        targetName: restaurant?.name,
-        metadata: { restaurantId: id, restaurantName: restaurant?.name },
+        targetType: 'merchant',
+        targetName: merchant?.name,
+        metadata: { merchantId: id, merchantName: merchant?.name },
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
       });
       
-      res.json({ message: "Restaurant deleted successfully" });
+      res.json({ message: "Merchant deleted successfully" });
     } catch (error) {
-      console.error("Error deleting restaurant:", error);
-      res.status(500).json({ message: "Failed to delete restaurant" });
+      console.error("Error deleting merchant:", error);
+      res.status(500).json({ message: "Failed to delete merchant" });
     }
   });
 
@@ -5179,18 +5187,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update restaurant pixels
-  app.patch('/api/restaurants/:id/pixels', isAuthenticated, async (req: any, res) => {
+  // Update merchant pixels
+  app.patch('/api/merchants/:id/pixels', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const restaurant = await storage.getRestaurant(id);
+      const merchant = await storage.getMerchant(id);
       
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
       // Verify ownership (unless admin)
-      if (req.user.role !== 'admin' && restaurant.ownerId !== req.user.id) {
+      if (req.user.role !== 'admin' && merchant.ownerId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
@@ -5202,7 +5210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (googleAnalyticsId !== undefined) updates.googleAnalyticsId = googleAnalyticsId || null;
       if (googleAdsId !== undefined) updates.googleAdsId = googleAdsId || null;
       
-      const updated = await storage.updateRestaurant(id, updates);
+      const updated = await storage.updateMerchant(id, updates);
       res.json(updated);
     } catch (error) {
       console.error("Error updating pixels:", error);
@@ -5210,18 +5218,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update restaurant domain verification
-  app.patch('/api/restaurants/:id/domain-verification', isAuthenticated, async (req: any, res) => {
+  // Update merchant domain verification
+  app.patch('/api/merchants/:id/domain-verification', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const restaurant = await storage.getRestaurant(id);
+      const merchant = await storage.getMerchant(id);
       
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
       // Verify ownership (unless admin)
-      if (req.user.role !== 'admin' && restaurant.ownerId !== req.user.id) {
+      if (req.user.role !== 'admin' && merchant.ownerId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
@@ -5232,7 +5240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.metaVerificationCode = metaVerificationCode || null;
       }
       
-      const updated = await storage.updateRestaurant(id, updates);
+      const updated = await storage.updateMerchant(id, updates);
       res.json(updated);
     } catch (error) {
       console.error("Error updating domain verification:", error);
@@ -5240,18 +5248,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update restaurant subdomain
-  app.patch('/api/restaurants/:id/subdomain', isAuthenticated, async (req: any, res) => {
+  // Update merchant subdomain
+  app.patch('/api/merchants/:id/subdomain', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const restaurant = await storage.getRestaurant(id);
+      const merchant = await storage.getMerchant(id);
       
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
       // Verify ownership (unless admin)
-      if (req.user.role !== 'admin' && restaurant.ownerId !== req.user.id) {
+      if (req.user.role !== 'admin' && merchant.ownerId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
@@ -5262,15 +5270,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Subdomain can only contain lowercase letters, numbers, and hyphens" });
       }
       
-      // Check if subdomain is already taken (compare against restaurant.id, not id param for security)
-      if (subdomain && subdomain !== restaurant.subdomain) {
-        const existing = await storage.getRestaurantBySubdomain(subdomain);
-        if (existing && existing.id !== restaurant.id) {
+      // Check if subdomain is already taken (compare against merchant.id, not id param for security)
+      if (subdomain && subdomain !== merchant.subdomain) {
+        const existing = await storage.getMerchantBySubdomain(subdomain);
+        if (existing && existing.id !== merchant.id) {
           return res.status(400).json({ message: "This subdomain is already taken" });
         }
       }
       
-      const updated = await storage.updateRestaurant(id, { 
+      const updated = await storage.updateMerchant(id, { 
         subdomain: subdomain || null 
       });
       res.json(updated);
@@ -5280,32 +5288,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update restaurant custom domain
-  app.patch('/api/restaurants/:id/custom-domain', isAuthenticated, async (req: any, res) => {
+  // Update merchant custom domain
+  app.patch('/api/merchants/:id/custom-domain', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const restaurant = await storage.getRestaurant(id);
+      const merchant = await storage.getMerchant(id);
       
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
       // Verify ownership (unless admin)
-      if (req.user.role !== 'admin' && restaurant.ownerId !== req.user.id) {
+      if (req.user.role !== 'admin' && merchant.ownerId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
       const { customDomain } = req.body;
       
-      // Check if custom domain is already taken (compare against restaurant.id, not id param for security)
-      if (customDomain && customDomain !== restaurant.customDomain) {
-        const existing = await storage.getRestaurantByCustomDomain(customDomain);
-        if (existing && existing.id !== restaurant.id) {
+      // Check if custom domain is already taken (compare against merchant.id, not id param for security)
+      if (customDomain && customDomain !== merchant.customDomain) {
+        const existing = await storage.getMerchantByCustomDomain(customDomain);
+        if (existing && existing.id !== merchant.id) {
           return res.status(400).json({ message: "This custom domain is already in use" });
         }
       }
       
-      const updated = await storage.updateRestaurant(id, { 
+      const updated = await storage.updateMerchant(id, { 
         customDomain: customDomain || null 
       });
       res.json(updated);
@@ -5316,25 +5324,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Verify custom domain DNS configuration
-  app.post('/api/restaurants/:id/verify-domain', isAuthenticated, async (req: any, res) => {
+  app.post('/api/merchants/:id/verify-domain', isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const restaurant = await storage.getRestaurant(id);
+      const merchant = await storage.getMerchant(id);
       
-      if (!restaurant) {
-        return res.status(404).json({ message: "Restaurant not found" });
+      if (!merchant) {
+        return res.status(404).json({ message: "Merchant not found" });
       }
       
       // Verify ownership (unless admin)
-      if (req.user.role !== 'admin' && restaurant.ownerId !== req.user.id) {
+      if (req.user.role !== 'admin' && merchant.ownerId !== req.user.id) {
         return res.status(403).json({ message: "Forbidden" });
       }
       
-      if (!restaurant.customDomain) {
+      if (!merchant.customDomain) {
         return res.status(400).json({ message: "No custom domain configured" });
       }
       
-      if (!restaurant.subdomain) {
+      if (!merchant.subdomain) {
         return res.status(400).json({ message: "Subdomain must be configured before verifying custom domain" });
       }
       
@@ -5346,7 +5354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Please configure your DNS CNAME record and allow 24-48 hours for propagation",
         instructions: {
           type: "CNAME",
-          host: restaurant.customDomain.replace(/^www\./, ''),
+          host: merchant.customDomain.replace(/^www\./, ''),
           value: new URL(getBaseUrl()).hostname,
           note: "Point your custom domain to this hostname. If using www subdomain, point it to your apex domain."
         }
@@ -5412,10 +5420,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Push Notification Endpoints (Restaurant)
+  // Push Notification Endpoints (Merchant)
   
-  // Get VAPID public key for restaurant push subscription
-  app.get('/api/restaurant/push/vapid-public-key', isAuthenticated, (req, res) => {
+  // Get VAPID public key for merchant push subscription
+  app.get('/api/merchant/push/vapid-public-key', isAuthenticated, (req, res) => {
     const publicKey = process.env.VAPID_PUBLIC_KEY || '';
     
     if (!publicKey) {
@@ -5427,77 +5435,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ publicKey });
   });
 
-  // Subscribe restaurant to push notifications
-  app.post('/api/restaurant/push/subscribe', isAuthenticated, async (req: any, res) => {
+  // Subscribe merchant to push notifications
+  app.post('/api/merchant/push/subscribe', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
       const subscription = req.body;
       
-      // Get restaurant
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: 'Restaurant not found' });
+      // Get merchant
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: 'Merchant not found' });
       }
       
       // Store subscription
-      logInfo('[Push] Restaurant subscribed to notifications', { 
-        restaurantId: restaurant.id,
+      logInfo('[Push] Merchant subscribed to notifications', { 
+        merchantId: merchant.id,
         userId 
       });
       
       // TODO: Store in database
-      // await storage.saveRestaurantPushSubscription(restaurant.id, subscription);
+      // await storage.saveMerchantPushSubscription(merchant.id, subscription);
       
       res.json({ success: true });
     } catch (error) {
-      logError('Error saving restaurant push subscription', error);
+      logError('Error saving merchant push subscription', error);
       res.status(500).json({ message: 'Failed to save subscription' });
     }
   });
 
-  // Unsubscribe restaurant from push notifications
-  app.post('/api/restaurant/push/unsubscribe', isAuthenticated, async (req: any, res) => {
+  // Unsubscribe merchant from push notifications
+  app.post('/api/merchant/push/unsubscribe', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
       
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
-      if (!restaurant) {
-        return res.status(404).json({ message: 'Restaurant not found' });
+      const merchant = await storage.getMerchantByOwnerId(userId);
+      if (!merchant) {
+        return res.status(404).json({ message: 'Merchant not found' });
       }
       
-      logInfo('[Push] Restaurant unsubscribed from notifications', { 
-        restaurantId: restaurant.id 
+      logInfo('[Push] Merchant unsubscribed from notifications', { 
+        merchantId: merchant.id 
       });
       
       // TODO: Remove from database
-      // await storage.removeRestaurantPushSubscription(restaurant.id);
+      // await storage.removeMerchantPushSubscription(merchant.id);
       
       res.json({ success: true });
     } catch (error) {
-      logError('Error removing restaurant push subscription', error);
+      logError('Error removing merchant push subscription', error);
       res.status(500).json({ message: 'Failed to unsubscribe' });
     }
   });
 
-  // Test endpoint to send push notification to restaurant
-  app.post('/api/restaurant/push/test', isAuthenticated, async (req: any, res) => {
+  // Test endpoint to send push notification to merchant
+  app.post('/api/merchant/push/test', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.id;
-      const restaurant = await storage.getRestaurantByOwnerId(userId);
+      const merchant = await storage.getMerchantByOwnerId(userId);
       
-      if (!restaurant) {
-        return res.status(404).json({ message: 'Restaurant not found' });
+      if (!merchant) {
+        return res.status(404).json({ message: 'Merchant not found' });
       }
 
       // TODO: Get subscription from database and send test notification
-      // const subscription = await storage.getRestaurantPushSubscription(restaurant.id);
+      // const subscription = await storage.getMerchantPushSubscription(merchant.id);
       // await sendPushNotification(subscription, {
       //   title: '🔔 Test Notification',
-      //   body: 'Your restaurant notifications are working!',
-      //   icon: '/icons/restaurant-icon-192.png'
+      //   body: 'Your merchant notifications are working!',
+      //   icon: '/icons/merchant-icon-192.png'
       // });
 
-      logInfo('[Push] Test notification sent', { restaurantId: restaurant.id });
+      logInfo('[Push] Test notification sent', { merchantId: merchant.id });
       res.json({ success: true, message: 'Test notification sent' });
     } catch (error) {
       logError('Error sending test notification', error);

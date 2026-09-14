@@ -133,7 +133,7 @@ app.use((req, res, next) => {
         if (carts.length === 0) return;
         let reminded = 0;
         for (const cart of carts) {
-          const campaign = await storage.getActiveCampaignByType(cart.restaurantId, 'abandoned_cart');
+          const campaign = await storage.getActiveCampaignByType(cart.merchantId, 'abandoned_cart');
           if (!campaign) continue;
           await storage.sendCampaignNow(campaign.id, {
             audienceOverride: [{
@@ -159,7 +159,7 @@ app.use((req, res, next) => {
         const campaigns = await storage.listActiveCampaignsByTypes(['welcome']);
         let sent = 0;
         for (const campaign of campaigns) {
-          const customers = await storage.findCustomersWithFirstOrderSince(campaign.restaurantId, 1.25);
+          const customers = await storage.findCustomersWithFirstOrderSince(campaign.merchantId, 1.25);
           for (const c of customers) {
             if (await storage.hasRecentDelivery(campaign.id, c.id, 3650)) continue; // once ever
             await storage.sendCampaignNow(campaign.id, { audienceOverride: [c] });
@@ -179,7 +179,7 @@ app.use((req, res, next) => {
         const campaigns = await storage.listActiveCampaignsByTypes(['reactivation']);
         let sent = 0;
         for (const campaign of campaigns) {
-          const customers = await storage.findLapsedCustomers(campaign.restaurantId, 30, 90);
+          const customers = await storage.findLapsedCustomers(campaign.merchantId, 30, 90);
           for (const c of customers) {
             if (await storage.hasRecentDelivery(campaign.id, c.id, 30)) continue;
             await storage.sendCampaignNow(campaign.id, { audienceOverride: [c] });
@@ -201,7 +201,7 @@ app.use((req, res, next) => {
         const campaigns = await storage.listActiveCampaignsByTypes(['birthday']);
         let sent = 0;
         for (const campaign of campaigns) {
-          const customers = await storage.findBirthdayCustomers(campaign.restaurantId, mmdd);
+          const customers = await storage.findBirthdayCustomers(campaign.merchantId, mmdd);
           for (const c of customers) {
             if (await storage.hasRecentDelivery(campaign.id, c.id, 300)) continue; // once per year
             await storage.sendCampaignNow(campaign.id, { audienceOverride: [c] });

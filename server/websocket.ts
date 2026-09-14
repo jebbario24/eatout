@@ -9,7 +9,7 @@ import connectPg from 'connect-pg-simple';
 interface WebSocketClient extends WebSocket {
   userId?: string;
   role?: string;
-  restaurantId?: string;
+  merchantId?: string;
   isAlive?: boolean;
 }
 
@@ -91,26 +91,26 @@ class WebSocketManager {
         ws.userId = user.id;
         ws.role = user.role;
 
-        // For restaurant owners: fetch restaurantId from database
+        // For merchant owners: fetch merchantId from database
         if (user.role === 'owner') {
-          const restaurant = await storage.getRestaurantByOwnerId(user.id);
-          if (restaurant) {
-            ws.restaurantId = restaurant.id;
+          const merchant = await storage.getMerchantByOwnerId(user.id);
+          if (merchant) {
+            ws.merchantId = merchant.id;
           }
         }
 
         // Add to appropriate client lists based on server-validated identity
         this.addClient(`user:${ws.userId}`, ws);
 
-        if (ws.restaurantId) {
-          this.addClient(`restaurant:${ws.restaurantId}`, ws);
+        if (ws.merchantId) {
+          this.addClient(`merchant:${ws.merchantId}`, ws);
         }
 
         if (ws.role === 'admin') {
           this.addClient('admin:all', ws);
         }
 
-        log(`[WebSocket] Client authenticated: userId=${ws.userId}, role=${ws.role}, restaurantId=${ws.restaurantId || 'N/A'}`);
+        log(`[WebSocket] Client authenticated: userId=${ws.userId}, role=${ws.role}, merchantId=${ws.merchantId || 'N/A'}`);
         
         // Send authentication success confirmation
         this.sendToClient(ws, {
@@ -118,7 +118,7 @@ class WebSocketManager {
           data: {
             userId: ws.userId,
             role: ws.role,
-            restaurantId: ws.restaurantId
+            merchantId: ws.merchantId
           }
         });
 
@@ -241,9 +241,9 @@ class WebSocketManager {
     }
   }
 
-  // Broadcast to all users of a specific restaurant
-  broadcastToRestaurant(restaurantId: string, message: WebSocketMessage) {
-    const clients = this.clients.get(`restaurant:${restaurantId}`);
+  // Broadcast to all users of a specific merchant
+  broadcastToMerchant(merchantId: string, message: WebSocketMessage) {
+    const clients = this.clients.get(`merchant:${merchantId}`);
     if (clients) {
       clients.forEach(client => this.sendToClient(client, message));
     }
@@ -274,14 +274,14 @@ class WebSocketManager {
     });
   }
 
-  // Broadcast location update to order's restaurant
+  // Broadcast location update to order's merchant
   async broadcastLocationToOrder(orderId: string, location: { lat: number; lng: number; timestamp: string }) {
     try {
       const order = await storage.getOrder(orderId);
-      if (!order || !order.restaurantId) return;
+      if (!order || !order.merchantId) return;
 
-      // Notify restaurant
-      this.broadcastToRestaurant(order.restaurantId, {
+      // Notify merchant
+      this.broadcastToMerchant(order.merchantId, {
         type: 'delivery_location_update',
         data: { orderId, ...location },
       });
@@ -307,9 +307,9 @@ class WebSocketManager {
         data: { orderId, ...eta },
       };
 
-      // Notify restaurant (if any — API delivery jobs have none)
-      if (order.restaurantId) {
-        this.broadcastToRestaurant(order.restaurantId, message);
+      // Notify merchant (if any — API delivery jobs have none)
+      if (order.merchantId) {
+        this.broadcastToMerchant(order.merchantId, message);
       }
     } catch (error) {
       log(`[WebSocket] Error broadcasting ETA update for order ${orderId}: ${error}`);

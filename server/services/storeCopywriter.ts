@@ -1,4 +1,4 @@
-import type { Restaurant } from "@shared/schema";
+import type { Merchant } from "@shared/schema";
 import { generateStructuredJSON, isAnthropicConfigured } from "./anthropic";
 import type { StoreBrief, StoreFacts } from "./storeIntelligence";
 

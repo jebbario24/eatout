@@ -1,9 +1,9 @@
 /**
  * Prep Time Prediction Service
  * 
- * Rule-based system to predict restaurant food preparation time.
+ * Rule-based system to predict merchant food preparation time.
  * Factors considered:
- * - Historical average by restaurant
+ * - Historical average by merchant
  * - Time of day (lunch/dinner rush slower)
  * - Day of week patterns
  * - Order complexity (item count, special instructions)
@@ -12,7 +12,7 @@
  */
 
 import { db } from '../db';
-import { prepTimeHistory, orders, restaurants } from '../../shared/schema';
+import { prepTimeHistory, orders, merchants } from '../../shared/schema';
 import { eq, and, gte, sql } from 'drizzle-orm';
 import logger from '../logger';
 
@@ -40,7 +40,7 @@ export class PrepTimePredictionService {
    * Predict prep time for a new order
    */
   async predictPrepTime(
-    restaurantId: string,
+    merchantId: string,
     orderDetails: {
       itemCount: number;
       orderValue: string;
@@ -52,8 +52,8 @@ export class PrepTimePredictionService {
       const hour = now.getHours();
       const dayOfWeek = now.getDay();
 
-      // 1. Get restaurant's historical average
-      const baseTime = await this.getRestaurantBaseTime(restaurantId, hour);
+      // 1. Get merchant's historical average
+      const baseTime = await this.getMerchantBaseTime(merchantId, hour);
 
       // 2. Apply time-of-day multiplier (rush hours slower)
       const timeMultiplier = this.getTimeOfDayMultiplier(hour);
@@ -72,7 +72,7 @@ export class PrepTimePredictionService {
       const predictedMinutes = Math.round(baseTime * timeMultiplier * complexityMultiplier * dayMultiplier);
 
       // Confidence based on historical data volume
-      const confidence = await this.calculateConfidence(restaurantId);
+      const confidence = await this.calculateConfidence(merchantId);
 
       return {
         predictedMinutes: Math.max(5, Math.min(predictedMinutes, 60)), // Clamp 5-60 min
@@ -108,7 +108,7 @@ export class PrepTimePredictionService {
       // Get order details
       const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
 
-      if (!order || !order.createdAt || !order.restaurantId) {
+      if (!order || !order.createdAt || !order.merchantId) {
         logger.warn(`Cannot record prep time: incomplete order data for ${orderId}`);
         return;
       }
@@ -141,7 +141,7 @@ export class PrepTimePredictionService {
       } else {
         // No prediction was made, just record actual
         await db.insert(prepTimeHistory).values({
-          restaurantId: order.restaurantId,
+          merchantId: order.merchantId,
           orderId,
           orderedAt,
           readyAt: readyTime,
@@ -164,14 +164,14 @@ export class PrepTimePredictionService {
    */
   async savePrediction(
     orderId: string,
-    restaurantId: string,
+    merchantId: string,
     prediction: PrepTimePrediction,
     orderDetails: { itemCount: number; orderValue: string }
   ): Promise<void> {
     try {
       const now = new Date();
       await db.insert(prepTimeHistory).values({
-        restaurantId,
+        merchantId,
         orderId,
         orderedAt: now,
         predictedPrepMinutes: prediction.predictedMinutes,
@@ -186,9 +186,9 @@ export class PrepTimePredictionService {
   }
 
   /**
-   * Get restaurant's average prep time
+   * Get merchant's average prep time
    */
-  async getRestaurantPrepTimeStats(restaurantId: string): Promise<{
+  async getMerchantPrepTimeStats(merchantId: string): Promise<{
     avgMinutes: number;
     minMinutes: number;
     maxMinutes: number;
@@ -203,7 +203,7 @@ export class PrepTimePredictionService {
         .select()
         .from(prepTimeHistory)
         .where(
-          and(eq(prepTimeHistory.restaurantId, restaurantId), gte(prepTimeHistory.orderedAt, thirtyDaysAgo))
+          and(eq(prepTimeHistory.merchantId, merchantId), gte(prepTimeHistory.orderedAt, thirtyDaysAgo))
         );
 
       if (history.length === 0) {
@@ -237,7 +237,7 @@ export class PrepTimePredictionService {
         sampleSize: history.length,
       };
     } catch (error) {
-      logger.error('Error getting restaurant prep time stats:', error);
+      logger.error('Error getting merchant prep time stats:', error);
       return {
         avgMinutes: 20,
         minMinutes: 10,
@@ -250,9 +250,9 @@ export class PrepTimePredictionService {
 
   // Private helper methods
 
-  private async getRestaurantBaseTime(restaurantId: string, hour: number): Promise<number> {
+  private async getMerchantBaseTime(merchantId: string, hour: number): Promise<number> {
     try {
-      // Get recent history for this restaurant
+      // Get recent history for this merchant
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -260,7 +260,7 @@ export class PrepTimePredictionService {
         .select()
         .from(prepTimeHistory)
         .where(
-          and(eq(prepTimeHistory.restaurantId, restaurantId), gte(prepTimeHistory.orderedAt, sevenDaysAgo))
+          and(eq(prepTimeHistory.merchantId, merchantId), gte(prepTimeHistory.orderedAt, sevenDaysAgo))
         );
 
       if (history.length < 3) {
@@ -328,12 +328,12 @@ export class PrepTimePredictionService {
     return 1.0;
   }
 
-  private async calculateConfidence(restaurantId: string): Promise<number> {
+  private async calculateConfidence(merchantId: string): Promise<number> {
     try {
       const count = await db
         .select({ count: sql<number>`count(*)` })
         .from(prepTimeHistory)
-        .where(eq(prepTimeHistory.restaurantId, restaurantId));
+        .where(eq(prepTimeHistory.merchantId, merchantId));
 
       const sampleSize = count[0]?.count || 0;
 

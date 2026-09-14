@@ -1,4 +1,4 @@
-import type { MenuItem, CustomerReview, Restaurant, RestaurantThemeSettings, ThemeSection, ThemeSectionType } from "@shared/schema";
+import type { MenuItem, CustomerReview, Merchant, MerchantThemeSettings, ThemeSection, ThemeSectionType } from "@shared/schema";
 
 // The deterministic half of the store builder — every decision here is plain
 // data/rules, no external calls, so the feature works with zero configuration.
@@ -36,7 +36,7 @@ export interface BlueprintChange {
 }
 
 export interface StoreBlueprint {
-  themeSettings: RestaurantThemeSettings;
+  themeSettings: MerchantThemeSettings;
   colors: Palette;
   collections: Array<{ title: string; handle: string; menuItemIds: string[] }>;
   facts: StoreFacts;
@@ -73,7 +73,7 @@ function contrastRatio(a: string, b: string): number {
   return l1 > l2 ? l1 / l2 : l2 / l1;
 }
 
-function computeFacts(items: MenuItem[], reviews: CustomerReview[], restaurant: Restaurant): StoreFacts {
+function computeFacts(items: MenuItem[], reviews: CustomerReview[], merchant: Merchant): StoreFacts {
   const available = items.filter((i) => i.isAvailable && i.visibleOnline);
   const prices = available.map((i) => Number(i.priceCents || 0) / 100).filter((p) => p > 0);
   const goodReviews = reviews.filter((r) => r.isPublished && r.rating >= 4);
@@ -85,15 +85,15 @@ function computeFacts(items: MenuItem[], reviews: CustomerReview[], restaurant: 
     bestsellerTagCount: available.filter((i) => (i.tags || []).some((t) => /bestseller/i.test(t))).length,
     reviewCount: goodReviews.length,
     avgRating: allRatings.length ? allRatings.reduce((a, b) => a + b, 0) / allRatings.length : null,
-    hasLogo: !!restaurant.logoUrl,
+    hasLogo: !!merchant.logoUrl,
     hasProductImages: available.some((i) => !!i.imageUrl),
   };
 }
 
-function defaultSections(restaurant: Restaurant, facts: StoreFacts): ThemeSection[] {
+function defaultSections(merchant: Merchant, facts: StoreFacts): ThemeSection[] {
   return [
-    { type: "header", enabled: true, fields: { logoUrl: restaurant.logoUrl || null, nav: [{ label: "Home", type: "home" }, { label: "Shop", type: "shop" }, { label: "Contact", type: "contact" }], showSearch: true, showAccount: true, showCart: true } },
-    { type: "hero", enabled: true, fields: { backgroundImageUrl: restaurant.coverImageUrl || null, heading: "", subheading: "", buttonText: "Shop Now", buttonStyle: "solid", textAlign: "left", overlayOpacity: 20 } },
+    { type: "header", enabled: true, fields: { logoUrl: merchant.logoUrl || null, nav: [{ label: "Home", type: "home" }, { label: "Shop", type: "shop" }, { label: "Contact", type: "contact" }], showSearch: true, showAccount: true, showCart: true } },
+    { type: "hero", enabled: true, fields: { backgroundImageUrl: merchant.coverImageUrl || null, heading: "", subheading: "", buttonText: "Shop Now", buttonStyle: "solid", textAlign: "left", overlayOpacity: 20 } },
     { type: "trustBadges", enabled: true, fields: { items: [
       { icon: "truck", label: "Free shipping", detail: "On all orders" },
       { icon: "refresh-cw", label: "Easy returns", detail: "Hassle-free" },
@@ -102,11 +102,11 @@ function defaultSections(restaurant: Restaurant, facts: StoreFacts): ThemeSectio
     ] } },
     { type: "featuredProducts", enabled: facts.productCount > 0, fields: { collectionHandle: null, heading: "Featured Products", limit: 8 } },
     { type: "bestSellers", enabled: facts.bestsellerTagCount > 0, fields: { heading: "Best Sellers", limit: 4 } },
-    { type: "banner", enabled: facts.productCount > 0, fields: { imageUrl: null, heading: "New Arrivals", buttonText: "Shop Now", buttonUrl: `/store/${restaurant.slug}/shop` } },
-    { type: "aboutUs", enabled: true, fields: { heading: "About Us", body: "", imageUrl: restaurant.coverImageUrl || null } },
+    { type: "banner", enabled: facts.productCount > 0, fields: { imageUrl: null, heading: "New Arrivals", buttonText: "Shop Now", buttonUrl: `/store/${merchant.slug}/shop` } },
+    { type: "aboutUs", enabled: true, fields: { heading: "About Us", body: "", imageUrl: merchant.coverImageUrl || null } },
     { type: "testimonials", enabled: facts.reviewCount >= 3, fields: { heading: "What our customers say" } },
     { type: "newsletter", enabled: true, fields: { heading: "Join our newsletter", subheading: "Get updates on new products and offers" } },
-    { type: "footer", enabled: true, fields: { showSocialLinks: !!(restaurant.socialLinks && Object.values(restaurant.socialLinks as any).some(Boolean)), showPaymentIcons: true } },
+    { type: "footer", enabled: true, fields: { showSocialLinks: !!(merchant.socialLinks && Object.values(merchant.socialLinks as any).some(Boolean)), showPaymentIcons: true } },
   ];
 }
 
@@ -116,17 +116,17 @@ function findSection(sections: ThemeSection[], type: ThemeSectionType): ThemeSec
 
 export interface BuildBlueprintInput {
   brief: StoreBrief;
-  restaurant: Restaurant;
+  merchant: Merchant;
   items: MenuItem[];
   reviews: CustomerReview[];
   existingCollectionTitles: string[];
   /** Present only for "optimize" mode — the store's current live themeSettings. */
-  current?: RestaurantThemeSettings | null;
+  current?: MerchantThemeSettings | null;
 }
 
 export function buildBlueprint(input: BuildBlueprintInput): StoreBlueprint {
-  const { brief, restaurant, items, reviews, existingCollectionTitles, current } = input;
-  const facts = computeFacts(items, reviews, restaurant);
+  const { brief, merchant, items, reviews, existingCollectionTitles, current } = input;
+  const facts = computeFacts(items, reviews, merchant);
   const changes: BlueprintChange[] = [];
 
   let sections: ThemeSection[];
@@ -134,7 +134,7 @@ export function buildBlueprint(input: BuildBlueprintInput): StoreBlueprint {
     // Optimize mode: start from what's live, never overwrite a field the merchant
     // already filled in — only enable sections that now qualify and fill blanks.
     sections = current.layout.sections.map((s) => ({ ...s, fields: { ...s.fields } }));
-    const fresh = defaultSections(restaurant, facts);
+    const fresh = defaultSections(merchant, facts);
     for (const freshSection of fresh) {
       const existing = findSection(sections, freshSection.type);
       if (!existing) {
@@ -160,7 +160,7 @@ export function buildBlueprint(input: BuildBlueprintInput): StoreBlueprint {
       }
     }
   } else {
-    sections = defaultSections(restaurant, facts);
+    sections = defaultSections(merchant, facts);
     changes.push({ section: "hero", description: "Generated an initial storefront layout." });
   }
 
@@ -168,8 +168,8 @@ export function buildBlueprint(input: BuildBlueprintInput): StoreBlueprint {
   // colors already set); otherwise pick from the style-preference bank. Also fix a
   // genuinely too-low-contrast accent, a real, computable "improved readability" fix.
   let colors: Palette;
-  if (current && restaurant.primaryColor && restaurant.secondaryColor && restaurant.accentColor) {
-    colors = { primaryColor: restaurant.primaryColor, secondaryColor: restaurant.secondaryColor, accentColor: restaurant.accentColor };
+  if (current && merchant.primaryColor && merchant.secondaryColor && merchant.accentColor) {
+    colors = { primaryColor: merchant.primaryColor, secondaryColor: merchant.secondaryColor, accentColor: merchant.accentColor };
     if (contrastRatio(colors.accentColor, colors.secondaryColor) < 2.2) {
       const suggestion = resolvePalette(brief.stylePreference);
       colors = { ...colors, accentColor: suggestion.accentColor };

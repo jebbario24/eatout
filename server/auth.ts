@@ -60,7 +60,7 @@ passport.use(
   )
 );
 
-// Google OAuth Strategy (Restaurant Owners)
+// Google OAuth Strategy (Merchant Owners)
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   passport.use(
     'google',
