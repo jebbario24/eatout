@@ -21,6 +21,16 @@ import { Testimonials as AdanolaTestimonials } from "@/storefront/themes/adanola
 import { Newsletter as AdanolaNewsletter } from "@/storefront/themes/adanola/Newsletter";
 import { Footer as AdanolaFooter } from "@/storefront/themes/adanola/Footer";
 
+import { Header as MaisonHeader } from "@/storefront/themes/maison/Header";
+import { Hero as MaisonHero } from "@/storefront/themes/maison/Hero";
+import { TrustBadges as MaisonTrustBadges } from "@/storefront/themes/maison/TrustBadges";
+import { ProductGrid as MaisonProductGrid } from "@/storefront/themes/maison/ProductGrid";
+import { Banner as MaisonBanner } from "@/storefront/themes/maison/Banner";
+import { AboutUs as MaisonAboutUs } from "@/storefront/themes/maison/AboutUs";
+import { Testimonials as MaisonTestimonials } from "@/storefront/themes/maison/Testimonials";
+import { Newsletter as MaisonNewsletter } from "@/storefront/themes/maison/Newsletter";
+import { Footer as MaisonFooter } from "@/storefront/themes/maison/Footer";
+
 // One entry per storefront theme's full section-component set. Every entry
 // implements the exact same props contract (Header/Hero/etc. field types
 // defined once in `storefront/components/*`), so a page only needs to pick
@@ -51,8 +61,22 @@ export const STOREFRONT_THEMES = {
     Footer: AdanolaFooter,
     CustomEmbed,
   },
+  maison: {
+    Header: MaisonHeader,
+    Hero: MaisonHero,
+    TrustBadges: MaisonTrustBadges,
+    ProductGrid: MaisonProductGrid,
+    Banner: MaisonBanner,
+    AboutUs: MaisonAboutUs,
+    Testimonials: MaisonTestimonials,
+    Newsletter: MaisonNewsletter,
+    Footer: MaisonFooter,
+    CustomEmbed,
+  },
 } satisfies Record<StorefrontThemeId, unknown>;
 
+const VALID_THEMES: StorefrontThemeId[] = ["farfetch", "adanola", "maison"];
+
 export function resolveTheme(id: StorefrontThemeId | null | undefined): StorefrontThemeId {
-  return id === "adanola" ? "adanola" : "farfetch";
+  return id && VALID_THEMES.includes(id) ? id : "farfetch";
 }

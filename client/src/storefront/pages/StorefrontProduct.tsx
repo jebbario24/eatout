@@ -247,6 +247,216 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
     </div>
   );
 
+  if (theme === "maison") {
+    return (
+      <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
+        {pixelScripts}
+        {headerSection && (
+          <T.Header storeName={merchant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        )}
+        <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          {breadcrumb}
+          <div className="grid gap-10 md:grid-cols-2">
+            <div className="aspect-[4/5] overflow-hidden rounded-3xl bg-muted shadow-sm">
+              <AnimatePresence mode="wait">
+                {displayImage ? (
+                  <motion.img
+                    key={displayImage}
+                    src={displayImage}
+                    alt={product.name}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">No image</div>
+                )}
+              </AnimatePresence>
+            </div>
+            {gallery.length > 1 && (
+              <div className="-mt-6 flex gap-3 overflow-x-auto md:hidden">
+                {gallery.map((img) => (
+                  <button
+                    key={img}
+                    onClick={() => setActiveImage(img)}
+                    className={`aspect-square w-16 shrink-0 overflow-hidden rounded-xl transition-opacity ${displayImage === img ? "opacity-100 ring-2 ring-primary" : "opacity-60 hover:opacity-100"}`}
+                  >
+                    <img src={img} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-6 md:sticky md:top-24 md:self-start">
+              {gallery.length > 1 && (
+                <div className="hidden gap-3 md:flex">
+                  {gallery.map((img) => (
+                    <button
+                      key={img}
+                      onClick={() => setActiveImage(img)}
+                      className={`aspect-square w-16 shrink-0 overflow-hidden rounded-xl transition-opacity ${displayImage === img ? "opacity-100 ring-2 ring-primary" : "opacity-60 hover:opacity-100"}`}
+                    >
+                      <img src={img} alt="" className="h-full w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div>
+                <h1 className="font-serif text-3xl italic tracking-tight text-foreground">{product.name}</h1>
+                {typeof product.avgRating === "number" && product.reviewCount > 0 && (
+                  <div className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star key={i} className={`h-3.5 w-3.5 ${i < Math.round(product.avgRating!) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40"}`} />
+                      ))}
+                    </div>
+                    <span>{product.reviewCount} review{product.reviewCount === 1 ? "" : "s"}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xl font-semibold text-foreground">{formatPrice(displayPrice)}</span>
+                {!selectedVariant && sale.formattedCompareAtPrice && (
+                  <span className="text-base text-muted-foreground line-through">{sale.formattedCompareAtPrice}</span>
+                )}
+                {sale.onSale && !selectedVariant && (
+                  <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">-{sale.discountPercent}%</span>
+                )}
+              </div>
+
+              {product.description && (
+                <p className="text-[15px] leading-relaxed text-muted-foreground" style={{ fontFamily: "Lora, Georgia, serif" }}>
+                  {product.description}
+                </p>
+              )}
+
+              {activeVariants.length > 0 && (
+                <div className="space-y-2.5">
+                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Select option</p>
+                  <div className="flex flex-wrap gap-2">
+                    {activeVariants.map((v) => (
+                      <button
+                        key={v.id}
+                        onClick={() => selectVariant(v)}
+                        className={`rounded-full border px-4 py-2 text-sm transition-colors ${selectedVariantId === v.id ? "border-primary bg-primary text-primary-foreground" : "border-border text-foreground hover:border-primary"}`}
+                        data-testid={`button-variant-${v.id}`}
+                      >
+                        {v.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 pt-1">
+                <div className="flex items-center rounded-full border border-border">
+                  <button className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-muted" onClick={() => setQty((q) => Math.max(1, q - 1))}>
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="w-8 text-center text-sm">{qty}</span>
+                  <button className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-muted" onClick={() => setQty((q) => q + 1)}>
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <Button
+                  size="lg"
+                  className="h-11 flex-1 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={outOfStock || (product.hasVariants && !selectedVariant)}
+                  onClick={handleAddToCart}
+                  data-testid="button-add-to-cart"
+                >
+                  {outOfStock ? "Out of stock" : justAdded ? "Added ✓" : addToCartText}
+                </Button>
+                {showWishlist && (
+                  <button
+                    onClick={() => setWishlisted((v) => !v)}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border text-primary"
+                    aria-label="Add to wishlist"
+                  >
+                    <Heart className="h-4 w-4" strokeWidth={1.5} fill={wishlisted ? "currentColor" : "none"} />
+                  </button>
+                )}
+              </div>
+
+              {showBuyNow && (
+                <Button
+                  size="lg"
+                  variant="ghost"
+                  className="h-11 w-full rounded-full border border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                  disabled={outOfStock || (product.hasVariants && !selectedVariant)}
+                  onClick={handleAddToCart}
+                  data-testid="button-buy-now"
+                >
+                  Buy Now — {formatPrice(displayPrice)}
+                </Button>
+              )}
+
+              <Accordion type="single" collapsible defaultValue={product.reviews.length > 0 ? undefined : "details"}>
+                {product.description && (
+                  <AccordionItem value="details">
+                    <AccordionTrigger className="text-sm font-medium">{detailsHeading}</AccordionTrigger>
+                    <AccordionContent className="text-sm leading-relaxed text-muted-foreground">{product.description}</AccordionContent>
+                  </AccordionItem>
+                )}
+                {(shippingReturnsText || shippingBadge || returnsBadge) && (
+                  <AccordionItem value="shipping">
+                    <AccordionTrigger className="text-sm font-medium">Shipping and Returns</AccordionTrigger>
+                    <AccordionContent className="space-y-1.5 text-sm text-muted-foreground">
+                      {shippingReturnsText ? (
+                        <p className="whitespace-pre-line">{shippingReturnsText}</p>
+                      ) : (
+                        <>
+                          {shippingBadge && <p className="flex items-center gap-2"><Truck className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />{shippingBadge.label}{shippingBadge.detail ? ` — ${shippingBadge.detail}` : ""}</p>}
+                          {returnsBadge && <p className="flex items-center gap-2"><RefreshCw className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />{returnsBadge.label}{returnsBadge.detail ? ` — ${returnsBadge.detail}` : ""}</p>}
+                        </>
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+                {product.reviews.length > 0 && (
+                  <AccordionItem value="reviews">
+                    <AccordionTrigger className="text-sm font-medium">Reviews ({product.reviewCount})</AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4">
+                        {product.reviews.slice(0, 5).map((r) => (
+                          <div key={r.id} className="space-y-1">
+                            <div className="flex gap-0.5">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star key={i} className={`h-3.5 w-3.5 ${i < r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40"}`} />
+                              ))}
+                            </div>
+                            {r.comment && <p className="text-sm text-muted-foreground">"{r.comment}"</p>}
+                            <p className="text-xs font-medium text-foreground">{r.customerName}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+              </Accordion>
+            </div>
+          </div>
+
+          {product.relatedItems.length > 0 && (
+            <div className="mt-16">
+              <T.ProductGrid heading={relatedHeading} items={product.relatedItems as any} slug={slug} formatPrice={formatPrice} />
+            </div>
+          )}
+          {showAboutUs && <T.AboutUs fields={aboutUsSection!.fields as any} />}
+        </main>
+        {trustBadgesSection && <T.TrustBadges fields={trustBadgesSection.fields as any} />}
+        {newsletterSection && <T.Newsletter fields={newsletterSection.fields as any} slug={slug} />}
+        {footerSection && merchant && (
+          <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
+        )}
+        {cartDrawer}
+      </div>
+    );
+  }
+
   if (theme === "adanola") {
     return (
       <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>

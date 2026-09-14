@@ -188,6 +188,7 @@ export default function StoreEditor() {
             <SelectContent>
               <SelectItem value="farfetch">Farfetch</SelectItem>
               <SelectItem value="adanola">Adanola</SelectItem>
+              <SelectItem value="maison">Maison</SelectItem>
             </SelectContent>
           </Select>
         </div>

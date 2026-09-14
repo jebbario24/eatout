@@ -16,6 +16,7 @@ import { resolveTheme } from "@/storefront/themeRegistry";
 const THEME_CATALOG: Array<{ id: StorefrontThemeId; name: string; description: string; ink: string; paper: string; accent: string }> = [
   { id: "farfetch", name: "Farfetch", description: "Achromatic white-gallery look — editorial serif headings, flat product tiles, zero color in the UI.", ink: "#222222", paper: "#ffffff", accent: "#b6b6b6" },
   { id: "adanola", name: "Adanola", description: "Compact monoline lookbook — black/white UI, 4px radii, quick-add cards, announcement bar.", ink: "#000000", paper: "#ffffff", accent: "#e5e7eb" },
+  { id: "maison", name: "Maison", description: "Warm romantic fashion look — cream canvas, dusty-rose accent, serif italic headings, rounded soft edges.", ink: "#333333", paper: "#f9f7f1", accent: "#d19a9a" },
 ];
 
 function ThemeThumbnail({ ink, paper, accent }: { ink: string; paper: string; accent: string }) {

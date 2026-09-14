@@ -54,6 +54,7 @@ export function StorefrontContact({ slug }: { slug: string }) {
   const headerSection = themeSettings?.layout?.sections?.find((s) => s.type === "header");
   const footerSection = themeSettings?.layout?.sections?.find((s) => s.type === "footer");
   const isAdanola = theme === "adanola";
+  const isMaison = theme === "maison";
   const contactPage = themeSettings?.contactPage || {};
   const heading = contactPage.heading?.trim() || "Contact us";
   const description = contactPage.description?.trim() || "Have a question about an order or a product? Send us a message and we'll get back to you.";
@@ -82,9 +83,13 @@ export function StorefrontContact({ slug }: { slug: string }) {
 
   const inputClass = isAdanola
     ? "w-full rounded border border-[hsl(var(--input))] bg-transparent px-3 py-2 text-sm outline-none focus:border-foreground"
+    : isMaison
+    ? "w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary"
     : "w-full border-0 border-b border-border bg-transparent py-2 text-[15px] outline-none focus:border-foreground";
   const labelClass = isAdanola
     ? "mb-1.5 block text-xs font-bold uppercase tracking-wide text-foreground"
+    : isMaison
+    ? "mb-1.5 block text-xs font-medium uppercase tracking-[0.1em] text-primary"
     : "mb-1.5 block text-xs font-normal uppercase tracking-[0.1em] text-muted-foreground";
 
   return (
@@ -106,7 +111,7 @@ export function StorefrontContact({ slug }: { slug: string }) {
           <span className="mx-2">/</span>
           <span className="text-foreground">Contact</span>
         </nav>
-        <h1 className={isAdanola ? "mb-3 text-2xl font-bold text-foreground" : "mb-3 font-serif text-3xl font-normal tracking-tight sm:text-4xl"}>
+        <h1 className={isAdanola ? "mb-3 text-2xl font-bold text-foreground" : isMaison ? "mb-3 font-serif text-3xl italic tracking-tight sm:text-4xl" : "mb-3 font-serif text-3xl font-normal tracking-tight sm:text-4xl"}>
           {heading}
         </h1>
         <p className="mb-10 text-[15px] text-muted-foreground">
@@ -114,7 +119,7 @@ export function StorefrontContact({ slug }: { slug: string }) {
         </p>
 
         {sent ? (
-          <div className={`py-10 text-center ${isAdanola ? "rounded border border-[hsl(var(--card-border))]" : "border border-border"}`}>
+          <div className={`py-10 text-center ${isAdanola ? "rounded border border-[hsl(var(--card-border))]" : isMaison ? "rounded-2xl border border-border bg-muted" : "border border-border"}`}>
             <p className="text-[15px]">Thanks for reaching out — we'll reply as soon as we can.</p>
           </div>
         ) : (
@@ -141,7 +146,7 @@ export function StorefrontContact({ slug }: { slug: string }) {
               type="submit"
               size="lg"
               disabled={isSubmitting}
-              className={isAdanola ? "h-11 rounded px-8 text-xs font-medium uppercase tracking-wide" : "h-11 rounded-none px-8 text-[13px] font-normal uppercase tracking-[0.1em]"}
+              className={isAdanola ? "h-11 rounded px-8 text-xs font-medium uppercase tracking-wide" : isMaison ? "h-11 rounded-full bg-primary px-8 text-primary-foreground hover:bg-primary/90" : "h-11 rounded-none px-8 text-[13px] font-normal uppercase tracking-[0.1em]"}
             >
               {isSubmitting ? "Sending..." : submitButtonText}
             </Button>

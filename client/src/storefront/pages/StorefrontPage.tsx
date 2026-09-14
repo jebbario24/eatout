@@ -77,7 +77,7 @@ export function StorefrontPage({ slug, handle }: { slug: string; handle: string 
           <span className="mx-2">/</span>
           <span className="text-foreground">{page.title}</span>
         </nav>
-        <h1 className={theme === "adanola" ? "mb-6 text-2xl font-bold text-foreground" : "mb-8 font-serif text-3xl font-normal tracking-tight sm:text-4xl"}>
+        <h1 className={theme === "adanola" ? "mb-6 text-2xl font-bold text-foreground" : theme === "maison" ? "mb-8 font-serif text-3xl italic tracking-tight sm:text-4xl" : "mb-8 font-serif text-3xl font-normal tracking-tight sm:text-4xl"}>
           {page.title}
         </h1>
         {page.body && <Markdown>{page.body}</Markdown>}

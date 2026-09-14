@@ -143,7 +143,7 @@ export function FieldPanel({ selectedKey, section, socialLinks, productPage, con
           testId="toggle-product-show-buy-now"
         />
         <ToggleRow
-          label="Show wishlist icon (Adanola theme only)"
+          label="Show wishlist icon (Adanola & Maison themes only)"
           checked={productPage.showWishlist !== false}
           onChange={(v) => setProductPage({ showWishlist: v })}
           testId="toggle-product-show-wishlist"

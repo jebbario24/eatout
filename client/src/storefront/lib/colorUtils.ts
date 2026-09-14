@@ -52,6 +52,30 @@ const THEME_TOKENS: Record<StorefrontThemeId, CSSProperties> = {
     "--input": "0 0% 20%", // Smoke Charcoal
     "--ring": "0 0% 0%",
   } as CSSProperties,
+  // Maison — the one storefront theme that isn't achromatic on purpose: a
+  // warm, romantic fashion palette (cream canvas, dusty-rose accent, tan
+  // surfaces) lifted from a real installed Shopify theme's own color_schemes,
+  // paired with its actual type choice (Playfair Display headers / Lora body).
+  maison: {
+    "--background": "45 40% 96%", // Cream
+    "--foreground": "0 0% 20%", // Soft ink
+    "--card": "0 0% 100%",
+    "--card-foreground": "0 0% 20%",
+    "--card-border": "30 20% 87%", // Soft tan hairline
+    "--popover": "0 0% 100%",
+    "--popover-foreground": "0 0% 20%",
+    "--primary": "0 37% 71%", // Dusty rose
+    "--primary-foreground": "0 0% 100%",
+    "--secondary": "30 37% 84%", // Tan
+    "--secondary-foreground": "0 0% 17%",
+    "--muted": "35 30% 94%", // Warm cream tint
+    "--muted-foreground": "20 8% 45%",
+    "--accent": "0 37% 92%", // Rose hover wash
+    "--accent-foreground": "0 0% 20%",
+    "--border": "30 20% 87%",
+    "--input": "30 20% 87%",
+    "--ring": "0 37% 71%",
+  } as CSSProperties,
 };
 
 export function storefrontColorVars(theme: StorefrontThemeId = "farfetch", _colors?: StorefrontColors): CSSProperties {

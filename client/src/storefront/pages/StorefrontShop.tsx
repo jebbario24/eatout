@@ -10,6 +10,7 @@ import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
 import { CartDrawer } from "@/storefront/components/CartDrawer";
 import { ProductCard as FarfetchProductCard, type StorefrontProduct } from "@/storefront/components/ProductCard";
 import { ProductCard as AdanolaProductCard } from "@/storefront/themes/adanola/ProductCard";
+import { ProductCard as MaisonProductCard } from "@/storefront/themes/maison/ProductCard";
 import { PixelScripts, trackAddToCart } from "@/components/PixelScripts";
 
 interface StorefrontMerchant {
@@ -258,11 +259,13 @@ export function StorefrontShop({ slug }: { slug: string }) {
 
   const firstRows = bannerSection ? items.slice(0, BREAK_AFTER) : items;
   const remainingRows = bannerSection ? items.slice(BREAK_AFTER) : [];
+  const isMaison = theme === "maison";
+  const ActiveProductCard = isMaison ? MaisonProductCard : FarfetchProductCard;
 
   const renderGrid = (list: typeof items) => (
     <div className="grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3">
       {list.map((item) => (
-        <FarfetchProductCard key={item.id} slug={slug} item={item} formatPrice={formatPrice} />
+        <ActiveProductCard key={item.id} slug={slug} item={item} formatPrice={formatPrice} />
       ))}
     </div>
   );
@@ -276,7 +279,7 @@ export function StorefrontShop({ slug }: { slug: string }) {
 
       <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
         {breadcrumb}
-        <h1 className="mt-4 font-serif text-3xl font-normal tracking-tight sm:text-4xl">Shop</h1>
+        <h1 className={`mt-4 tracking-tight ${isMaison ? "font-serif text-3xl italic sm:text-4xl" : "font-serif text-3xl font-normal sm:text-4xl"}`}>Shop</h1>
         {merchant?.description && (
           <div className="mt-3 max-w-2xl">
             <p className={`text-[15px] leading-relaxed text-muted-foreground ${descriptionExpanded ? "" : "line-clamp-2"}`}>
@@ -299,7 +302,7 @@ export function StorefrontShop({ slug }: { slug: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setCategoryId(null)}
-              className={`border px-4 py-1.5 text-[13px] transition-colors ${categoryId === null ? "border-foreground bg-foreground text-background" : "border-border text-foreground hover:border-foreground"}`}
+              className={`border px-4 py-1.5 text-[13px] transition-colors ${isMaison ? "rounded-full" : ""} ${categoryId === null ? (isMaison ? "border-primary bg-primary text-primary-foreground" : "border-foreground bg-foreground text-background") : "border-border text-foreground hover:border-foreground"}`}
             >
               All
             </button>
@@ -307,7 +310,7 @@ export function StorefrontShop({ slug }: { slug: string }) {
               <button
                 key={c.id}
                 onClick={() => setCategoryId(c.id)}
-                className={`border px-4 py-1.5 text-[13px] transition-colors ${categoryId === c.id ? "border-foreground bg-foreground text-background" : "border-border text-foreground hover:border-foreground"}`}
+                className={`border px-4 py-1.5 text-[13px] transition-colors ${isMaison ? "rounded-full" : ""} ${categoryId === c.id ? (isMaison ? "border-primary bg-primary text-primary-foreground" : "border-foreground bg-foreground text-background") : "border-border text-foreground hover:border-foreground"}`}
               >
                 {c.name}
               </button>

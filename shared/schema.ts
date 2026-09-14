@@ -1685,7 +1685,7 @@ export interface ThemeSection {
 // so existing stores with no `theme` key keep rendering as "farfetch" (the
 // storefront's original, still-default look) with no migration needed — this
 // is a JSONB field, not a column, so new theme ids need no schema change either.
-export type StorefrontThemeId = "farfetch" | "adanola";
+export type StorefrontThemeId = "farfetch" | "adanola" | "maison";
 
 // Product-page-specific settings — the PDP isn't section-based like the home
 // page (most of it is per-product data: name, price, images, description),
@@ -1699,8 +1699,8 @@ export interface ProductPageSettings {
   addToCartText?: string;
   detailsHeading?: string;
   showBuyNow?: boolean;
-  // Adanola-only — the Farfetch theme doesn't have a wishlist heart on the
-  // product page (a deliberate omission there, not a gap).
+  // Adanola & Maison only — the Farfetch theme doesn't have a wishlist heart
+  // on the product page (a deliberate omission there, not a gap).
   showWishlist?: boolean;
 }
 
