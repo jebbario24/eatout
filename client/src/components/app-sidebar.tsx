@@ -133,6 +133,11 @@ const storeItems = [
     icon: Store,
   },
   {
+    titleKey: "navigation.storefrontPages",
+    url: "/online-store/pages",
+    icon: FileText,
+  },
+  {
     titleKey: "navigation.pixelsTracking",
     url: "/marketing/pixels",
     icon: BarChart3,

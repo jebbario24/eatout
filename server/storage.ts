@@ -15,6 +15,8 @@ import {
   promoRedemptions,
   collections,
   collectionItems,
+  storefrontPages,
+  contactMessages,
   storeGenerations,
   newsletterSubscribers,
   productVariants,
@@ -70,6 +72,10 @@ import {
   type GiftCardTransaction,
   type Collection,
   type CollectionItem,
+  type StorefrontPage,
+  type InsertStorefrontPage,
+  type ContactMessage,
+  type InsertContactMessage,
   type StoreGeneration,
   type NewsletterSubscriber,
   type ProductVariant,
@@ -1777,6 +1783,113 @@ export class DatabaseStorage implements IStorage {
         menuItemIds.map((menuItemId, i) => ({ collectionId, menuItemId, position: i })),
       );
     }
+  }
+
+  // ---- Storefront CMS pages (About, FAQ, Terms, Privacy, Contact copy) ----
+
+  async listStorefrontPages(restaurantId: string): Promise<StorefrontPage[]> {
+    return await db
+      .select()
+      .from(storefrontPages)
+      .where(eq(storefrontPages.restaurantId, restaurantId))
+      .orderBy(asc(storefrontPages.sortOrder), asc(storefrontPages.title));
+  }
+
+  async getStorefrontPage(id: string): Promise<StorefrontPage | undefined> {
+    const [p] = await db.select().from(storefrontPages).where(eq(storefrontPages.id, id)).limit(1);
+    return p;
+  }
+
+  async getStorefrontPageByHandle(restaurantId: string, handle: string): Promise<StorefrontPage | undefined> {
+    const [p] = await db
+      .select()
+      .from(storefrontPages)
+      .where(and(eq(storefrontPages.restaurantId, restaurantId), eq(storefrontPages.handle, handle.toLowerCase())))
+      .limit(1);
+    return p;
+  }
+
+  private async uniqueStorefrontPageHandle(restaurantId: string, base: string, ignoreId?: string): Promise<string> {
+    let handle = slugify(base) || "page";
+    for (let i = 0; i < 50; i++) {
+      const candidate = i === 0 ? handle : `${handle}-${i + 1}`;
+      const existing = await this.getStorefrontPageByHandle(restaurantId, candidate);
+      if (!existing || existing.id === ignoreId) return candidate;
+    }
+    return `${handle}-${Date.now().toString(36)}`;
+  }
+
+  async createStorefrontPage(restaurantId: string, data: Partial<InsertStorefrontPage>): Promise<StorefrontPage> {
+    const handle = await this.uniqueStorefrontPageHandle(restaurantId, data.handle || data.title || "page");
+    const [created] = await db
+      .insert(storefrontPages)
+      .values({
+        restaurantId,
+        title: (data.title || "Untitled page").slice(0, 255),
+        handle,
+        body: data.body ?? null,
+        isPublished: data.isPublished ?? false,
+        showInFooter: data.showInFooter ?? false,
+        footerGroup: data.footerGroup ?? null,
+        sortOrder: data.sortOrder ?? 0,
+        seoTitle: data.seoTitle ?? null,
+        seoDescription: data.seoDescription ?? null,
+      })
+      .returning();
+    return created;
+  }
+
+  async updateStorefrontPage(id: string, restaurantId: string, data: Partial<InsertStorefrontPage>): Promise<StorefrontPage | undefined> {
+    const patch: any = { updatedAt: new Date() };
+    for (const k of ["title", "body", "isPublished", "showInFooter", "footerGroup", "sortOrder", "seoTitle", "seoDescription"] as const) {
+      if (data[k] !== undefined) patch[k] = data[k];
+    }
+    if (data.handle !== undefined) {
+      patch.handle = await this.uniqueStorefrontPageHandle(restaurantId, data.handle, id);
+    }
+    const [updated] = await db
+      .update(storefrontPages)
+      .set(patch)
+      .where(and(eq(storefrontPages.id, id), eq(storefrontPages.restaurantId, restaurantId)))
+      .returning();
+    return updated;
+  }
+
+  async deleteStorefrontPage(id: string, restaurantId: string): Promise<void> {
+    await db.delete(storefrontPages).where(and(eq(storefrontPages.id, id), eq(storefrontPages.restaurantId, restaurantId)));
+  }
+
+  // ---- Storefront CMS — Contact page submissions ----
+
+  async createContactMessage(restaurantId: string, data: InsertContactMessage): Promise<ContactMessage> {
+    const [created] = await db
+      .insert(contactMessages)
+      .values({
+        restaurantId,
+        name: data.name.slice(0, 255),
+        email: data.email.slice(0, 255),
+        subject: data.subject ? data.subject.slice(0, 255) : null,
+        message: data.message,
+      })
+      .returning();
+    return created;
+  }
+
+  async listContactMessages(restaurantId: string): Promise<ContactMessage[]> {
+    return await db
+      .select()
+      .from(contactMessages)
+      .where(eq(contactMessages.restaurantId, restaurantId))
+      .orderBy(desc(contactMessages.createdAt));
+  }
+
+  async markContactMessageRead(id: string, restaurantId: string, isRead: boolean): Promise<ContactMessage | undefined> {
+    const [updated] = await db
+      .update(contactMessages)
+      .set({ isRead })
+      .where(and(eq(contactMessages.id, id), eq(contactMessages.restaurantId, restaurantId)))
+      .returning();
+    return updated;
   }
 
   // ---- AI store builder ----

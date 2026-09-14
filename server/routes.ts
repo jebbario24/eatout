@@ -12,6 +12,7 @@ import {
   insertMenuItemSchema,
   insertStaffSchema,
   insertInventorySchema,
+  insertContactMessageSchema,
   BUSINESS_TYPES,
   type RestaurantThemeSettings,
 } from "@shared/schema";
@@ -2763,6 +2764,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ==========================================
+  // STOREFRONT CMS — custom pages (About, FAQ, Terms, Privacy, Contact copy)
+  // ==========================================
+
+  app.get('/api/store/pages', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.json([]);
+    res.json(await storage.listStorefrontPages(restaurant.id));
+  });
+
+  app.get('/api/store/pages/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const page = await storage.getStorefrontPage(req.params.id);
+      if (!page || page.restaurantId !== restaurant.id) return res.status(404).json({ message: "Page not found" });
+      res.json(page);
+    } catch (e) {
+      logError("Storefront page detail failed", e);
+      res.status(500).json({ message: "Failed to load page" });
+    }
+  });
+
+  app.post('/api/store/pages', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      if (!req.body?.title || !String(req.body.title).trim()) return res.status(400).json({ message: "Title is required" });
+      const page = await storage.createStorefrontPage(restaurant.id, req.body);
+      res.json(page);
+    } catch (e: any) {
+      logError("Create storefront page failed", e);
+      res.status(400).json({ message: e?.message || "Failed to create page" });
+    }
+  });
+
+  app.patch('/api/store/pages/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const page = await storage.getStorefrontPage(req.params.id);
+      if (!page || page.restaurantId !== restaurant.id) return res.status(404).json({ message: "Page not found" });
+      const updated = await storage.updateStorefrontPage(req.params.id, restaurant.id, req.body);
+      res.json(updated);
+    } catch (e: any) {
+      logError("Update storefront page failed", e);
+      res.status(400).json({ message: e?.message || "Failed to update page" });
+    }
+  });
+
+  app.delete('/api/store/pages/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      await storage.deleteStorefrontPage(req.params.id, restaurant.id);
+      res.json({ ok: true });
+    } catch (e) {
+      logError("Delete storefront page failed", e);
+      res.status(400).json({ message: "Failed to delete page" });
+    }
+  });
+
+  // ---- Contact page inbox ----
+
+  app.get('/api/store/contact-messages', isAuthenticated, async (req: any, res) => {
+    const restaurant = await ownerRestaurant(req);
+    if (!restaurant) return res.json([]);
+    res.json(await storage.listContactMessages(restaurant.id));
+  });
+
+  app.patch('/api/store/contact-messages/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const restaurant = await ownerRestaurant(req);
+      if (!restaurant) return res.status(404).json({ message: "Restaurant not found" });
+      const updated = await storage.markContactMessageRead(req.params.id, restaurant.id, req.body?.isRead !== false);
+      if (!updated) return res.status(404).json({ message: "Message not found" });
+      res.json(updated);
+    } catch (e) {
+      logError("Update contact message failed", e);
+      res.status(400).json({ message: "Failed to update message" });
+    }
+  });
+
+  // ==========================================
   // MARKETING — segments, campaigns, abandoned carts, boosts (Tier 6)
   // ==========================================
 
@@ -3481,6 +3565,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       logError("Newsletter signup failed", error);
       res.status(500).json({ message: "Failed to subscribe" });
+    }
+  });
+
+  app.get('/api/storefront/:slug/pages', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await restaurantBySlugPublic(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const pages = (await storage.listStorefrontPages(restaurant.id)).filter((p) => p.isPublished);
+      res.json(pages.map((p) => ({ id: p.id, title: p.title, handle: p.handle, showInFooter: p.showInFooter, footerGroup: p.footerGroup, sortOrder: p.sortOrder })));
+    } catch (error) {
+      logError("Storefront pages list failed", error);
+      res.status(500).json({ message: "Failed to load pages" });
+    }
+  });
+
+  app.get('/api/storefront/:slug/pages/:handle', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await restaurantBySlugPublic(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const page = await storage.getStorefrontPageByHandle(restaurant.id, req.params.handle);
+      if (!page || !page.isPublished) return res.status(404).json({ message: "Page not found" });
+      res.json({ title: page.title, body: page.body, seoTitle: page.seoTitle, seoDescription: page.seoDescription });
+    } catch (error) {
+      logError("Storefront page detail failed", error);
+      res.status(500).json({ message: "Failed to load page" });
+    }
+  });
+
+  app.post('/api/storefront/:slug/contact', storefrontLimiter, async (req, res) => {
+    try {
+      const restaurant = await restaurantBySlugPublic(req.params.slug);
+      if (!restaurant) return res.status(404).json({ message: "Store not found" });
+      const parsed = insertContactMessageSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Please fill in your name, email, and message." });
+      await storage.createContactMessage(restaurant.id, parsed.data);
+      res.json({ ok: true });
+    } catch (error) {
+      logError("Contact form submission failed", error);
+      res.status(500).json({ message: "Failed to send message" });
     }
   });
 

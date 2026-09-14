@@ -293,7 +293,7 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
       {trustBadgesSection && <TrustBadges fields={trustBadgesSection.fields as any} />}
       {newsletterSection && <Newsletter fields={newsletterSection.fields as any} slug={slug} />}
       {footerSection && restaurant && (
-        <Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} />
+        <Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
       )}
       <CartDrawer
         open={cartOpen}

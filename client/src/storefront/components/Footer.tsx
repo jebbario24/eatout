@@ -1,9 +1,19 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { SiInstagram, SiFacebook, SiTiktok, SiX } from "react-icons/si";
 import { CreditCard } from "lucide-react";
 
 export interface FooterFields {
   showSocialLinks: boolean;
   showPaymentIcons: boolean;
+}
+
+interface FooterPage {
+  id: string;
+  title: string;
+  handle: string;
+  showInFooter: boolean;
+  footerGroup: string | null;
 }
 
 const SOCIAL_ICONS: Record<string, typeof SiInstagram> = {
@@ -13,17 +23,71 @@ const SOCIAL_ICONS: Record<string, typeof SiInstagram> = {
   twitter: SiX,
 };
 
-export function Footer({ fields, storeName, socialLinks }: {
+export function Footer({ fields, storeName, socialLinks, slug }: {
   fields: FooterFields;
   storeName: string;
   socialLinks?: Record<string, string> | null;
+  slug: string;
 }) {
+  const base = `/store/${slug}`;
+  const { data: pages } = useQuery<FooterPage[]>({ queryKey: [`/api/storefront/${slug}/pages`] });
+  const footerPages = (pages || []).filter((p) => p.showInFooter);
+
+  const groups = new Map<string, FooterPage[]>();
+  const ungrouped: FooterPage[] = [];
+  for (const p of footerPages) {
+    if (p.footerGroup) {
+      if (!groups.has(p.footerGroup)) groups.set(p.footerGroup, []);
+      groups.get(p.footerGroup)!.push(p);
+    } else {
+      ungrouped.push(p);
+    }
+  }
+  const hasGroups = groups.size > 0;
+
   const links = fields.showSocialLinks && socialLinks
     ? (Object.keys(SOCIAL_ICONS) as (keyof typeof SOCIAL_ICONS)[]).filter((k) => socialLinks[k])
     : [];
+
   return (
     <footer className="bg-foreground text-background">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        {(hasGroups || ungrouped.length > 0) && (
+          <div className={`mb-12 grid grid-cols-2 gap-8 border-b border-background/20 pb-12 sm:grid-cols-3 ${hasGroups ? "md:grid-cols-4" : ""}`}>
+            {Array.from(groups.entries()).map(([group, groupPages]) => (
+              <div key={group}>
+                <p className="mb-4 text-xs font-normal uppercase tracking-[0.14em] text-background/60">{group}</p>
+                <ul className="space-y-2.5">
+                  {groupPages.map((p) => (
+                    <li key={p.id}>
+                      <Link href={`${base}/pages/${p.handle}`} className="text-[13px] text-background/85 transition-colors hover:text-background">
+                        {p.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <div>
+              {hasGroups && <p className="mb-4 text-xs font-normal uppercase tracking-[0.14em] text-background/60">More</p>}
+              <ul className="space-y-2.5">
+                {ungrouped.map((p) => (
+                  <li key={p.id}>
+                    <Link href={`${base}/pages/${p.handle}`} className="text-[13px] text-background/85 transition-colors hover:text-background">
+                      {p.title}
+                    </Link>
+                  </li>
+                ))}
+                <li>
+                  <Link href={`${base}/contact`} className="text-[13px] text-background/85 transition-colors hover:text-background">
+                    Contact
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:justify-between sm:text-left">
           <p className="font-sans text-base font-bold uppercase tracking-[0.14em]">{storeName}</p>
           {links.length > 0 && (

@@ -23,6 +23,48 @@
 import pg from "pg";
 
 const STATEMENTS: string[] = [
+  // Storefront CMS — custom pages (About, FAQ, Terms, Privacy, Contact) and blog posts.
+  // These tables were already in shared/schema.ts but had no CREATE TABLE here, so a
+  // fresh database (or one that never had `drizzle-kit push` run against it by hand)
+  // would be missing them entirely — exactly the schema-ahead-of-deploy gap that has
+  // caused a real outage on this project before.
+  `CREATE TABLE IF NOT EXISTS storefront_pages (
+    id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+    restaurant_id varchar NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    title varchar(255) NOT NULL,
+    handle varchar(255) NOT NULL,
+    body text,
+    is_published boolean NOT NULL DEFAULT false,
+    show_in_footer boolean NOT NULL DEFAULT false,
+    footer_group varchar(100),
+    sort_order integer NOT NULL DEFAULT 0,
+    seo_title varchar(255),
+    seo_description varchar(500),
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now(),
+    UNIQUE (restaurant_id, handle)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_storefront_pages_restaurant ON storefront_pages(restaurant_id)`,
+  `CREATE TABLE IF NOT EXISTS blog_posts (
+    id varchar PRIMARY KEY DEFAULT gen_random_uuid(),
+    restaurant_id varchar NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    title varchar(255) NOT NULL,
+    handle varchar(255) NOT NULL,
+    excerpt varchar(500),
+    body text,
+    cover_image_url text,
+    author varchar(255),
+    tags text[],
+    is_published boolean NOT NULL DEFAULT false,
+    published_at timestamp,
+    seo_title varchar(255),
+    seo_description varchar(500),
+    created_at timestamp DEFAULT now(),
+    updated_at timestamp DEFAULT now(),
+    UNIQUE (restaurant_id, handle)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_blog_posts_restaurant ON blog_posts(restaurant_id)`,
+
   // Storefront CMS grouped-footer support
   `ALTER TABLE storefront_pages ADD COLUMN IF NOT EXISTS footer_group varchar(100)`,
 

@@ -134,7 +134,7 @@ export function StorefrontHome({ slug }: { slug: string }) {
       )}
       <main>{bodySections.map(renderSection)}</main>
       {footerSection && (
-        <Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} />
+        <Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
       )}
       <CartDrawer
         open={cartOpen}

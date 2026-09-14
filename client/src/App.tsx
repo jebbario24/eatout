@@ -67,6 +67,7 @@ import { StorefrontRouter } from "@/storefront/StorefrontRouter";
 import StoreBuilderWizard from "@/pages/OnlineStore/StoreBuilderWizard";
 import StoreEditor from "@/pages/OnlineStore/StoreEditor";
 import StoreOptimize from "@/pages/OnlineStore/StoreOptimize";
+import StorefrontPages from "@/pages/StorefrontPages";
 
 function PublicRouter() {
   return (
@@ -130,6 +131,7 @@ function AuthenticatedRouter() {
       <Route path="/online-store" component={StoreBuilderWizard} />
       <Route path="/online-store/editor" component={StoreEditor} />
       <Route path="/online-store/optimize" component={StoreOptimize} />
+      <Route path="/online-store/pages" component={StorefrontPages} />
       <Route path="/settings" component={Settings} />
       <Route path="/pos" component={POS} />
       <Route path="/marketing" component={Marketing} />

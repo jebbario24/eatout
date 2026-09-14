@@ -92,7 +92,7 @@ function computeFacts(items: MenuItem[], reviews: CustomerReview[], restaurant: 
 
 function defaultSections(restaurant: Restaurant, facts: StoreFacts): ThemeSection[] {
   return [
-    { type: "header", enabled: true, fields: { logoUrl: restaurant.logoUrl || null, nav: [{ label: "Home", type: "home" }, { label: "Shop", type: "shop" }], showSearch: true, showAccount: true, showCart: true } },
+    { type: "header", enabled: true, fields: { logoUrl: restaurant.logoUrl || null, nav: [{ label: "Home", type: "home" }, { label: "Shop", type: "shop" }, { label: "Contact", type: "contact" }], showSearch: true, showAccount: true, showCart: true } },
     { type: "hero", enabled: true, fields: { backgroundImageUrl: restaurant.coverImageUrl || null, heading: "", subheading: "", buttonText: "Shop Now", buttonStyle: "solid", textAlign: "left", overlayOpacity: 20 } },
     { type: "trustBadges", enabled: true, fields: { items: [
       { icon: "truck", label: "Free shipping", detail: "On all orders" },

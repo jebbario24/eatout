@@ -18,6 +18,12 @@ export function Header({ storeName, slug, fields, cartCount, onOpenCart }: {
   onOpenCart: () => void;
 }) {
   const base = `/store/${slug}`;
+  const navHref = (item: { type: string; value?: string }) => {
+    if (item.type === "shop") return `${base}/shop`;
+    if (item.type === "contact") return `${base}/contact`;
+    if (item.type === "page" && item.value) return `${base}/pages/${item.value}`;
+    return base;
+  };
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md">
       <div className="mx-auto grid h-16 max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6 lg:px-8">
@@ -25,7 +31,7 @@ export function Header({ storeName, slug, fields, cartCount, onOpenCart }: {
           {(fields.nav || []).map((item, i) => (
             <a
               key={i}
-              href={item.type === "shop" ? `${base}/shop` : base}
+              href={navHref(item)}
               className="group relative py-1"
             >
               {item.label}

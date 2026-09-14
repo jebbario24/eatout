@@ -194,7 +194,7 @@ export function StorefrontShop({ slug }: { slug: string }) {
       )}
 
       {footerSection && restaurant && (
-        <Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} />
+        <Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
       )}
       <CartDrawer
         open={cartOpen}
