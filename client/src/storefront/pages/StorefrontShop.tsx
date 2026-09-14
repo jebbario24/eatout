@@ -42,6 +42,7 @@ export function StorefrontShop({ slug }: { slug: string }) {
   const [cartOpen, setCartOpen] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortOption>("featured");
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const cart = useCart(slug);
 
   const collectionHandle = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("collection") : null;
@@ -111,7 +112,19 @@ export function StorefrontShop({ slug }: { slug: string }) {
         </nav>
         <h1 className="mt-4 font-serif text-3xl font-normal tracking-tight sm:text-4xl">Shop</h1>
         {restaurant?.description && (
-          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">{restaurant.description}</p>
+          <div className="mt-3 max-w-2xl">
+            <p className={`text-[15px] leading-relaxed text-muted-foreground ${descriptionExpanded ? "" : "line-clamp-2"}`}>
+              {restaurant.description}
+            </p>
+            {restaurant.description.length > 140 && (
+              <button
+                onClick={() => setDescriptionExpanded((v) => !v)}
+                className="mt-1 text-[13px] font-medium underline underline-offset-4"
+              >
+                {descriptionExpanded ? "Show less" : "Show more"}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
