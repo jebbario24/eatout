@@ -77,15 +77,11 @@ const marketingItems = [
     url: "/marketing",
     icon: Megaphone,
   },
-  {
-    titleKey: "navigation.campaigns",
-    url: "/marketing/campaigns",
-    icon: Send,
-  },
 ];
 
-// Loyalty & Rewards and Gift Cards stay searchable even though they no
-// longer have their own sidebar row (see marketingItems comment above).
+// Loyalty & Rewards, Gift Cards, and Campaigns stay searchable even though
+// they no longer have their own sidebar row (see marketingItems comment
+// above) — all three are one click away via the Marketing hub's own tiles.
 const marketingHubOnlyItems = [
   {
     titleKey: "navigation.loyaltyRewards",
@@ -96,6 +92,11 @@ const marketingHubOnlyItems = [
     titleKey: "navigation.giftCards",
     url: "/marketing/gift-cards",
     icon: Gift,
+  },
+  {
+    titleKey: "navigation.campaigns",
+    url: "/marketing/campaigns",
+    icon: Send,
   },
 ];
 
@@ -297,11 +298,6 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
       titleKey: "navigation.collections",
       url: "/collections",
       icon: Layers,
-    },
-    {
-      titleKey: "navigation.inventory",
-      url: "/inventory",
-      icon: Package,
     },
   ];
 
