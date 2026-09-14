@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, Star, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, Star, Calendar, FileText } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -137,6 +139,12 @@ export default function Analytics() {
               <SelectItem value="year" data-testid="filter-year">Year</SelectItem>
             </SelectContent>
           </Select>
+          <Button variant="outline" asChild data-testid="link-view-reports">
+            <Link href="/reports">
+              <FileText className="mr-2 h-4 w-4" />
+              Detailed reports
+            </Link>
+          </Button>
         </div>
       </div>
 

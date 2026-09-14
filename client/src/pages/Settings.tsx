@@ -43,6 +43,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { LogOut, Save, ExternalLink, Check, ChevronsUpDown, CreditCard, CheckCircle2, AlertCircle, Store, Clock, Globe } from "lucide-react";
+import Staff from "@/pages/Staff";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -701,6 +702,7 @@ export default function Settings() {
           <TabsTrigger value="general" data-testid="tab-general">General</TabsTrigger>
           <TabsTrigger value="regional" data-testid="tab-regional">Regional & Tax</TabsTrigger>
           <TabsTrigger value="payments" data-testid="tab-payments">Payments & Payouts</TabsTrigger>
+          <TabsTrigger value="team" data-testid="tab-team">Team</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6 mt-4">
@@ -1294,6 +1296,10 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="team" className="mt-4">
+          <Staff />
         </TabsContent>
       </Tabs>
     </div>

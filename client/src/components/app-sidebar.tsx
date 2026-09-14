@@ -58,7 +58,9 @@ const coreItems = [
 ];
 
 // Growth section — folds in Shopify's separate "Discounts" row alongside our
-// existing marketing tools, since we don't split discounts into their own hub
+// existing marketing tools. Loyalty & Rewards and Gift Cards aren't listed
+// here directly — they're one click away via the Marketing hub's own tiles,
+// so dropping their sidebar rows loses no reachability, just clutter.
 const marketingItems = [
   {
     titleKey: "navigation.growth",
@@ -80,6 +82,11 @@ const marketingItems = [
     url: "/marketing/campaigns",
     icon: Send,
   },
+];
+
+// Loyalty & Rewards and Gift Cards stay searchable even though they no
+// longer have their own sidebar row (see marketingItems comment above).
+const marketingHubOnlyItems = [
   {
     titleKey: "navigation.loyaltyRewards",
     url: "/marketing/loyalty",
@@ -92,13 +99,15 @@ const marketingItems = [
   },
 ];
 
-const baseOperationsItems = [
-  {
-    titleKey: "navigation.staff",
-    url: "/staff",
-    icon: Users,
-  },
-];
+// Staff no longer gets its own top-level "Operations" section — a lone team
+// list isn't an e-commerce sidebar concern, so it now lives as a "Team" tab
+// inside Settings (see Settings.tsx), matching Shopify's Settings > Users
+// and permissions. Kept here only so the command palette can still find it.
+const staffItem = {
+  titleKey: "navigation.staff",
+  url: "/staff",
+  icon: Users,
+};
 
 // Content section — Shopify's Content covers pages; ours are the storefront's
 const contentItems = [
@@ -127,13 +136,18 @@ const financeItems = [
   },
 ];
 
-// Analytics section
+// Analytics section — Reports lives inside the Analytics page (a "View
+// detailed reports" link there) rather than as its own sidebar row, since
+// the two pages otherwise looked like duplicate entries.
 const reportsItems = [
   {
     titleKey: "navigation.analytics",
     url: "/analytics",
     icon: BarChart3,
   },
+];
+
+const reportsHubOnlyItems = [
   {
     titleKey: "navigation.reports",
     url: "/reports",
@@ -141,13 +155,17 @@ const reportsItems = [
   },
 ];
 
-// Customers section
+// Customers section — Inbox & Reviews is one click away from the Customers
+// page itself rather than its own sidebar row.
 const customerItems = [
   {
     titleKey: "navigation.customers",
     url: "/customers",
     icon: UserRound,
   },
+];
+
+const customersHubOnlyItems = [
   {
     titleKey: "navigation.inbox",
     url: "/inbox",
@@ -235,18 +253,20 @@ export function getSearchableRoutes(businessConfig: ReturnType<typeof getBusines
     { titleKey: "navigation.collections", url: "/collections", icon: Layers },
     { titleKey: "navigation.inventory", url: "/inventory", icon: Package },
   ];
-  const operationsItems = baseOperationsItems;
   return [
     ...coreItems,
     ...catalogItems,
     ...customerItems,
+    ...customersHubOnlyItems,
     ...marketingItems,
+    ...marketingHubOnlyItems,
     ...contentItems,
     ...marketsItems,
     ...financeItems,
     ...reportsItems,
+    ...reportsHubOnlyItems,
     ...storeItems,
-    ...operationsItems,
+    staffItem,
     { titleKey: "navigation.billing", url: "/billing", icon: CreditCard },
     { titleKey: "navigation.settings", url: "/settings", icon: Settings },
   ];
@@ -284,8 +304,6 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
       icon: Package,
     },
   ];
-
-  const operationsItems = baseOperationsItems;
 
   const renderMenuGroup = (items: typeof coreItems, label?: string) => (
     <SidebarGroup>
@@ -336,7 +354,6 @@ export function AppSidebar({ side }: { side?: "left" | "right" }) {
             {renderMenuGroup(financeItems, t('navigation.finance'))}
             {renderMenuGroup(reportsItems, t('navigation.analytics'))}
             {renderMenuGroup(storeItems, t('navigation.salesChannels'))}
-            {renderMenuGroup(operationsItems, t('navigation.operations'))}
           </>
         )}
 

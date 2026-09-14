@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Users, Coins, Wallet, Star } from "lucide-react";
+import { Search, Users, Coins, Wallet, Star, MessageSquare } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 
 function extractErrorMessage(error: unknown, fallback: string): string {
@@ -112,9 +113,17 @@ export default function Customers() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Customers</h1>
-        <p className="text-muted-foreground mt-1">Everyone who has ordered from your store, with points and store credit.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Customers</h1>
+          <p className="text-muted-foreground mt-1">Everyone who has ordered from your store, with points and store credit.</p>
+        </div>
+        <Button variant="outline" asChild data-testid="link-view-inbox">
+          <Link href="/inbox">
+            <MessageSquare className="mr-2 h-4 w-4" />
+            Inbox & Reviews
+          </Link>
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
