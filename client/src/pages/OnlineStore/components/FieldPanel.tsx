@@ -126,6 +126,34 @@ export function FieldPanel({ selectedKey, section, socialLinks, productPage, onF
         <p className="text-xs text-muted-foreground">
           Every product page shares these settings. Its trust badges and newsletter block come from the Trust Badges and Newsletter sections above.
         </p>
+        <Field label="Add to cart button text">
+          <Input
+            value={productPage.addToCartText || ""}
+            onChange={(e) => setProductPage({ addToCartText: e.target.value })}
+            placeholder="Add to cart"
+            data-testid="input-product-add-to-cart-text"
+          />
+        </Field>
+        <ToggleRow
+          label="Show Buy Now button"
+          checked={productPage.showBuyNow !== false}
+          onChange={(v) => setProductPage({ showBuyNow: v })}
+          testId="toggle-product-show-buy-now"
+        />
+        <ToggleRow
+          label="Show wishlist icon (Adanola theme only)"
+          checked={productPage.showWishlist !== false}
+          onChange={(v) => setProductPage({ showWishlist: v })}
+          testId="toggle-product-show-wishlist"
+        />
+        <Field label="Details accordion heading">
+          <Input
+            value={productPage.detailsHeading || ""}
+            onChange={(e) => setProductPage({ detailsHeading: e.target.value })}
+            placeholder="Details"
+            data-testid="input-product-details-heading"
+          />
+        </Field>
         <Field label="Related products heading">
           <Input
             value={productPage.relatedHeading || ""}

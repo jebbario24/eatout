@@ -122,6 +122,10 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
   const relatedHeading = productPageSettings.relatedHeading || "You may also like";
   const shippingReturnsText = productPageSettings.shippingReturnsText?.trim();
   const showAboutUs = !!productPageSettings.showAboutUs && !!aboutUsSection;
+  const addToCartText = productPageSettings.addToCartText?.trim() || "Add to cart";
+  const detailsHeading = productPageSettings.detailsHeading?.trim() || "Details";
+  const showBuyNow = productPageSettings.showBuyNow !== false;
+  const showWishlist = productPageSettings.showWishlist !== false;
 
   const selectVariant = (v: Variant) => {
     setSelectedVariantId(v.id);
@@ -259,31 +263,35 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
                   onClick={handleAddToCart}
                   data-testid="button-add-to-cart"
                 >
-                  {outOfStock ? "Out of stock" : justAdded ? "Added" : product.hasVariants && !selectedVariant ? "Choose your size" : "Add to cart"}
+                  {outOfStock ? "Out of stock" : justAdded ? "Added" : product.hasVariants && !selectedVariant ? "Choose your size" : addToCartText}
                 </Button>
-                <button
-                  onClick={() => setWishlisted((v) => !v)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-[hsl(var(--card-border))] text-foreground"
-                  aria-label="Add to wishlist"
-                >
-                  <Heart className="h-4 w-4" strokeWidth={1.5} fill={wishlisted ? "currentColor" : "none"} />
-                </button>
+                {showWishlist && (
+                  <button
+                    onClick={() => setWishlisted((v) => !v)}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-[hsl(var(--card-border))] text-foreground"
+                    aria-label="Add to wishlist"
+                  >
+                    <Heart className="h-4 w-4" strokeWidth={1.5} fill={wishlisted ? "currentColor" : "none"} />
+                  </button>
+                )}
               </div>
-              <Button
-                size="lg"
-                variant="ghost"
-                className="h-11 w-full rounded border border-foreground text-xs font-medium uppercase tracking-wide hover:bg-foreground hover:text-background"
-                disabled={outOfStock || (product.hasVariants && !selectedVariant)}
-                onClick={handleAddToCart}
-                data-testid="button-buy-now"
-              >
-                Buy Now {formatPrice(displayPrice)}
-              </Button>
+              {showBuyNow && (
+                <Button
+                  size="lg"
+                  variant="ghost"
+                  className="h-11 w-full rounded border border-foreground text-xs font-medium uppercase tracking-wide hover:bg-foreground hover:text-background"
+                  disabled={outOfStock || (product.hasVariants && !selectedVariant)}
+                  onClick={handleAddToCart}
+                  data-testid="button-buy-now"
+                >
+                  Buy Now {formatPrice(displayPrice)}
+                </Button>
+              )}
 
               <Accordion type="single" collapsible>
                 {product.description && (
                   <AccordionItem value="details">
-                    <AccordionTrigger className="text-xs font-bold uppercase tracking-wide">Details</AccordionTrigger>
+                    <AccordionTrigger className="text-xs font-bold uppercase tracking-wide">{detailsHeading}</AccordionTrigger>
                     <AccordionContent className="text-sm leading-relaxed text-muted-foreground">{product.description}</AccordionContent>
                   </AccordionItem>
                 )}
@@ -445,9 +453,22 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
                 onClick={handleAddToCart}
                 data-testid="button-add-to-cart"
               >
-                {outOfStock ? "Out of stock" : justAdded ? "Added ✓" : "Add to cart"}
+                {outOfStock ? "Out of stock" : justAdded ? "Added ✓" : addToCartText}
               </Button>
             </div>
+
+            {showBuyNow && (
+              <Button
+                size="lg"
+                variant="ghost"
+                className="h-11 w-full rounded-none border border-foreground text-[13px] font-medium uppercase tracking-[0.1em] hover:bg-foreground hover:text-background"
+                disabled={outOfStock || (product.hasVariants && !selectedVariant)}
+                onClick={handleAddToCart}
+                data-testid="button-buy-now"
+              >
+                Buy Now — {formatPrice(displayPrice)}
+              </Button>
+            )}
 
             {(shippingBadge || returnsBadge) && (
               <div className="space-y-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
@@ -469,7 +490,7 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
             <Accordion type="single" collapsible defaultValue={product.reviews.length > 0 ? undefined : "details"}>
               {product.description && (
                 <AccordionItem value="details">
-                  <AccordionTrigger className="text-sm font-medium">Details</AccordionTrigger>
+                  <AccordionTrigger className="text-sm font-medium">{detailsHeading}</AccordionTrigger>
                   <AccordionContent className="text-sm leading-relaxed text-muted-foreground">{product.description}</AccordionContent>
                 </AccordionItem>
               )}

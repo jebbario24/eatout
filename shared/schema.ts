@@ -1696,6 +1696,12 @@ export interface ProductPageSettings {
   relatedHeading?: string;
   shippingReturnsText?: string;
   showAboutUs?: boolean;
+  addToCartText?: string;
+  detailsHeading?: string;
+  showBuyNow?: boolean;
+  // Adanola-only — the Farfetch theme doesn't have a wishlist heart on the
+  // product page (a deliberate omission there, not a gap).
+  showWishlist?: boolean;
 }
 
 export interface RestaurantThemeSettings {
