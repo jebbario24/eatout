@@ -81,8 +81,8 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
   const displayImage = selectedVariant?.imageUrl || product.imageUrl;
   const outOfStock = selectedVariant ? (selectedVariant.stockCount ?? 1) <= 0 : false;
 
-  const headerSection = restaurant?.themeSettings?.layout?.sections.find((s) => s.type === "header");
-  const footerSection = restaurant?.themeSettings?.layout?.sections.find((s) => s.type === "footer");
+  const headerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "header");
+  const footerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "footer");
 
   const handleAddToCart = () => {
     if (product.hasVariants && !selectedVariant) return;

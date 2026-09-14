@@ -9,6 +9,7 @@ import type { Restaurant, RestaurantThemeSettings, ThemeSectionType, CustomerRev
 import { SectionList } from "./components/SectionList";
 import { FieldPanel } from "./components/FieldPanel";
 import { DeviceSwitcher, DEVICE_WIDTHS, type DeviceMode } from "./components/DeviceSwitcher";
+import { hasValidThemeSettings } from "@/storefront/lib/themeSettings";
 
 type Colors = { primaryColor: string; secondaryColor: string; accentColor: string };
 
@@ -29,7 +30,7 @@ export default function StoreEditor() {
 
   useEffect(() => {
     if (restaurant && !themeSettings) {
-      setThemeSettings((restaurant.themeSettings as RestaurantThemeSettings) || null);
+      setThemeSettings(hasValidThemeSettings(restaurant.themeSettings) ? restaurant.themeSettings : null);
       setColors({
         primaryColor: restaurant.primaryColor || "#111111",
         secondaryColor: restaurant.secondaryColor || "#ffffff",

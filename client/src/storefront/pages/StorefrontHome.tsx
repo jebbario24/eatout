@@ -77,6 +77,16 @@ export function StorefrontHome({ slug }: { slug: string }) {
 
   const themeSettings = draft?.themeSettings || restaurant.themeSettings;
   const sections: ThemeSection[] = themeSettings?.layout?.sections || [];
+
+  if (sections.length === 0) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-2 text-center">
+        <h1 className="text-2xl font-bold">{restaurant.name}</h1>
+        <p className="text-muted-foreground">This store is being set up — check back soon.</p>
+      </div>
+    );
+  }
+
   const activeColors = draft?.colors || { primaryColor: restaurant.primaryColor, secondaryColor: restaurant.secondaryColor, accentColor: restaurant.accentColor };
   const formatPrice = (n: number) => convertAndFormatPrice(n, restaurant.currency, null);
   const items = products || [];

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Restaurant, RestaurantThemeSettings } from "@shared/schema";
+import { hasValidThemeSettings } from "@/storefront/lib/themeSettings";
 
 const STYLE_OPTIONS = [
   { value: "Luxury - Minimal - Elegant", label: "Luxury & Elegant" },
@@ -50,7 +51,7 @@ export default function StoreBuilderWizard() {
   useEffect(() => {
     if (!restaurant || step !== "loading") return;
     setForm((f) => ({ ...f, businessName: restaurant.name }));
-    setStep(restaurant.themeSettings ? "landing" : "details");
+    setStep(hasValidThemeSettings(restaurant.themeSettings) ? "landing" : "details");
   }, [restaurant, step]);
 
   useEffect(() => {
