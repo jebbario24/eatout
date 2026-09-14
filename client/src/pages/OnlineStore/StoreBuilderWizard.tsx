@@ -182,12 +182,12 @@ export default function StoreBuilderWizard() {
                   View store
                 </Button>
               </a>
-              <Link href="/online-store/editor">
+              <a href="/online-store/editor" target="_blank" rel="noopener noreferrer">
                 <Button size="sm" data-testid="button-edit-theme">
                   <Palette className="mr-1.5 h-3.5 w-3.5" />
                   Edit theme
                 </Button>
-              </Link>
+              </a>
             </div>
           </CardContent>
         </Card>

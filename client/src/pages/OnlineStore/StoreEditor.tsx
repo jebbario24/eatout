@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
 import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -58,7 +57,7 @@ export default function StoreEditor() {
     return (
       <div className="flex h-full min-h-[70vh] flex-col items-center justify-center gap-3 text-center">
         <p className="text-lg font-semibold">Your online store hasn't been generated yet.</p>
-        <Link href="/online-store"><Button>Set up your store</Button></Link>
+        <Button onClick={() => { window.location.href = "/online-store"; }}>Set up your store</Button>
       </div>
     );
   }
@@ -131,7 +130,14 @@ export default function StoreEditor() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-4 py-2.5">
         <div className="flex items-center gap-3">
-          <Link href="/online-store"><Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => { window.location.href = "/online-store"; }}
+            data-testid="button-back-to-dashboard"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
           <p className="font-semibold">Store Editor</p>
           <Select value={themeSettings.theme || "farfetch"} onValueChange={(v) => handleThemeChange(v as StorefrontThemeId)}>
             <SelectTrigger className="h-8 w-36" data-testid="select-storefront-theme"><SelectValue /></SelectTrigger>

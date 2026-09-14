@@ -110,7 +110,7 @@ export default function StoreOptimize() {
 
       {restaurant?.slug && (
         <div className="mt-4 flex justify-end gap-4 text-sm">
-          <Link href="/online-store/editor" className="text-primary hover:underline">Open Store Editor</Link>
+          <a href="/online-store/editor" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Open Store Editor</a>
           <a href={`/store/${restaurant.slug}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
             View live store
           </a>

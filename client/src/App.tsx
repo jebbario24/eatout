@@ -193,6 +193,20 @@ function AppContent() {
     return <PublicRouter />;
   }
 
+  // The Store Editor is opened in its own tab (see "Edit theme") specifically
+  // to get a clean, full-screen canvas — so it skips the dashboard chrome
+  // entirely rather than rendering inside the sidebar/topbar shell below.
+  // Auth and subscription/setup guards still apply, same as every other route.
+  if (isEditorPath) {
+    return (
+      <SubscriptionGuard>
+        <RestaurantSetupGuard>
+          <AuthenticatedRouter />
+        </RestaurantSetupGuard>
+      </SubscriptionGuard>
+    );
+  }
+
   // Restaurant owner and admin layout
   return (
     <SubscriptionGuard>
@@ -216,6 +230,7 @@ function AppContent() {
 }
 
 const isStorefrontPath = typeof window !== "undefined" && window.location.pathname.startsWith("/store/");
+const isEditorPath = typeof window !== "undefined" && window.location.pathname === "/online-store/editor";
 
 function App() {
   return (
