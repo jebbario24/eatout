@@ -1,15 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, Home, ShoppingBag, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Restaurant, RestaurantThemeSettings, ThemeSection, ThemeSectionType, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
+import type { Restaurant, RestaurantThemeSettings, ThemeSection, ThemeSectionType, ProductPageSettings, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
 import { SectionList } from "./components/SectionList";
 import { FieldPanel } from "./components/FieldPanel";
 import { DeviceSwitcher, DEVICE_WIDTHS, type DeviceMode } from "./components/DeviceSwitcher";
 import { hasValidThemeSettings } from "@/storefront/lib/themeSettings";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const PAGE_META = {
+  home: { label: "Home page", icon: Home },
+  product: { label: "Product page", icon: ShoppingBag },
+} as const;
 
 // Starter fields for a freshly-added instance of each type — same shape
 // `storeIntelligence.ts` uses for the AI-generated originals, just generic
@@ -32,6 +38,7 @@ export default function StoreEditor() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [selectedKey, setSelectedKey] = useState<string>("hero");
   const [device, setDevice] = useState<DeviceMode>("desktop");
+  const [currentPage, setCurrentPageState] = useState<"home" | "product">("home");
   const [themeSettings, setThemeSettings] = useState<RestaurantThemeSettings | null>(null);
   const [socialLinks, setSocialLinks] = useState<Record<string, string> | null>(null);
   const [isSaving, setIsSaving] = useState<"save" | "publish" | null>(null);
@@ -58,6 +65,12 @@ export default function StoreEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [themeSettings, iframeReady]);
 
+  // Switching which page is in the preview iframe navigates it, so the
+  // in-flight draft sync needs to wait for that new page's own onLoad.
+  useEffect(() => {
+    setIframeReady(false);
+  }, [currentPage]);
+
   if (isLoading || !restaurant) {
     return <div className="flex h-full min-h-[70vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
@@ -76,6 +89,7 @@ export default function StoreEditor() {
   const activeSection = sections.find((s) => sectionKey(s) === selectedKey);
   const testimonialsEligible = reviews.filter((r) => r.isPublished && r.rating >= 4).length >= 3;
   const bestSellersEligible = items.some((i: any) => i.isAvailable && i.visibleOnline && (i.tags || []).some((t: string) => /bestseller/i.test(t)));
+  const previewProduct = items.find((i: any) => i.isAvailable && i.visibleOnline && i.handle) as (MenuItem & { handle: string }) | undefined;
 
   const updateSections = (next: typeof sections) => {
     setThemeSettings((prev) => (prev ? { ...prev, layout: { ...prev.layout, sections: next } } : prev));
@@ -91,6 +105,20 @@ export default function StoreEditor() {
 
   const handleThemeChange = (theme: StorefrontThemeId) => {
     setThemeSettings((prev) => (prev ? { ...prev, theme } : prev));
+  };
+
+  const handleProductPageChange = (patch: ProductPageSettings) => {
+    setThemeSettings((prev) => (prev ? { ...prev, productPage: { ...prev.productPage, ...patch } } : prev));
+  };
+
+  // The page picker drives both which page shows in the preview and which
+  // "Template" content the sidebar lists (matching Shopify's own Header/
+  // Template/Footer grouping) — so switching pages also jumps the field
+  // panel to something sensible for that page instead of leaving it stuck
+  // on whatever was selected before.
+  const setCurrentPage = (page: "home" | "product") => {
+    setCurrentPageState(page);
+    setSelectedKey(page === "product" ? "productPage" : "hero");
   };
 
   const handleAddSection = (type: ThemeSectionType) => {
@@ -156,7 +184,33 @@ export default function StoreEditor() {
             </SelectContent>
           </Select>
         </div>
-        <DeviceSwitcher mode={device} onChange={setDevice} />
+        <div className="flex items-center gap-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent/50" data-testid="button-page-picker">
+                {(() => { const Icon = PAGE_META[currentPage].icon; return <Icon className="h-4 w-4 text-muted-foreground" />; })()}
+                {PAGE_META[currentPage].label}
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuItem onClick={() => setCurrentPage("home")} data-testid="menuitem-page-home">
+                <Home className="mr-2 h-4 w-4 text-muted-foreground" />
+                Home page
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => previewProduct && setCurrentPage("product")}
+                disabled={!previewProduct}
+                data-testid="menuitem-page-product"
+              >
+                <ShoppingBag className="mr-2 h-4 w-4 text-muted-foreground" />
+                Product page
+                {!previewProduct && <span className="ml-auto text-xs text-muted-foreground">Add a product first</span>}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DeviceSwitcher mode={device} onChange={setDevice} />
+        </div>
         <div className="flex items-center gap-2">
           <a href={`/store/${restaurant.slug}`} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" size="sm"><ExternalLink className="mr-1.5 h-3.5 w-3.5" />View store</Button>
@@ -173,6 +227,7 @@ export default function StoreEditor() {
         <div className="w-64 shrink-0 border-r">
           <SectionList
             sections={sections}
+            currentPage={currentPage}
             selectedKey={selectedKey}
             onSelect={setSelectedKey}
             onToggle={handleToggle}
@@ -187,7 +242,7 @@ export default function StoreEditor() {
           <div className="h-full overflow-hidden rounded-lg border bg-background shadow-sm transition-all" style={{ width: DEVICE_WIDTHS[device] }}>
             <iframe
               ref={iframeRef}
-              src={`/store/${restaurant.slug}?preview=1`}
+              src={currentPage === "product" && previewProduct ? `/store/${restaurant.slug}/products/${previewProduct.handle}?preview=1` : `/store/${restaurant.slug}?preview=1`}
               className="h-full w-full border-0"
               title="Store preview"
               onLoad={() => setIframeReady(true)}
@@ -200,8 +255,10 @@ export default function StoreEditor() {
             selectedKey={selectedKey}
             section={activeSection}
             socialLinks={socialLinks!}
+            productPage={themeSettings.productPage || {}}
             onFieldsChange={handleFieldsChange}
             onSocialLinksChange={setSocialLinks}
+            onProductPageChange={handleProductPageChange}
           />
         </div>
       </div>

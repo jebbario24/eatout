@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineImageUploader } from "@/components/InlineImageUploader";
 import { Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
-import type { ThemeSection } from "@shared/schema";
+import type { ThemeSection, ProductPageSettings } from "@shared/schema";
 import { TRUST_BADGE_ICONS } from "@/storefront/components/TrustBadges";
 
 interface Collection {
@@ -72,14 +72,16 @@ function ToggleRow({ label, checked, onChange, testId }: { label: string; checke
   );
 }
 
-export function FieldPanel({ selectedKey, section, socialLinks, onFieldsChange, onSocialLinksChange }: {
+export function FieldPanel({ selectedKey, section, socialLinks, productPage, onFieldsChange, onSocialLinksChange, onProductPageChange }: {
   selectedKey: string;
   section: ThemeSection | undefined;
   socialLinks: Record<string, string>;
+  productPage: ProductPageSettings;
   // Keyed by `section.id || section.type` — plain `type` isn't unique once a
   // store can have more than one "customEmbed" section.
   onFieldsChange: (key: string, fields: Record<string, any>) => void;
   onSocialLinksChange: (links: Record<string, string>) => void;
+  onProductPageChange: (patch: ProductPageSettings) => void;
 }) {
   const { data: collections = [] } = useQuery<Collection[]>({
     queryKey: ["/api/collections"],
@@ -112,6 +114,43 @@ export function FieldPanel({ selectedKey, section, socialLinks, onFieldsChange, 
             />
           </Field>
         ))}
+      </div>
+    );
+  }
+
+  if (selectedKey === "productPage") {
+    const setProductPage = (patch: ProductPageSettings) => onProductPageChange({ ...productPage, ...patch });
+    return (
+      <div className="space-y-5 p-4">
+        <h3 className="font-semibold">Product Page</h3>
+        <p className="text-xs text-muted-foreground">
+          Every product page shares these settings. Its trust badges and newsletter block come from the Trust Badges and Newsletter sections above.
+        </p>
+        <Field label="Related products heading">
+          <Input
+            value={productPage.relatedHeading || ""}
+            onChange={(e) => setProductPage({ relatedHeading: e.target.value })}
+            placeholder="You may also like"
+            data-testid="input-product-related-heading"
+          />
+        </Field>
+        <Field label="Shipping & returns text (optional)">
+          <Textarea
+            value={productPage.shippingReturnsText || ""}
+            onChange={(e) => setProductPage({ shippingReturnsText: e.target.value })}
+            rows={5}
+            placeholder="Orders ship within 1-2 business days. Free returns within 30 days of delivery."
+            data-testid="input-product-shipping-returns"
+          />
+          <p className="text-xs text-muted-foreground">Shown in its own accordion on the product page. Leave blank to fall back to your Trust Badges' shipping/returns lines.</p>
+        </Field>
+        <ToggleRow
+          label="Show About Us on product pages"
+          checked={!!productPage.showAboutUs}
+          onChange={(v) => setProductPage({ showAboutUs: v })}
+          testId="toggle-product-show-about"
+        />
+        <p className="text-xs text-muted-foreground">Reuses the same About Us section content from above — set it up there first.</p>
       </div>
     );
   }

@@ -1,4 +1,4 @@
-import { Share2, Layout, Image as ImageIcon, ShieldCheck, Grid3x3, Star, Megaphone, Users, Mail, PanelBottom, Code2, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { Share2, Layout, Image as ImageIcon, ShieldCheck, Grid3x3, Star, Megaphone, Users, Mail, PanelBottom, Code2, Plus, Trash2, ChevronUp, ChevronDown, ShoppingBag } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import type { ThemeSection, ThemeSectionType } from "@shared/schema";
@@ -25,8 +25,13 @@ const ADDABLE_TYPES: ThemeSectionType[] = (Object.keys(SECTION_META) as ThemeSec
 
 const sectionKey = (s: ThemeSection) => s.id || s.type;
 
-export function SectionList({ sections, selectedKey, onSelect, onToggle, onAdd, onRemove, onMove, testimonialsEligible, bestSellersEligible }: {
+export function SectionList({ sections, currentPage, selectedKey, onSelect, onToggle, onAdd, onRemove, onMove, testimonialsEligible, bestSellersEligible }: {
   sections: ThemeSection[];
+  // Which page's "Template" content shows in the middle of the list — Header/
+  // Footer/Social Links stay visible either way since they're shared across
+  // every page, matching Shopify's own Header/Template/Footer grouping where
+  // only the Template section swaps per the page picker up top.
+  currentPage: "home" | "product";
   selectedKey: string;
   onSelect: (key: string) => void;
   onToggle: (key: string, enabled: boolean) => void;
@@ -69,6 +74,17 @@ export function SectionList({ sections, selectedKey, onSelect, onToggle, onAdd, 
       })}
 
       <div className="flex-1 py-1">
+        {currentPage === "product" ? (
+          <button
+            onClick={() => onSelect("productPage")}
+            className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left ${selectedKey === "productPage" ? "bg-accent" : "hover:bg-accent/50"}`}
+            data-testid="button-section-productPage"
+          >
+            <ShoppingBag className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <p className="text-sm font-medium">Product Page</p>
+          </button>
+        ) : (
+        <>
         {bodySections.map((section, i) => {
           const meta = SECTION_META[section.type];
           if (!meta) return null;
@@ -160,6 +176,8 @@ export function SectionList({ sections, selectedKey, onSelect, onToggle, onAdd, 
             })}
           </DropdownMenuContent>
         </DropdownMenu>
+        </>
+        )}
       </div>
 
       {sections.filter((s) => s.type === "footer").map((section) => {

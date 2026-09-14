@@ -49,6 +49,8 @@ interface ProductDetail {
   relatedItems: Array<{ id: string; name: string; handle: string | null; imageUrl: string | null; price: string; compareAtPrice: string | null }>;
 }
 
+const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
+
 export function StorefrontProduct({ slug, handle }: { slug: string; handle: string }) {
   const [cartOpen, setCartOpen] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
   const [qty, setQty] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
   const [wishlisted, setWishlisted] = useState(false);
+  const [draft, setDraft] = useState<{ themeSettings?: RestaurantThemeSettings } | null>(null);
   const cart = useCart(slug);
 
   const { data: restaurant } = useQuery<StorefrontRestaurant>({ queryKey: [`/api/storefront/${slug}`] });
@@ -69,7 +72,19 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
     setQty(1);
   }, [product?.id]);
 
-  const theme = resolveTheme(restaurant?.themeSettings?.theme);
+  useEffect(() => {
+    if (!isPreview) return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === "STOREFRONT_DRAFT_UPDATE") {
+        setDraft({ themeSettings: event.data.themeSettings });
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  const themeSettings = draft?.themeSettings || restaurant?.themeSettings;
+  const theme = resolveTheme(themeSettings?.theme);
   const T = STOREFRONT_THEMES[theme];
 
   if (isLoading) {
@@ -95,13 +110,18 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
   const gallery = Array.from(new Set([product.imageUrl, ...activeVariants.map((v) => v.imageUrl)].filter(Boolean))) as string[];
   const displayImage = activeImage || product.imageUrl;
 
-  const headerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "header");
-  const footerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "footer");
-  const trustBadgesSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "trustBadges" && s.enabled);
-  const newsletterSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "newsletter" && s.enabled);
+  const headerSection = themeSettings?.layout?.sections?.find((s) => s.type === "header");
+  const footerSection = themeSettings?.layout?.sections?.find((s) => s.type === "footer");
+  const trustBadgesSection = themeSettings?.layout?.sections?.find((s) => s.type === "trustBadges" && s.enabled);
+  const newsletterSection = themeSettings?.layout?.sections?.find((s) => s.type === "newsletter" && s.enabled);
+  const aboutUsSection = themeSettings?.layout?.sections?.find((s) => s.type === "aboutUs" && s.enabled);
   const trustBadgeItems: Array<{ icon: string; label: string; detail: string }> = trustBadgesSection?.fields?.items || [];
   const shippingBadge = trustBadgeItems.find((i) => i.icon === "truck");
   const returnsBadge = trustBadgeItems.find((i) => i.icon === "refresh-cw");
+  const productPageSettings = themeSettings?.productPage || {};
+  const relatedHeading = productPageSettings.relatedHeading || "You may also like";
+  const shippingReturnsText = productPageSettings.shippingReturnsText?.trim();
+  const showAboutUs = !!productPageSettings.showAboutUs && !!aboutUsSection;
 
   const selectVariant = (v: Variant) => {
     setSelectedVariantId(v.id);
@@ -267,12 +287,18 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
                     <AccordionContent className="text-sm leading-relaxed text-muted-foreground">{product.description}</AccordionContent>
                   </AccordionItem>
                 )}
-                {(shippingBadge || returnsBadge) && (
+                {(shippingReturnsText || shippingBadge || returnsBadge) && (
                   <AccordionItem value="shipping">
                     <AccordionTrigger className="text-xs font-bold uppercase tracking-wide">Shipping and Returns</AccordionTrigger>
                     <AccordionContent className="space-y-1.5 text-sm text-muted-foreground">
-                      {shippingBadge && <p className="flex items-center gap-2"><Truck className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />{shippingBadge.label}{shippingBadge.detail ? ` — ${shippingBadge.detail}` : ""}</p>}
-                      {returnsBadge && <p className="flex items-center gap-2"><RefreshCw className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />{returnsBadge.label}{returnsBadge.detail ? ` — ${returnsBadge.detail}` : ""}</p>}
+                      {shippingReturnsText ? (
+                        <p className="whitespace-pre-line">{shippingReturnsText}</p>
+                      ) : (
+                        <>
+                          {shippingBadge && <p className="flex items-center gap-2"><Truck className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />{shippingBadge.label}{shippingBadge.detail ? ` — ${shippingBadge.detail}` : ""}</p>}
+                          {returnsBadge && <p className="flex items-center gap-2"><RefreshCw className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />{returnsBadge.label}{returnsBadge.detail ? ` — ${returnsBadge.detail}` : ""}</p>}
+                        </>
+                      )}
                     </AccordionContent>
                   </AccordionItem>
                 )}
@@ -302,9 +328,10 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
 
           {product.relatedItems.length > 0 && (
             <div className="mt-8 border-t border-[hsl(var(--card-border))]">
-              <T.ProductGrid heading="More for you" items={product.relatedItems as any} slug={slug} formatPrice={formatPrice} />
+              <T.ProductGrid heading={relatedHeading} items={product.relatedItems as any} slug={slug} formatPrice={formatPrice} />
             </div>
           )}
+          {showAboutUs && <T.AboutUs fields={aboutUsSection!.fields as any} />}
         </main>
         {trustBadgesSection && <T.TrustBadges fields={trustBadgesSection.fields as any} />}
         {newsletterSection && <T.Newsletter fields={newsletterSection.fields as any} slug={slug} />}
@@ -446,6 +473,12 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
                   <AccordionContent className="text-sm leading-relaxed text-muted-foreground">{product.description}</AccordionContent>
                 </AccordionItem>
               )}
+              {shippingReturnsText && (
+                <AccordionItem value="shipping">
+                  <AccordionTrigger className="text-sm font-medium">Shipping and Returns</AccordionTrigger>
+                  <AccordionContent className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{shippingReturnsText}</AccordionContent>
+                </AccordionItem>
+              )}
               {product.reviews.length > 0 && (
                 <AccordionItem value="reviews">
                   <AccordionTrigger className="text-sm font-medium">Reviews ({product.reviewCount})</AccordionTrigger>
@@ -472,9 +505,10 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
 
         {product.relatedItems.length > 0 && (
           <div className="mt-8 border-t border-border">
-            <T.ProductGrid heading="You may also like" items={product.relatedItems as any} slug={slug} formatPrice={formatPrice} />
+            <T.ProductGrid heading={relatedHeading} items={product.relatedItems as any} slug={slug} formatPrice={formatPrice} />
           </div>
         )}
+        {showAboutUs && <T.AboutUs fields={aboutUsSection!.fields as any} />}
       </main>
       {trustBadgesSection && <T.TrustBadges fields={trustBadgesSection.fields as any} />}
       {newsletterSection && <T.Newsletter fields={newsletterSection.fields as any} slug={slug} />}
