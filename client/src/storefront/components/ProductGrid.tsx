@@ -8,6 +8,10 @@ export function ProductGrid({ heading, items, slug, formatPrice, viewAllHref, em
   formatPrice: (n: number) => string;
   viewAllHref?: string;
   emptyHint?: string;
+  // Accepted (but unused here) so callers can pass the same props to any
+  // theme's ProductGrid — only the Adanola theme's cards have a working
+  // Quick Add action; Farfetch's product cards link straight to the PDP.
+  onQuickAdd?: (item: StorefrontProduct) => void;
 }) {
   return (
     <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8" data-testid={`section-${heading.toLowerCase().replace(/\s+/g, "-")}`}>

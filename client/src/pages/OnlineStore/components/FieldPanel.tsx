@@ -107,6 +107,9 @@ export function FieldPanel({ selectedKey, section, colors, onFieldsChange, onCol
       {section.type === "header" && (
         <>
           <ImageField label="Logo" value={fields.logoUrl} onChange={(url) => set({ logoUrl: url })} />
+          <Field label="Announcement bar text (optional — themes with an announcement strip only)">
+            <Input value={fields.announcementText || ""} onChange={(e) => set({ announcementText: e.target.value })} placeholder="FREE shipping on orders over $100" data-testid="input-header-announcement" />
+          </Field>
           <ToggleRow label="Show search icon" checked={fields.showSearch} onChange={(v) => set({ showSearch: v })} testId="toggle-header-search" />
           <ToggleRow label="Show account icon" checked={fields.showAccount} onChange={(v) => set({ showAccount: v })} testId="toggle-header-account" />
           <ToggleRow label="Show cart icon" checked={fields.showCart} onChange={(v) => set({ showCart: v })} testId="toggle-header-cart" />
@@ -116,6 +119,7 @@ export function FieldPanel({ selectedKey, section, colors, onFieldsChange, onCol
       {section.type === "hero" && (
         <>
           <ImageField label="Background image" value={fields.backgroundImageUrl} onChange={(url) => set({ backgroundImageUrl: url })} />
+          <ImageField label="Second image (optional — split-hero themes only)" value={fields.secondaryImageUrl} onChange={(url) => set({ secondaryImageUrl: url })} />
           <Field label="Heading">
             <Input value={fields.heading || ""} onChange={(e) => set({ heading: e.target.value })} data-testid="input-hero-heading" />
           </Field>

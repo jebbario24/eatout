@@ -8,6 +8,10 @@ export interface HeaderFields {
   showSearch: boolean;
   showAccount: boolean;
   showCart: boolean;
+  // Optional top announcement strip — unused by the Farfetch theme (its Do's/
+  // Don'ts call for zero decorative chrome above the nav), rendered by themes
+  // like Adanola that specify one.
+  announcementText?: string | null;
 }
 
 export function Header({ storeName, slug, fields, cartCount, onOpenCart }: {

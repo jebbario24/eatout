@@ -1,19 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { SiInstagram, SiFacebook, SiTiktok, SiX } from "react-icons/si";
 import { CreditCard } from "lucide-react";
+import { useFooterPageGroups } from "@/storefront/lib/useFooterPages";
 
 export interface FooterFields {
   showSocialLinks: boolean;
   showPaymentIcons: boolean;
-}
-
-interface FooterPage {
-  id: string;
-  title: string;
-  handle: string;
-  showInFooter: boolean;
-  footerGroup: string | null;
 }
 
 const SOCIAL_ICONS: Record<string, typeof SiInstagram> = {
@@ -30,20 +22,7 @@ export function Footer({ fields, storeName, socialLinks, slug }: {
   slug: string;
 }) {
   const base = `/store/${slug}`;
-  const { data: pages } = useQuery<FooterPage[]>({ queryKey: [`/api/storefront/${slug}/pages`] });
-  const footerPages = (pages || []).filter((p) => p.showInFooter);
-
-  const groups = new Map<string, FooterPage[]>();
-  const ungrouped: FooterPage[] = [];
-  for (const p of footerPages) {
-    if (p.footerGroup) {
-      if (!groups.has(p.footerGroup)) groups.set(p.footerGroup, []);
-      groups.get(p.footerGroup)!.push(p);
-    } else {
-      ungrouped.push(p);
-    }
-  }
-  const hasGroups = groups.size > 0;
+  const { groups, ungrouped, hasGroups } = useFooterPageGroups(slug);
 
   const links = fields.showSocialLinks && socialLinks
     ? (Object.keys(SOCIAL_ICONS) as (keyof typeof SOCIAL_ICONS)[]).filter((k) => socialLinks[k])

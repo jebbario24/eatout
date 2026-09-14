@@ -9,6 +9,10 @@ export interface HeroFields {
   buttonStyle: "solid" | "outline";
   textAlign: "left" | "center" | "right";
   overlayOpacity: number;
+  // Optional second image for a split two-photo hero — unused by the Farfetch
+  // theme (a single full-bleed editorial shot is its signature), rendered by
+  // themes like Adanola that pair two images side by side.
+  secondaryImageUrl?: string | null;
 }
 
 export function Hero({ fields, shopHref }: { fields: HeroFields; shopHref: string }) {

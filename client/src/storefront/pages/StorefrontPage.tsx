@@ -4,8 +4,7 @@ import { Link } from "wouter";
 import type { RestaurantThemeSettings } from "@shared/schema";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
 import { useCart } from "@/storefront/lib/cartStore";
-import { Header } from "@/storefront/components/Header";
-import { Footer } from "@/storefront/components/Footer";
+import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
 import { CartDrawer } from "@/storefront/components/CartDrawer";
 import { Markdown } from "@/components/Markdown";
 import { convertAndFormatPrice } from "@/lib/currency";
@@ -34,6 +33,8 @@ export function StorefrontPage({ slug, handle }: { slug: string; handle: string 
     queryKey: [`/api/storefront/${slug}/pages/${handle}`],
   });
 
+  const theme = resolveTheme(restaurant?.themeSettings?.theme);
+  const T = STOREFRONT_THEMES[theme];
   const headerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "header");
   const footerSection = restaurant?.themeSettings?.layout?.sections?.find((s) => s.type === "footer");
   const formatPrice = (n: number) => convertAndFormatPrice(n, restaurant?.currency || "USD", null);
@@ -51,21 +52,23 @@ export function StorefrontPage({ slug, handle }: { slug: string; handle: string 
   }
 
   return (
-    <div className="min-h-screen bg-background" style={storefrontColorVars()}>
+    <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
       {headerSection && restaurant && (
-        <Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        <T.Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
       )}
-      <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+      <main className={`mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 ${theme === "adanola" ? "py-8" : "py-10"}`}>
         <nav className="mb-6 text-xs text-muted-foreground">
           <Link href={base} className="hover:text-foreground">Home</Link>
           <span className="mx-2">/</span>
           <span className="text-foreground">{page.title}</span>
         </nav>
-        <h1 className="mb-8 font-serif text-3xl font-normal tracking-tight sm:text-4xl">{page.title}</h1>
+        <h1 className={theme === "adanola" ? "mb-6 text-2xl font-bold text-foreground" : "mb-8 font-serif text-3xl font-normal tracking-tight sm:text-4xl"}>
+          {page.title}
+        </h1>
         {page.body && <Markdown>{page.body}</Markdown>}
       </main>
       {footerSection && restaurant && (
-        <Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
+        <T.Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
       )}
       <CartDrawer
         open={cartOpen}

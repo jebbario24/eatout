@@ -5,11 +5,12 @@ import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import type { Restaurant, RestaurantThemeSettings, ThemeSectionType, CustomerReview, MenuItem } from "@shared/schema";
+import type { Restaurant, RestaurantThemeSettings, ThemeSectionType, CustomerReview, MenuItem, StorefrontThemeId } from "@shared/schema";
 import { SectionList } from "./components/SectionList";
 import { FieldPanel } from "./components/FieldPanel";
 import { DeviceSwitcher, DEVICE_WIDTHS, type DeviceMode } from "./components/DeviceSwitcher";
 import { hasValidThemeSettings } from "@/storefront/lib/themeSettings";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Colors = { primaryColor: string; secondaryColor: string; accentColor: string };
 
@@ -79,6 +80,10 @@ export default function StoreEditor() {
     updateSections(sections.map((s) => (s.type === type ? { ...s, fields } : s)));
   };
 
+  const handleThemeChange = (theme: StorefrontThemeId) => {
+    setThemeSettings((prev) => (prev ? { ...prev, theme } : prev));
+  };
+
   const save = async (publish: boolean) => {
     if (!themeSettings || !colors) return;
     setIsSaving(publish ? "publish" : "save");
@@ -99,6 +104,13 @@ export default function StoreEditor() {
         <div className="flex items-center gap-3">
           <Link href="/online-store"><Button variant="ghost" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link>
           <p className="font-semibold">Store Editor</p>
+          <Select value={themeSettings.theme || "farfetch"} onValueChange={(v) => handleThemeChange(v as StorefrontThemeId)}>
+            <SelectTrigger className="h-8 w-36" data-testid="select-storefront-theme"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="farfetch">Farfetch</SelectItem>
+              <SelectItem value="adanola">Adanola</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <DeviceSwitcher mode={device} onChange={setDevice} />
         <div className="flex items-center gap-2">

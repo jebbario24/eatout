@@ -4,15 +4,7 @@ import type { RestaurantThemeSettings, ThemeSection, CustomerReview } from "@sha
 import { convertAndFormatPrice } from "@/lib/currency";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
 import { useCart } from "@/storefront/lib/cartStore";
-import { Header } from "@/storefront/components/Header";
-import { Hero } from "@/storefront/components/Hero";
-import { TrustBadges } from "@/storefront/components/TrustBadges";
-import { ProductGrid } from "@/storefront/components/ProductGrid";
-import { Banner } from "@/storefront/components/Banner";
-import { AboutUs } from "@/storefront/components/AboutUs";
-import { Testimonials } from "@/storefront/components/Testimonials";
-import { Newsletter } from "@/storefront/components/Newsletter";
-import { Footer } from "@/storefront/components/Footer";
+import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
 import { CartDrawer } from "@/storefront/components/CartDrawer";
 import type { StorefrontProduct } from "@/storefront/components/ProductCard";
 
@@ -77,6 +69,8 @@ export function StorefrontHome({ slug }: { slug: string }) {
 
   const themeSettings = draft?.themeSettings || restaurant.themeSettings;
   const sections: ThemeSection[] = themeSettings?.layout?.sections || [];
+  const theme = resolveTheme(themeSettings?.theme);
+  const T = STOREFRONT_THEMES[theme];
 
   if (sections.length === 0) {
     return (
@@ -93,31 +87,41 @@ export function StorefrontHome({ slug }: { slug: string }) {
 
   const bestSellers = items.filter((i: any) => Array.isArray(i.tags) && i.tags.some((t: string) => /bestseller/i.test(t)));
 
+  const handleQuickAdd = (item: StorefrontProduct) => {
+    cart.addItem({
+      menuItemId: item.id,
+      name: item.name,
+      priceCents: Math.round(Number(item.price) * 100),
+      imageUrl: item.imageUrl,
+    }, 1);
+    setCartOpen(true);
+  };
+
   const renderSection = (section: ThemeSection) => {
     if (!section.enabled) return null;
     switch (section.type) {
       case "hero":
-        return <Hero key="hero" fields={section.fields as any} shopHref={`${base}/shop`} />;
+        return <T.Hero key="hero" fields={section.fields as any} shopHref={`${base}/shop`} />;
       case "trustBadges":
-        return <TrustBadges key="trustBadges" fields={section.fields as any} />;
+        return <T.TrustBadges key="trustBadges" fields={section.fields as any} />;
       case "featuredProducts":
         return (
           <div id="featured" key="featuredProducts">
-            <ProductGrid heading={section.fields.heading || "Featured"} items={items.slice(0, section.fields.limit || 8)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} emptyHint="New arrivals coming soon." />
+            <T.ProductGrid heading={section.fields.heading || "Featured"} items={items.slice(0, section.fields.limit || 8)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} emptyHint="New arrivals coming soon." onQuickAdd={handleQuickAdd} />
           </div>
         );
       case "bestSellers":
         return bestSellers.length === 0 ? null : (
-          <ProductGrid key="bestSellers" heading={section.fields.heading || "Best Sellers"} items={bestSellers.slice(0, section.fields.limit || 4)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} />
+          <T.ProductGrid key="bestSellers" heading={section.fields.heading || "Best Sellers"} items={bestSellers.slice(0, section.fields.limit || 4)} slug={slug} formatPrice={formatPrice} viewAllHref={`${base}/shop`} onQuickAdd={handleQuickAdd} />
         );
       case "banner":
-        return <Banner key="banner" fields={section.fields as any} />;
+        return <T.Banner key="banner" fields={section.fields as any} />;
       case "aboutUs":
-        return <AboutUs key="aboutUs" fields={section.fields as any} />;
+        return <T.AboutUs key="aboutUs" fields={section.fields as any} />;
       case "testimonials":
-        return <Testimonials key="testimonials" fields={section.fields as any} reviews={reviews || []} />;
+        return <T.Testimonials key="testimonials" fields={section.fields as any} reviews={reviews || []} />;
       case "newsletter":
-        return <Newsletter key="newsletter" fields={section.fields as any} slug={slug} />;
+        return <T.Newsletter key="newsletter" fields={section.fields as any} slug={slug} />;
       default:
         return null;
     }
@@ -128,13 +132,13 @@ export function StorefrontHome({ slug }: { slug: string }) {
   const bodySections = sections.filter((s) => s.type !== "header" && s.type !== "footer");
 
   return (
-    <div className="min-h-screen bg-background" style={storefrontColorVars()}>
+    <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
       {headerSection && (
-        <Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        <T.Header storeName={restaurant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
       )}
       <main>{bodySections.map(renderSection)}</main>
       {footerSection && (
-        <Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
+        <T.Footer fields={footerSection.fields as any} storeName={restaurant.name} socialLinks={restaurant.socialLinks} slug={slug} />
       )}
       <CartDrawer
         open={cartOpen}

@@ -1675,8 +1675,15 @@ export interface ThemeSection {
   fields: Record<string, any>;
 }
 
+// Which visual system renders the section data below. Purely additive/optional
+// so existing stores with no `theme` key keep rendering as "farfetch" (the
+// storefront's original, still-default look) with no migration needed — this
+// is a JSONB field, not a column, so new theme ids need no schema change either.
+export type StorefrontThemeId = "farfetch" | "adanola";
+
 export interface RestaurantThemeSettings {
   version: 1;
+  theme?: StorefrontThemeId;
   layout: { sections: ThemeSection[] };
   meta: { lastPublishedAt: string | null; brandStyle: string | null };
 }
