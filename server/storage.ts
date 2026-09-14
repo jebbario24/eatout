@@ -116,7 +116,7 @@ import {
   type InsertMarket,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, desc, asc, like, sql, inArray, gte, lte, isNotNull } from "drizzle-orm";
+import { eq, and, or, desc, asc, like, sql, inArray, gte, lte, isNotNull, isNull } from "drizzle-orm";
 
 /** URL handle from a title: lowercase, hyphen-separated, ascii-ish. */
 export function slugify(input: string): string {
@@ -428,6 +428,35 @@ export class DatabaseStorage implements IStorage {
   async getMenuItem(id: string): Promise<MenuItem | undefined> {
     const [item] = await db.select().from(menuItems).where(eq(menuItems.id, id));
     return item;
+  }
+
+  // A menu item with no handle is unreachable on the storefront — its
+  // ProductCard link silently falls back to the store's homepage instead of
+  // a product page (looks like "clicking it does nothing"). Every create/
+  // update resolves through here so a real, unique handle always exists,
+  // falling back to the item's name when the merchant didn't type one.
+  async resolveMenuItemHandle(restaurantId: string, desiredHandle: string | null | undefined, fallbackName: string | null | undefined, ignoreId?: string): Promise<string> {
+    const base = slugify(String(desiredHandle || "")) || slugify(String(fallbackName || "")) || "product";
+    let candidate = base;
+    for (let i = 2; i < 60; i++) {
+      const clash = await this.getMenuItemByHandle(restaurantId, candidate);
+      if (!clash || clash.id === ignoreId) break;
+      candidate = `${base}-${i}`;
+    }
+    return candidate;
+  }
+
+  // One-time-per-item healing for products created before every create/update
+  // path resolved a handle (see resolveMenuItemHandle) — run at boot so any
+  // already-unreachable product self-heals on the next deploy with no manual
+  // per-restaurant fix needed. Cheap no-op once nothing matches.
+  async backfillMissingMenuItemHandles(): Promise<number> {
+    const orphans = await db.select().from(menuItems).where(isNull(menuItems.handle));
+    for (const item of orphans) {
+      const handle = await this.resolveMenuItemHandle(item.restaurantId, null, item.name, item.id);
+      await db.update(menuItems).set({ handle }).where(eq(menuItems.id, item.id));
+    }
+    return orphans.length;
   }
 
   async getMenuItemByHandle(restaurantId: string, handle: string): Promise<MenuItem | undefined> {

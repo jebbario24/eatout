@@ -101,7 +101,15 @@ app.use((req, res, next) => {
   }
   server.listen(listenOptions, () => {
     log(`serving on port ${port}`);
-    
+
+    // One-time heal for products created before every menu-item create/update
+    // path resolved a real handle — without one, a product is unreachable on
+    // the storefront (its card link silently falls back to the homepage).
+    // Cheap no-op on every boot after the first once nothing matches.
+    storage.backfillMissingMenuItemHandles()
+      .then((count) => { if (count > 0) log(`[Storefront] Backfilled a handle for ${count} product(s) that had none`); })
+      .catch((err) => log(`[Storefront] Menu item handle backfill failed: ${err}`));
+
     // Setup automated payout scheduler (runs daily at 2 AM)
     cron.schedule('0 2 * * *', async () => {
       try {

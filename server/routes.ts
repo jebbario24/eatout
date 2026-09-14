@@ -4,7 +4,7 @@ import crypto from "crypto";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { env, getBaseUrl } from "./env";
-import { storage, slugify } from "./storage";
+import { storage } from "./storage";
 import { passport, hashPassword, verifyPassword } from "./auth";
 import {
   insertRestaurantSchema,
@@ -1205,21 +1205,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const data = insertMenuItemSchema.parse({ ...requestData, restaurantId: restaurant.id });
 
-      // Merchandising: normalise the SEO handle (unique per restaurant, or clear it).
-      if (data.handle !== undefined) {
-        const wanted = slugify(String(data.handle || ""));
-        if (!wanted) {
-          data.handle = null;
-        } else {
-          let candidate = wanted;
-          for (let i = 2; i < 60; i++) {
-            const clash = await storage.getMenuItemByHandle(restaurant.id, candidate);
-            if (!clash) break;
-            candidate = `${wanted}-${i}`;
-          }
-          data.handle = candidate;
-        }
-      }
+      // Every product needs a real handle to be reachable on the storefront
+      // at all (its product-card link falls back to the store homepage
+      // otherwise) — always resolve one, using the name when none was typed.
+      data.handle = await storage.resolveMenuItemHandle(restaurant.id, data.handle, data.name);
 
       // If imageUrl is provided, make it publicly accessible
       if (data.imageUrl) {
@@ -1270,20 +1259,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const data = insertMenuItemSchema.partial().parse(requestData);
 
-      // Merchandising: normalise the SEO handle (unique per restaurant, or clear it).
-      if (data.handle !== undefined) {
-        const wanted = slugify(String(data.handle || ""));
-        if (!wanted) {
-          data.handle = null;
-        } else {
-          let candidate = wanted;
-          for (let i = 2; i < 60; i++) {
-            const clash = await storage.getMenuItemByHandle(restaurant.id, candidate);
-            if (!clash || clash.id === req.params.id) break;
-            candidate = `${wanted}-${i}`;
-          }
-          data.handle = candidate;
-        }
+      // Resolve the handle if the merchant explicitly changed it, or
+      // opportunistically heal an item that's been unreachable on the
+      // storefront this whole time (handle was never set) now that it's
+      // being touched anyway.
+      if (data.handle !== undefined || !originalItem.handle) {
+        data.handle = await storage.resolveMenuItemHandle(restaurant.id, data.handle ?? originalItem.handle, data.name ?? originalItem.name, req.params.id);
       }
 
       // If imageUrl is provided, make it publicly accessible
@@ -1391,8 +1372,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create duplicate with " (Copy)" appended to name
+      const duplicateName = `${originalItem.name} (Copy)`;
       const duplicateData = {
-        name: `${originalItem.name} (Copy)`,
+        name: duplicateName,
         description: originalItem.description,
         price: originalItem.price,
         priceCents: originalItem.priceCents,
@@ -1404,8 +1386,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         options: originalItem.options as any,
         allergensJson: originalItem.allergensJson as any,
         tags: originalItem.tags || undefined,
+        handle: await storage.resolveMenuItemHandle(restaurant.id, null, duplicateName),
       };
-      
+
       const newItem = await storage.createMenuItem(duplicateData);
       res.json(newItem);
     } catch (error) {
