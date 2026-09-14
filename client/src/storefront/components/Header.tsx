@@ -19,39 +19,46 @@ export function Header({ storeName, slug, fields, cartCount, onOpenCart }: {
 }) {
   const base = `/store/${slug}`;
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        <Link href={base} className="flex items-center gap-2 shrink-0">
-          {fields.logoUrl ? (
-            <img src={fields.logoUrl} alt={storeName} className="h-8 w-8 rounded-full object-cover" />
-          ) : (
-            <Store className="h-6 w-6 text-primary" />
-          )}
-          <span className="font-display text-lg font-bold truncate">{storeName}</span>
-        </Link>
-        <nav className="hidden md:flex items-center gap-1 text-sm">
+    <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md">
+      <div className="mx-auto grid h-16 max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6 lg:px-8">
+        <nav className="hidden items-center gap-6 text-[13px] font-normal text-foreground md:flex">
           {(fields.nav || []).map((item, i) => (
             <a
               key={i}
               href={item.type === "shop" ? `${base}/shop` : base}
-              className="rounded-md px-2.5 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="group relative py-1"
             >
               {item.label}
+              <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-foreground transition-transform duration-300 group-hover:scale-x-100" />
             </a>
           ))}
         </nav>
-        <div className="flex items-center gap-1">
+
+        <Link href={base} className="col-start-2 flex shrink-0 items-center gap-2.5 justify-self-center">
+          {fields.logoUrl ? (
+            <img src={fields.logoUrl} alt={storeName} className="h-7 w-7 object-cover" />
+          ) : (
+            <Store className="h-5 w-5 text-foreground md:hidden" strokeWidth={1.5} />
+          )}
+          <span className="font-sans text-lg font-bold uppercase tracking-[0.12em] text-foreground">{storeName}</span>
+        </Link>
+
+        <div className="flex items-center justify-end gap-1 justify-self-end">
           {fields.showSearch && (
-            <Button variant="ghost" size="icon" data-testid="button-storefront-search"><Search className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-none hover:bg-accent" data-testid="button-storefront-search">
+              <Search className="h-[18px] w-[18px]" strokeWidth={1.5} />
+            </Button>
           )}
           {fields.showAccount && (
-            <Button variant="ghost" size="icon" data-testid="button-storefront-account"><User className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-none hover:bg-accent" data-testid="button-storefront-account">
+              <User className="h-[18px] w-[18px]" strokeWidth={1.5} />
+            </Button>
           )}
           {fields.showCart && (
-            <Button variant="ghost" size="icon" className="relative" onClick={onOpenCart} data-testid="button-storefront-cart">
-              <ShoppingBag className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-none hover:bg-accent" onClick={onOpenCart} data-testid="button-storefront-cart">
+              <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.5} />
               {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-foreground text-[10px] font-medium text-background">
                   {cartCount}
                 </span>
               )}

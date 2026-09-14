@@ -1,3 +1,5 @@
+import { motion } from "framer-motion";
+
 export interface AboutUsFields {
   heading: string;
   body: string;
@@ -6,17 +8,30 @@ export interface AboutUsFields {
 
 export function AboutUs({ fields }: { fields: AboutUsFields }) {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8" data-testid="section-about-us">
-      <div className="grid items-center gap-10 md:grid-cols-2">
+    <div className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8" data-testid="section-about-us">
+      <div className="grid items-center gap-14 md:grid-cols-2">
         {fields.imageUrl && (
-          <div className="aspect-[4/3] overflow-hidden rounded-lg bg-muted">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, amount: 0.4 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="aspect-[4/5] overflow-hidden bg-muted"
+          >
             <img src={fields.imageUrl} alt={fields.heading} className="h-full w-full object-cover" />
-          </div>
+          </motion.div>
         )}
-        <div className={fields.imageUrl ? "" : "mx-auto max-w-2xl text-center"}>
-          <h2 className="font-display text-2xl font-bold sm:text-3xl">{fields.heading}</h2>
-          <p className="mt-4 text-muted-foreground leading-relaxed">{fields.body}</p>
-        </div>
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}
+          className={fields.imageUrl ? "" : "mx-auto max-w-2xl text-center"}
+        >
+          <p className="mb-3 text-xs font-normal uppercase tracking-[0.2em] text-muted-foreground">Our story</p>
+          <h2 className="font-serif text-3xl font-normal tracking-tight sm:text-4xl">{fields.heading}</h2>
+          <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground">{fields.body}</p>
+        </motion.div>
       </div>
     </div>
   );

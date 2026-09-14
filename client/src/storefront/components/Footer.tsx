@@ -22,16 +22,16 @@ export function Footer({ fields, storeName, socialLinks }: {
     ? (Object.keys(SOCIAL_ICONS) as (keyof typeof SOCIAL_ICONS)[]).filter((k) => socialLinks[k])
     : [];
   return (
-    <footer className="border-t">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="text-sm font-medium">{storeName}</p>
+    <footer className="bg-foreground text-background">
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+        <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:justify-between sm:text-left">
+          <p className="font-sans text-base font-bold uppercase tracking-[0.14em]">{storeName}</p>
           {links.length > 0 && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {links.map((k) => {
                 const Icon = SOCIAL_ICONS[k];
                 return (
-                  <a key={k} href={socialLinks![k]} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                  <a key={k} href={socialLinks![k]} target="_blank" rel="noopener noreferrer" className="text-background/70 transition-colors hover:text-background">
                     <Icon className="h-4 w-4" />
                   </a>
                 );
@@ -39,13 +39,15 @@ export function Footer({ fields, storeName, socialLinks }: {
             </div>
           )}
         </div>
-        {fields.showPaymentIcons && (
-          <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CreditCard className="h-3.5 w-3.5" />
-            <span>Secure payments accepted</span>
-          </div>
-        )}
-        <p className="mt-4 text-xs text-muted-foreground">© {new Date().getFullYear()} {storeName}. Powered by EatOut.</p>
+        <div className="mt-10 flex flex-col items-center gap-3 border-t border-background/20 pt-8 text-xs text-background/70 sm:flex-row sm:justify-between">
+          <p>© {new Date().getFullYear()} {storeName}. All rights reserved.</p>
+          {fields.showPaymentIcons && (
+            <div className="flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5" />
+              <span>Secure payments accepted</span>
+            </div>
+          )}
+        </div>
       </div>
     </footer>
   );

@@ -1,58 +1,35 @@
 import type { CSSProperties } from "react";
 
-// Restaurant brand colors are stored as hex; the app's design tokens (used by
-// every shadcn component the storefront reuses, e.g. Button's bg-primary) are
-// HSL triplet strings like "220 90% 50%" with no hsl()/commas. Converting and
-// overriding --primary/--secondary/--accent (+ their -foreground pairs) on the
-// storefront root is what makes a merchant's chosen colors actually show up —
-// -border variants recompute automatically from these via the app's own CSS.
-function hexToHslTriplet(hex: string): string | null {
-  const clean = hex.replace("#", "").trim();
-  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return null;
-  const r = parseInt(clean.slice(0, 2), 16) / 255;
-  const g = parseInt(clean.slice(2, 4), 16) / 255;
-  const b = parseInt(clean.slice(4, 6), 16) / 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0;
-  const l = (max + min) / 2;
-  const d = max - min;
-  const s = d === 0 ? 0 : l > 0.5 ? d / (2 - max - min) : d / (max + min);
-  if (d !== 0) {
-    switch (max) {
-      case r: h = ((g - b) / d + (g < b ? 6 : 0)); break;
-      case g: h = (b - r) / d + 2; break;
-      default: h = (r - g) / d + 4;
-    }
-    h /= 6;
-  }
-  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
-}
-
-function readableForegroundHsl(hex: string): string {
-  const clean = hex.replace("#", "").trim();
-  const r = parseInt(clean.slice(0, 2), 16) || 0;
-  const g = parseInt(clean.slice(2, 4), 16) || 0;
-  const b = parseInt(clean.slice(4, 6), 16) || 0;
-  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-  return yiq >= 150 ? "0 0% 10%" : "0 0% 100%";
-}
-
 export interface StorefrontColors {
   primaryColor?: string | null;
   secondaryColor?: string | null;
   accentColor?: string | null;
 }
 
-export function storefrontColorVars(colors: StorefrontColors): CSSProperties {
-  const vars: Record<string, string> = {};
-  (["primaryColor", "secondaryColor", "accentColor"] as const).forEach((key) => {
-    const hex = colors[key];
-    if (!hex) return;
-    const hsl = hexToHslTriplet(hex);
-    if (!hsl) return;
-    const varName = key.replace("Color", "");
-    vars[`--${varName}`] = hsl;
-    vars[`--${varName}-foreground`] = readableForegroundHsl(hex);
-  });
-  return vars as CSSProperties;
+// The storefront's visual identity is a fixed achromatic "white gallery" look
+// (Farfetch-style: editorial photography carries every color, the interface
+// never does) rather than each merchant's chosen brand colors, so this always
+// returns the same token set — the `colors` argument is accepted only so
+// existing call sites don't need to change and is otherwise ignored.
+export function storefrontColorVars(_colors?: StorefrontColors): CSSProperties {
+  return {
+    "--background": "0 0% 100%", // Paper
+    "--foreground": "0 0% 13%", // Carbon
+    "--card": "0 0% 100%",
+    "--card-foreground": "0 0% 13%",
+    "--card-border": "0 0% 90%",
+    "--popover": "0 0% 100%",
+    "--popover-foreground": "0 0% 13%",
+    "--primary": "0 0% 13%",
+    "--primary-foreground": "0 0% 100%",
+    "--secondary": "0 0% 96%", // Stone
+    "--secondary-foreground": "0 0% 13%",
+    "--muted": "0 0% 96%", // Stone
+    "--muted-foreground": "0 0% 45%", // Graphite
+    "--accent": "0 0% 96%", // Stone hover wash
+    "--accent-foreground": "0 0% 13%",
+    "--border": "0 0% 90%", // Smoke
+    "--input": "0 0% 90%",
+    "--ring": "0 0% 13%",
+  } as CSSProperties;
 }
