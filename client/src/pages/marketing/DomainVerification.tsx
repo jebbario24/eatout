@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Loader2, Save, Shield, Info, Copy, Check } from "lucide-react";
+import { Loader2, Save, Shield, Info, Copy, Check, Globe, CircleCheck } from "lucide-react";
 
 const verificationSchema = z.object({
   metaVerificationCode: z.string().optional(),
@@ -25,12 +27,51 @@ interface Merchant {
   customDomain?: string;
 }
 
+interface DnsInstructions {
+  verified: boolean;
+  message: string;
+  instructions?: { type: string; host: string; value: string; note: string };
+}
+
 export default function DomainVerification() {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [customDomainInput, setCustomDomainInput] = useState("");
+  const [dnsInstructions, setDnsInstructions] = useState<DnsInstructions | null>(null);
 
   const { data: merchant, isLoading } = useQuery<Merchant>({
     queryKey: ['/api/merchants/me'],
+  });
+
+  useEffect(() => {
+    if (merchant?.customDomain) setCustomDomainInput(merchant.customDomain);
+  }, [merchant?.customDomain]);
+
+  const saveCustomDomainMutation = useMutation({
+    mutationFn: async (customDomain: string) => {
+      if (!merchant?.id) throw new Error("Merchant not found");
+      return apiRequest(`/api/merchants/${merchant.id}/custom-domain`, "PATCH", { customDomain: customDomain || null });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/merchants/me'] });
+      setDnsInstructions(null);
+      toast({ title: "Domain saved", description: "Now verify your DNS configuration below." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Couldn't save domain", description: error?.message || "Please try again.", variant: "destructive" });
+    },
+  });
+
+  const verifyDomainMutation = useMutation({
+    mutationFn: async () => {
+      if (!merchant?.id) throw new Error("Merchant not found");
+      const res = await apiRequest(`/api/merchants/${merchant.id}/verify-domain`, "POST");
+      return res.json() as Promise<DnsInstructions>;
+    },
+    onSuccess: (data) => setDnsInstructions(data),
+    onError: (error: any) => {
+      toast({ title: "Couldn't check domain", description: error?.message || "Please try again.", variant: "destructive" });
+    },
   });
 
   const form = useForm<VerificationFormData>({
@@ -84,15 +125,83 @@ export default function DomainVerification() {
   }
 
   const currentDomain = merchant?.customDomain || merchant?.subdomain || "your-store.eatout.app";
+  const hasUnsavedDomainChange = customDomainInput.trim() !== (merchant?.customDomain || "");
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Domain Verification</h1>
+        <h1 className="text-3xl font-bold mb-2">Domains</h1>
         <p className="text-muted-foreground">
-          Verify your domain ownership for Meta Business Manager
+          Connect your own domain to your storefront, and verify it for Meta Business Manager
         </p>
       </div>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5 text-primary" />
+            Custom Domain
+          </CardTitle>
+          <CardDescription>
+            Point your own domain (e.g. shop.yourbrand.com) at your storefront instead of using your eatout.app subdomain.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="custom-domain-input">Your domain</Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="custom-domain-input"
+                value={customDomainInput}
+                onChange={(e) => { setCustomDomainInput(e.target.value); setDnsInstructions(null); }}
+                placeholder="shop.yourbrand.com"
+                className="flex-1"
+                data-testid="input-custom-domain"
+              />
+              <Button
+                onClick={() => saveCustomDomainMutation.mutate(customDomainInput.trim())}
+                disabled={saveCustomDomainMutation.isPending || !hasUnsavedDomainChange}
+                data-testid="button-save-custom-domain"
+              >
+                {saveCustomDomainMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save
+              </Button>
+            </div>
+          </div>
+
+          {merchant?.customDomain && !hasUnsavedDomainChange && (
+            <div className="space-y-3 border-t pt-4">
+              <Button
+                variant="outline"
+                onClick={() => verifyDomainMutation.mutate()}
+                disabled={verifyDomainMutation.isPending}
+                data-testid="button-verify-custom-domain"
+              >
+                {verifyDomainMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4" />}
+                Check DNS configuration
+              </Button>
+
+              {dnsInstructions && (
+                <Alert variant={dnsInstructions.verified ? "default" : undefined}>
+                  {dnsInstructions.verified ? <CircleCheck className="h-4 w-4 text-green-600" /> : <Info className="h-4 w-4" />}
+                  <AlertTitle>{dnsInstructions.verified ? "Domain verified" : "DNS not yet configured"}</AlertTitle>
+                  <AlertDescription className="space-y-2 mt-2">
+                    <p>{dnsInstructions.message}</p>
+                    {dnsInstructions.instructions && (
+                      <div className="rounded-md bg-muted p-3 text-sm space-y-1">
+                        <p>Add a <strong>{dnsInstructions.instructions.type}</strong> record with your domain registrar:</p>
+                        <p>Host: <code className="bg-background px-1.5 py-0.5 rounded">{dnsInstructions.instructions.host}</code></p>
+                        <p>Value: <code className="bg-background px-1.5 py-0.5 rounded">{dnsInstructions.instructions.value}</code></p>
+                        <p className="text-muted-foreground">{dnsInstructions.instructions.note}</p>
+                      </div>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Alert className="mb-6">
         <Info className="h-4 w-4" />
