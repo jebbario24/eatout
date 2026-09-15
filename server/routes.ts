@@ -5347,11 +5347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!merchant.customDomain) {
         return res.status(400).json({ message: "No custom domain configured" });
       }
-      
-      if (!merchant.subdomain) {
-        return res.status(400).json({ message: "Subdomain must be configured before verifying custom domain" });
-      }
-      
+
       // Simple DNS verification: try to resolve the domain
       // In production, you'd use dns.promises.resolveCname() from Node.js
       // For now, we'll return a success response indicating manual verification is needed
