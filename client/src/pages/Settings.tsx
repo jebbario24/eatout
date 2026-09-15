@@ -189,8 +189,9 @@ export default function Settings() {
     },
     onSuccess: async () => {
       // After creating account, generate onboarding link and redirect
-      const linkResponse: any = await apiRequest("/api/merchant/connect/onboarding-link", "POST", {});
-      window.location.href = linkResponse.url;
+      const linkResponse = await apiRequest("/api/merchant/connect/onboarding-link", "POST", {});
+      const data = await linkResponse.json();
+      window.location.href = data.url;
     },
     onError: () => {
       toast({ title: "Failed to create Stripe account", variant: "destructive" });
@@ -200,7 +201,8 @@ export default function Settings() {
   // Generate onboarding link for existing account
   const onboardingLinkMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("/api/merchant/connect/onboarding-link", "POST", {});
+      const res = await apiRequest("/api/merchant/connect/onboarding-link", "POST", {});
+      return res.json();
     },
     onSuccess: (data: any) => {
       window.location.href = data.url;
