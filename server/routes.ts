@@ -3506,6 +3506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tiktokPixelId: merchant.tiktokPixelId,
         googleAnalyticsId: merchant.googleAnalyticsId,
         googleAdsId: merchant.googleAdsId,
+        stripeEnabled: Boolean((merchant.paymentMethods as { stripe?: boolean } | null)?.stripe),
       });
     } catch (error) {
       logError("Storefront merchant lookup failed", error);
@@ -3686,6 +3687,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const merchant = await merchantBySlugPublic(req.params.slug);
       if (!merchant) return res.status(404).json({ message: "Store not found" });
+
+      const merchantPaymentMethods = merchant.paymentMethods as { stripe?: boolean } | null;
+      if (!merchantPaymentMethods?.stripe) {
+        return res.status(503).json({ message: "Card payments aren't enabled for this store yet" });
+      }
 
       const parsed = storefrontCheckoutSchema.safeParse(req.body);
       if (!parsed.success) {

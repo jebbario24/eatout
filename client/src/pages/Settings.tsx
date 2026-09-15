@@ -1120,17 +1120,17 @@ export default function Settings() {
               <CardDescription>Choose which payment methods to show on your online store</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between opacity-60" data-testid="payment-method-stripe">
+              <div className="flex items-center justify-between" data-testid="payment-method-stripe">
                 <div className="space-y-0.5">
-                  <Label htmlFor="enable-stripe">Stripe (Coming soon)</Label>
+                  <Label htmlFor="enable-stripe">Stripe</Label>
                   <p className="text-sm text-muted-foreground">
-                    Card payment processing isn't built yet — online orders complete via Cash on Delivery or PayPal today.
+                    Accept card payments at checkout via embedded Stripe Elements
                   </p>
                 </div>
                 <Switch
                   id="enable-stripe"
-                  checked={false}
-                  disabled
+                  checked={paymentMethods.stripe}
+                  onCheckedChange={(checked) => setPaymentMethods(prev => ({ ...prev, stripe: checked }))}
                   data-testid="switch-stripe"
                 />
               </div>
@@ -1162,7 +1162,7 @@ export default function Settings() {
               </div>
 
               <Button
-                onClick={() => paymentMethodsMutation.mutate({ ...paymentMethods, stripe: false })}
+                onClick={() => paymentMethodsMutation.mutate(paymentMethods)}
                 disabled={paymentMethodsMutation.isPending}
                 data-testid="button-save-payment-methods"
               >

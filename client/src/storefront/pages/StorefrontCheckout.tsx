@@ -29,6 +29,7 @@ interface StorefrontMerchant {
   tiktokPixelId?: string | null;
   googleAnalyticsId?: string | null;
   googleAdsId?: string | null;
+  stripeEnabled: boolean;
 }
 
 interface CheckoutSession {
@@ -180,6 +181,10 @@ export function StorefrontCheckout({ slug }: { slug: string }) {
             <Link href={`${base}/shop`}>
               <Button variant="outline" data-testid="button-back-to-shop">Continue shopping</Button>
             </Link>
+          </div>
+        ) : merchant && !merchant.stripeEnabled ? (
+          <div className="border border-border py-16 text-center">
+            <p className="text-sm text-muted-foreground">This store isn't accepting card payments yet.</p>
           </div>
         ) : (
           <>
