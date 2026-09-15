@@ -948,16 +948,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
         case 'customer.subscription.updated': {
           const subscription = event.data.object as any;
           const customerId = subscription.customer;
-          
+
           const user = await storage.getUserByStripeCustomerId(customerId);
           if (user) {
             const currentPeriodEnd = new Date((subscription as any).current_period_end * 1000);
-            
+
             await storage.updateUserSubscription(user.id, {
               subscriptionStatus: subscription.status,
               subscriptionEndsAt: currentPeriodEnd,
             });
             console.log(`Subscription updated for user ${user.id}: ${subscription.status}`);
+          }
+          break;
+        }
+
+        // Customer storefront order payments (separate system from the
+        // subscription billing events above — keyed by orderId metadata set
+        // in POST /api/storefront/:slug/checkout, not by Stripe customer id).
+        case 'payment_intent.succeeded': {
+          const paymentIntent = event.data.object as any;
+          const orderId = paymentIntent.metadata?.orderId;
+          if (!orderId) break;
+
+          const orderData = await storage.getOrderWithItems(orderId);
+          if (!orderData) {
+            logError(`payment_intent.succeeded for unknown order ${orderId}`);
+            break;
+          }
+          // Webhooks can be delivered more than once — don't double-confirm.
+          if (orderData.order.paymentStatus === 'paid') break;
+
+          const confirmedOrder = await storage.confirmOrderWithPayment(
+            orderId,
+            'stripe',
+            paymentIntent.id,
+            parseFloat(orderData.order.total),
+            parseFloat(orderData.order.shippingFee || '0'),
+          );
+
+          if (confirmedOrder.merchantId) {
+            wsManager.broadcastToMerchant(confirmedOrder.merchantId, {
+              type: 'new_order',
+              data: confirmedOrder,
+            });
+          }
+          console.log(`Order ${orderId} confirmed via Stripe payment_intent.succeeded`);
+          break;
+        }
+
+        case 'payment_intent.payment_failed': {
+          const paymentIntent = event.data.object as any;
+          const orderId = paymentIntent.metadata?.orderId;
+          if (!orderId) break;
+
+          const orderData = await storage.getOrderWithItems(orderId);
+          if (orderData && orderData.order.paymentStatus === 'pending') {
+            await storage.updateOrder(orderId, { paymentStatus: 'pending', status: 'cancelled' });
+            console.log(`Order ${orderId} cancelled after Stripe payment failure`);
           }
           break;
         }
@@ -3598,6 +3645,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       logError("Contact form submission failed", error);
       res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  // ==========================================
+  // STOREFRONT CHECKOUT — embedded Stripe Elements (card payments only;
+  // charge lands on the platform account, matching the existing "collect
+  // then transfer to merchant" payout pipeline)
+  // ==========================================
+
+  // Stripe requires integer amounts in the currency's smallest unit, except
+  // for these currencies which have no minor unit at all.
+  const ZERO_DECIMAL_CURRENCIES = new Set([
+    'bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf',
+    'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf',
+  ]);
+
+  function totalCentsToStripeAmount(totalCents: number, currencyLower: string): number {
+    return ZERO_DECIMAL_CURRENCIES.has(currencyLower) ? Math.round(totalCents / 100) : totalCents;
+  }
+
+  const storefrontCheckoutSchema = z.object({
+    orderType: z.enum(['pickup', 'shipping']).default('pickup'),
+    customerName: z.string().trim().min(1, "Name is required").max(200),
+    customerPhone: z.string().trim().max(50).nullable().optional(),
+    customerEmail: z.string().trim().email("Enter a valid email").max(255),
+    shippingAddress: z.string().trim().max(500).nullable().optional(),
+    items: z.array(z.object({
+      menuItemId: z.string(),
+      variantId: z.string().nullable().optional(),
+      quantity: z.number().int().positive().max(999),
+    })).min(1, "Your cart is empty"),
+  });
+
+  app.post('/api/storefront/:slug/checkout', storefrontLimiter, async (req, res) => {
+    try {
+      if (!stripe) {
+        return res.status(503).json({ message: "Card payments aren't configured for this store yet" });
+      }
+
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
+
+      const parsed = storefrontCheckoutSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid checkout data" });
+      }
+      const data = parsed.data;
+
+      if (data.orderType === 'shipping' && !data.shippingAddress) {
+        return res.status(400).json({ message: "A shipping address is required for delivery orders" });
+      }
+
+      // Re-price every line against the DB — the cart in the browser is never
+      // trusted for the amount that actually gets charged.
+      const lineRows: Array<{
+        menuItemId: string; variantId: string | null; variantName: string | null;
+        quantity: number; unitPrice: string; subtotal: string;
+      }> = [];
+      let subtotalCents = 0;
+
+      for (const line of data.items) {
+        const menuItem = await storage.getMenuItem(line.menuItemId);
+        if (!menuItem || menuItem.merchantId !== merchant.id || !menuItem.isAvailable || !menuItem.visibleOnline) {
+          return res.status(400).json({ message: "One of the items in your cart is no longer available" });
+        }
+
+        let unitPriceCents = menuItem.priceCents;
+        let variantName: string | null = null;
+        if (line.variantId) {
+          const variant = await storage.getVariant(line.variantId);
+          if (!variant || variant.menuItemId !== menuItem.id || !variant.isActive) {
+            return res.status(400).json({ message: `The selected option for "${menuItem.name}" is no longer available` });
+          }
+          unitPriceCents = variant.priceCents;
+          variantName = variant.name;
+        }
+
+        const lineSubtotalCents = unitPriceCents * line.quantity;
+        subtotalCents += lineSubtotalCents;
+        lineRows.push({
+          menuItemId: menuItem.id,
+          variantId: line.variantId || null,
+          variantName,
+          quantity: line.quantity,
+          unitPrice: (unitPriceCents / 100).toFixed(2),
+          subtotal: (lineSubtotalCents / 100).toFixed(2),
+        });
+      }
+
+      const taxRatePct = merchant.taxRate ? parseFloat(merchant.taxRate) : 0;
+      const taxCents = Math.round(subtotalCents * (isNaN(taxRatePct) ? 0 : taxRatePct) / 100);
+      // No per-merchant delivery-fee configuration exists yet — shipping orders
+      // are $0 delivery until that's built, rather than inventing a number.
+      const shippingFeeCents = 0;
+      const totalCents = subtotalCents + taxCents + shippingFeeCents;
+
+      if (totalCents < 50) {
+        return res.status(400).json({ message: "Order total is too low to charge" });
+      }
+
+      const currencyLower = (merchant.currency || 'USD').toLowerCase();
+      const orderNumber = await generateOrderNumber(merchant.id, 'WEB');
+
+      const order = await storage.createOrder({
+        merchantId: merchant.id,
+        orderNumber,
+        orderType: data.orderType,
+        customerName: data.customerName,
+        customerPhone: data.customerPhone || null,
+        customerEmail: data.customerEmail,
+        shippingAddress: data.orderType === 'shipping' ? data.shippingAddress : null,
+        paymentMethod: 'stripe',
+        paymentProvider: 'stripe',
+        subtotal: (subtotalCents / 100).toFixed(2),
+        tax: (taxCents / 100).toFixed(2),
+        shippingFee: (shippingFeeCents / 100).toFixed(2),
+        total: (totalCents / 100).toFixed(2),
+        status: 'pending',
+        paymentStatus: 'pending',
+      }, lineRows);
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: totalCentsToStripeAmount(totalCents, currencyLower),
+        currency: currencyLower,
+        automatic_payment_methods: { enabled: true },
+        receipt_email: data.customerEmail,
+        metadata: {
+          orderId: order.id,
+          merchantId: merchant.id,
+        },
+      });
+
+      await storage.updateOrder(order.id, { paymentIntentId: paymentIntent.id });
+
+      res.json({
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        clientSecret: paymentIntent.client_secret,
+        total: order.total,
+        currency: merchant.currency,
+      });
+    } catch (error) {
+      logError("Storefront checkout failed", error);
+      res.status(500).json({ message: "Failed to start checkout" });
+    }
+  });
+
+  app.get('/api/storefront/:slug/orders/:id', storefrontLimiter, async (req, res) => {
+    try {
+      const merchant = await merchantBySlugPublic(req.params.slug);
+      if (!merchant) return res.status(404).json({ message: "Store not found" });
+
+      const orderData = await storage.getOrderWithItems(req.params.id);
+      if (!orderData || orderData.order.merchantId !== merchant.id) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      const { order, items } = orderData;
+      res.json({
+        orderNumber: order.orderNumber,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        orderType: order.orderType,
+        subtotal: order.subtotal,
+        tax: order.tax,
+        shippingFee: order.shippingFee,
+        total: order.total,
+        currency: merchant.currency,
+        customerEmail: order.customerEmail,
+        items: items.map((i) => ({
+          name: i.menuItem?.name || i.variantName || "Item",
+          variantName: i.variantName,
+          quantity: i.quantity,
+          subtotal: i.subtotal,
+        })),
+      });
+    } catch (error) {
+      logError("Storefront order lookup failed", error);
+      res.status(500).json({ message: "Failed to load order" });
     }
   });
 

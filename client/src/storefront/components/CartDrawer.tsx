@@ -1,10 +1,11 @@
 import { AnimatePresence, motion } from "framer-motion";
+import { useLocation } from "wouter";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import type { CartItem } from "@/storefront/lib/cartStore";
 
-export function CartDrawer({ open, onOpenChange, items, formatPrice, subtotalCents, onSetQty, onRemove }: {
+export function CartDrawer({ open, onOpenChange, items, formatPrice, subtotalCents, onSetQty, onRemove, slug }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   items: CartItem[];
@@ -12,7 +13,9 @@ export function CartDrawer({ open, onOpenChange, items, formatPrice, subtotalCen
   subtotalCents: number;
   onSetQty: (menuItemId: string, variantId: string | undefined, qty: number) => void;
   onRemove: (menuItemId: string, variantId?: string) => void;
+  slug: string;
 }) {
+  const [, navigate] = useLocation();
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col gap-0 p-0 sm:max-w-md">
@@ -69,7 +72,16 @@ export function CartDrawer({ open, onOpenChange, items, formatPrice, subtotalCen
                 <span>Subtotal</span>
                 <span>{formatPrice(subtotalCents / 100)}</span>
               </div>
-              <p className="text-center text-xs text-muted-foreground">Checkout isn't available in this preview yet.</p>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  onOpenChange(false);
+                  navigate(`/store/${slug}/checkout`);
+                }}
+                data-testid="button-checkout"
+              >
+                Checkout
+              </Button>
             </div>
           </>
         )}

@@ -198,6 +198,7 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
       subtotalCents={cart.subtotalCents}
       onSetQty={cart.setQty}
       onRemove={cart.removeItem}
+      slug={slug}
     />
   );
 

@@ -4,6 +4,8 @@ import { StorefrontShop } from "@/storefront/pages/StorefrontShop";
 import { StorefrontProduct } from "@/storefront/pages/StorefrontProduct";
 import { StorefrontPage } from "@/storefront/pages/StorefrontPage";
 import { StorefrontContact } from "@/storefront/pages/StorefrontContact";
+import { StorefrontCheckout } from "@/storefront/pages/StorefrontCheckout";
+import { StorefrontOrderConfirmation } from "@/storefront/pages/StorefrontOrderConfirmation";
 
 export function StorefrontRouter() {
   return (
@@ -13,6 +15,12 @@ export function StorefrontRouter() {
       </Route>
       <Route path="/store/:slug/shop">
         {(params) => <StorefrontShop slug={params.slug} />}
+      </Route>
+      <Route path="/store/:slug/checkout">
+        {(params) => <StorefrontCheckout slug={params.slug} />}
+      </Route>
+      <Route path="/store/:slug/order/:orderId">
+        {(params) => <StorefrontOrderConfirmation slug={params.slug} orderId={params.orderId} />}
       </Route>
       <Route path="/store/:slug/contact">
         {(params) => <StorefrontContact slug={params.slug} />}

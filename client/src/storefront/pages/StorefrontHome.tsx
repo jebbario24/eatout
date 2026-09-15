@@ -201,6 +201,7 @@ export function StorefrontHome({ slug }: { slug: string }) {
         subtotalCents={cart.subtotalCents}
         onSetQty={cart.setQty}
         onRemove={cart.removeItem}
+        slug={slug}
       />
     </div>
   );
