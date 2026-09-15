@@ -3667,11 +3667,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
 
   const storefrontCheckoutSchema = z.object({
-    orderType: z.enum(['pickup', 'shipping']).default('pickup'),
     customerName: z.string().trim().min(1, "Name is required").max(200),
     customerPhone: z.string().trim().max(50).nullable().optional(),
     customerEmail: z.string().trim().email("Enter a valid email").max(255),
-    shippingAddress: z.string().trim().max(500).nullable().optional(),
+    shippingAddress: z.string().trim().min(1, "Shipping address is required").max(500),
     items: z.array(z.object({
       menuItemId: z.string(),
       variantId: z.string().nullable().optional(),
@@ -3698,10 +3697,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid checkout data" });
       }
       const data = parsed.data;
-
-      if (data.orderType === 'shipping' && !data.shippingAddress) {
-        return res.status(400).json({ message: "A shipping address is required for delivery orders" });
-      }
 
       // Re-price every line against the DB — the cart in the browser is never
       // trusted for the amount that actually gets charged.
@@ -3757,11 +3752,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const order = await storage.createOrder({
         merchantId: merchant.id,
         orderNumber,
-        orderType: data.orderType,
+        orderType: 'shipping',
         customerName: data.customerName,
         customerPhone: data.customerPhone || null,
         customerEmail: data.customerEmail,
-        shippingAddress: data.orderType === 'shipping' ? data.shippingAddress : null,
+        shippingAddress: data.shippingAddress,
         paymentMethod: 'stripe',
         paymentProvider: 'stripe',
         subtotal: (subtotalCents / 100).toFixed(2),

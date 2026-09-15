@@ -7,11 +7,11 @@ import { convertAndFormatPrice } from "@/lib/currency";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
 import { useCart } from "@/storefront/lib/cartStore";
 import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
-import { CartDrawer } from "@/storefront/components/CartDrawer";
 import { ProductCard as FarfetchProductCard, type StorefrontProduct } from "@/storefront/components/ProductCard";
 import { ProductCard as AdanolaProductCard } from "@/storefront/themes/adanola/ProductCard";
 import { ProductCard as MaisonProductCard } from "@/storefront/themes/maison/ProductCard";
 import { PixelScripts, trackAddToCart } from "@/components/PixelScripts";
+import { useToast } from "@/hooks/use-toast";
 
 interface StorefrontMerchant {
   name: string;
@@ -48,7 +48,6 @@ const BREAK_AFTER = 8;
 const ADANOLA_PAGE_SIZE = 12;
 
 export function StorefrontShop({ slug }: { slug: string }) {
-  const [cartOpen, setCartOpen] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortOption>("featured");
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
@@ -56,6 +55,7 @@ export function StorefrontShop({ slug }: { slug: string }) {
   const [sortOpen, setSortOpen] = useState(true);
   const [categoryOpen, setCategoryOpen] = useState(true);
   const cart = useCart(slug);
+  const { toast } = useToast();
 
   const collectionHandle = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("collection") : null;
 
@@ -119,7 +119,7 @@ export function StorefrontShop({ slug }: { slug: string }) {
         }
       );
     }
-    setCartOpen(true);
+    toast({ title: "Added to cart", description: item.name });
   };
 
   const pixelScripts = !isPreview && merchant && (
@@ -139,26 +139,13 @@ export function StorefrontShop({ slug }: { slug: string }) {
     </nav>
   );
 
-  const cartDrawer = (
-    <CartDrawer
-      open={cartOpen}
-      onOpenChange={setCartOpen}
-      items={cart.items}
-      formatPrice={formatPrice}
-      subtotalCents={cart.subtotalCents}
-      onSetQty={cart.setQty}
-      onRemove={cart.removeItem}
-      slug={slug}
-    />
-  );
-
   if (theme === "adanola") {
     const visible = items.slice(0, visibleCount);
     return (
       <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
         {pixelScripts}
         {headerSection && merchant && (
-          <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+          <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => window.open(`${base}/cart`, "_blank")} />
         )}
 
         <div className="mx-auto max-w-[1440px] px-4 pt-4 sm:px-6 lg:px-8">
@@ -253,7 +240,6 @@ export function StorefrontShop({ slug }: { slug: string }) {
         {footerSection && merchant && (
           <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
         )}
-        {cartDrawer}
       </div>
     );
   }
@@ -275,7 +261,7 @@ export function StorefrontShop({ slug }: { slug: string }) {
     <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
       {pixelScripts}
       {headerSection && merchant && (
-        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => window.open(`${base}/cart`, "_blank")} />
       )}
 
       <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
@@ -366,7 +352,6 @@ export function StorefrontShop({ slug }: { slug: string }) {
       {footerSection && merchant && (
         <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
       )}
-      {cartDrawer}
     </div>
   );
 }

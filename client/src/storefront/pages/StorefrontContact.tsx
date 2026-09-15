@@ -5,11 +5,9 @@ import type { MerchantThemeSettings } from "@shared/schema";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
 import { useCart } from "@/storefront/lib/cartStore";
 import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
-import { CartDrawer } from "@/storefront/components/CartDrawer";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { convertAndFormatPrice } from "@/lib/currency";
 import { PixelScripts } from "@/components/PixelScripts";
 
 interface StorefrontMerchant {
@@ -26,7 +24,6 @@ interface StorefrontMerchant {
 const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
 
 export function StorefrontContact({ slug }: { slug: string }) {
-  const [cartOpen, setCartOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
   const [draft, setDraft] = useState<{ themeSettings?: MerchantThemeSettings } | null>(null);
@@ -48,7 +45,6 @@ export function StorefrontContact({ slug }: { slug: string }) {
   }, []);
 
   const themeSettings = draft?.themeSettings || merchant?.themeSettings;
-  const formatPrice = (n: number) => convertAndFormatPrice(n, merchant?.currency || "USD", null);
   const theme = resolveTheme(themeSettings?.theme);
   const T = STOREFRONT_THEMES[theme];
   const headerSection = themeSettings?.layout?.sections?.find((s) => s.type === "header");
@@ -103,7 +99,7 @@ export function StorefrontContact({ slug }: { slug: string }) {
         />
       )}
       {headerSection && merchant && (
-        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => window.open(`${base}/cart`, "_blank")} />
       )}
       <main className={`mx-auto max-w-xl px-4 sm:px-6 lg:px-8 ${isAdanola ? "py-8" : "py-10"}`}>
         <nav className="mb-6 text-xs text-muted-foreground">
@@ -156,16 +152,6 @@ export function StorefrontContact({ slug }: { slug: string }) {
       {footerSection && merchant && (
         <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
       )}
-      <CartDrawer
-        open={cartOpen}
-        onOpenChange={setCartOpen}
-        items={cart.items}
-        formatPrice={formatPrice}
-        subtotalCents={cart.subtotalCents}
-        onSetQty={cart.setQty}
-        onRemove={cart.removeItem}
-        slug={slug}
-      />
     </div>
   );
 }

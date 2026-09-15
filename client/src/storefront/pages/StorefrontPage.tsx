@@ -1,13 +1,10 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import type { MerchantThemeSettings } from "@shared/schema";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
 import { useCart } from "@/storefront/lib/cartStore";
 import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
-import { CartDrawer } from "@/storefront/components/CartDrawer";
 import { Markdown } from "@/components/Markdown";
-import { convertAndFormatPrice } from "@/lib/currency";
 import { PixelScripts } from "@/components/PixelScripts";
 
 interface StorefrontMerchant {
@@ -31,7 +28,6 @@ interface PageDetail {
 }
 
 export function StorefrontPage({ slug, handle }: { slug: string; handle: string }) {
-  const [cartOpen, setCartOpen] = useState(false);
   const cart = useCart(slug);
   const base = `/store/${slug}`;
 
@@ -44,7 +40,6 @@ export function StorefrontPage({ slug, handle }: { slug: string; handle: string 
   const T = STOREFRONT_THEMES[theme];
   const headerSection = merchant?.themeSettings?.layout?.sections?.find((s) => s.type === "header");
   const footerSection = merchant?.themeSettings?.layout?.sections?.find((s) => s.type === "footer");
-  const formatPrice = (n: number) => convertAndFormatPrice(n, merchant?.currency || "USD", null);
 
   if (isLoading) {
     return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Loading...</div>;
@@ -69,7 +64,7 @@ export function StorefrontPage({ slug, handle }: { slug: string; handle: string 
         />
       )}
       {headerSection && merchant && (
-        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => window.open(`${base}/cart`, "_blank")} />
       )}
       <main className={`mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 ${theme === "adanola" ? "py-8" : "py-10"}`}>
         <nav className="mb-6 text-xs text-muted-foreground">
@@ -85,16 +80,6 @@ export function StorefrontPage({ slug, handle }: { slug: string; handle: string 
       {footerSection && merchant && (
         <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
       )}
-      <CartDrawer
-        open={cartOpen}
-        onOpenChange={setCartOpen}
-        items={cart.items}
-        formatPrice={formatPrice}
-        subtotalCents={cart.subtotalCents}
-        onSetQty={cart.setQty}
-        onRemove={cart.removeItem}
-        slug={slug}
-      />
     </div>
   );
 }

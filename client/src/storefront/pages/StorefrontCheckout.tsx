@@ -5,7 +5,7 @@ import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-
 import { loadStripe } from "@stripe/stripe-js";
 import type { MerchantThemeSettings } from "@shared/schema";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
-import { useCart } from "@/storefront/lib/cartStore";
+import { useCart, type CartItem } from "@/storefront/lib/cartStore";
 import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
@@ -38,6 +38,38 @@ interface CheckoutSession {
   clientSecret: string;
   total: string;
   currency: string;
+}
+
+function OrderSummary({ items, formatPrice, isMaison }: { items: CartItem[]; formatPrice: (n: number) => string; isMaison: boolean }) {
+  const subtotalCents = items.reduce((sum, i) => sum + i.priceCents * i.qty, 0);
+  return (
+    <div className="h-fit space-y-5 border border-border p-6 lg:sticky lg:top-24">
+      <ul className="space-y-4">
+        {items.map((item) => (
+          <li key={`${item.menuItemId}-${item.variantId || ""}`} className="flex gap-3">
+            <div className={`relative h-16 w-16 shrink-0 overflow-hidden bg-muted ${isMaison ? "rounded-lg" : ""}`}>
+              {item.imageUrl && <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />}
+              <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-[10px] font-medium text-background">
+                {item.qty}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium">{item.name}</p>
+              {item.variantName && <p className="text-xs text-muted-foreground">{item.variantName}</p>}
+            </div>
+            <p className="shrink-0 text-[13px]">{formatPrice((item.priceCents * item.qty) / 100)}</p>
+          </li>
+        ))}
+      </ul>
+      <div className="space-y-1.5 border-t border-border pt-4 text-sm">
+        <div className="flex justify-between text-muted-foreground">
+          <span>Subtotal</span>
+          <span>{formatPrice(subtotalCents / 100)}</span>
+        </div>
+        <p className="text-xs text-muted-foreground">Taxes calculated at checkout.</p>
+      </div>
+    </div>
+  );
 }
 
 function PaymentStep({ slug, orderId, returnUrl }: { slug: string; orderId: string; returnUrl: string }) {
@@ -76,7 +108,7 @@ function PaymentStep({ slug, orderId, returnUrl }: { slug: string; orderId: stri
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <PaymentElement />
-      <Button type="submit" size="lg" className="h-11 w-full" disabled={!stripe || isProcessing} data-testid="button-pay">
+      <Button type="submit" size="lg" className="h-12 w-full" disabled={!stripe || isProcessing} data-testid="button-pay">
         {isProcessing ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
@@ -90,14 +122,12 @@ function PaymentStep({ slug, orderId, returnUrl }: { slug: string; orderId: stri
 }
 
 export function StorefrontCheckout({ slug }: { slug: string }) {
-  const [, navigate] = useLocation();
   const cart = useCart(slug);
   const { toast } = useToast();
   const base = `/store/${slug}`;
 
   const { data: merchant } = useQuery<StorefrontMerchant>({ queryKey: [`/api/storefront/${slug}`] });
 
-  const [orderType, setOrderType] = useState<"pickup" | "shipping">("pickup");
   const [session, setSession] = useState<CheckoutSession | null>(null);
   const [isStarting, setIsStarting] = useState(false);
 
@@ -120,6 +150,11 @@ export function StorefrontCheckout({ slug }: { slug: string }) {
     : isMaison
     ? "mb-1.5 block text-xs font-medium uppercase tracking-[0.1em] text-primary"
     : "mb-1.5 block text-xs font-normal uppercase tracking-[0.1em] text-muted-foreground";
+  const headingClass = isAdanola
+    ? "text-2xl font-bold text-foreground"
+    : isMaison
+    ? "font-serif text-3xl italic tracking-tight"
+    : "font-serif text-3xl tracking-tight";
 
   const handleStartCheckout = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -128,11 +163,10 @@ export function StorefrontCheckout({ slug }: { slug: string }) {
     setIsStarting(true);
     try {
       const res = await apiRequest(`/api/storefront/${slug}/checkout`, "POST", {
-        orderType,
         customerName: String(data.get("customerName") || ""),
         customerPhone: String(data.get("customerPhone") || "") || undefined,
         customerEmail: String(data.get("customerEmail") || ""),
-        shippingAddress: orderType === "shipping" ? String(data.get("shippingAddress") || "") : undefined,
+        shippingAddress: String(data.get("shippingAddress") || ""),
         items: cart.items.map((i) => ({ menuItemId: i.menuItemId, variantId: i.variantId, quantity: i.qty })),
       });
       const json = await res.json();
@@ -167,7 +201,7 @@ export function StorefrontCheckout({ slug }: { slug: string }) {
       {headerSection && merchant && (
         <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => {}} />
       )}
-      <main className="mx-auto max-w-xl px-4 py-10 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <nav className="mb-6 text-xs text-muted-foreground">
           <Link href={base} className="hover:text-foreground">Home</Link>
           <span className="mx-2">/</span>
@@ -175,7 +209,7 @@ export function StorefrontCheckout({ slug }: { slug: string }) {
         </nav>
 
         {cart.items.length === 0 && !session ? (
-          <div className="flex flex-col items-center gap-3 border border-border py-16 text-center">
+          <div className="flex flex-col items-center gap-3 border border-border py-20 text-center">
             <ShoppingBag className="h-7 w-7 text-muted-foreground" strokeWidth={1.25} />
             <p className="text-sm text-muted-foreground">Your cart is empty.</p>
             <Link href={`${base}/shop`}>
@@ -183,89 +217,63 @@ export function StorefrontCheckout({ slug }: { slug: string }) {
             </Link>
           </div>
         ) : merchant && !merchant.stripeEnabled ? (
-          <div className="border border-border py-16 text-center">
+          <div className="border border-border py-20 text-center">
             <p className="text-sm text-muted-foreground">This store isn't accepting card payments yet.</p>
           </div>
         ) : (
           <>
-            <h1 className={isAdanola ? "mb-6 text-2xl font-bold text-foreground" : isMaison ? "mb-6 font-serif text-3xl italic tracking-tight" : "mb-6 font-serif text-3xl tracking-tight"}>
-              Checkout
-            </h1>
+            <h1 className={`mb-8 ${headingClass}`}>Checkout</h1>
 
-            <div className="mb-8 space-y-2 border-b border-border pb-6">
-              {cart.items.map((item) => (
-                <div key={`${item.menuItemId}-${item.variantId || ""}`} className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {item.qty} × {item.name}
-                    {item.variantName ? ` (${item.variantName})` : ""}
-                  </span>
-                  <span>{formatPrice((item.priceCents * item.qty) / 100)}</span>
-                </div>
-              ))}
-              <div className="flex justify-between pt-2 text-sm font-semibold">
-                <span>Subtotal</span>
-                <span>{formatPrice(cart.subtotalCents / 100)}</span>
+            <div className="grid gap-10 lg:grid-cols-[1fr_380px] lg:items-start">
+              <div className="lg:order-1">
+                {!session ? (
+                  <form onSubmit={handleStartCheckout} className="space-y-6">
+                    <div className="grid gap-6 sm:grid-cols-2">
+                      <div>
+                        <label className={labelClass}>Name</label>
+                        <input name="customerName" type="text" required className={inputClass} data-testid="input-customer-name" />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Email</label>
+                        <input name="customerEmail" type="email" required className={inputClass} data-testid="input-customer-email" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Phone</label>
+                      <input name="customerPhone" type="tel" className={inputClass} data-testid="input-customer-phone" />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Shipping address</label>
+                      <textarea name="shippingAddress" required rows={3} className={`resize-none ${inputClass}`} data-testid="input-shipping-address" />
+                    </div>
+
+                    <Button type="submit" size="lg" className="h-12 w-full" disabled={isStarting} data-testid="button-continue-to-payment">
+                      {isStarting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing payment...
+                        </>
+                      ) : (
+                        "Continue to payment"
+                      )}
+                    </Button>
+                  </form>
+                ) : !stripePromise ? (
+                  <p className="text-sm text-destructive">Card payments aren't configured for this store yet.</p>
+                ) : (
+                  <Elements stripe={stripePromise} options={{ clientSecret: session.clientSecret }}>
+                    <PaymentStep
+                      slug={slug}
+                      orderId={session.orderId}
+                      returnUrl={`${window.location.origin}/store/${slug}/order/${session.orderId}`}
+                    />
+                  </Elements>
+                )}
+              </div>
+
+              <div className="lg:order-2">
+                <OrderSummary items={cart.items} formatPrice={formatPrice} isMaison={isMaison} />
               </div>
             </div>
-
-            {!session ? (
-              <form onSubmit={handleStartCheckout} className="space-y-6">
-                <div className="flex gap-2">
-                  {(["pickup", "shipping"] as const).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setOrderType(t)}
-                      className={`flex-1 border py-2 text-xs font-medium uppercase tracking-wide ${orderType === t ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground"}`}
-                      data-testid={`button-order-type-${t}`}
-                    >
-                      {t === "pickup" ? "Pickup" : "Shipping"}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid gap-6 sm:grid-cols-2">
-                  <div>
-                    <label className={labelClass}>Name</label>
-                    <input name="customerName" type="text" required className={inputClass} data-testid="input-customer-name" />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Email</label>
-                    <input name="customerEmail" type="email" required className={inputClass} data-testid="input-customer-email" />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Phone</label>
-                  <input name="customerPhone" type="tel" className={inputClass} data-testid="input-customer-phone" />
-                </div>
-                {orderType === "shipping" && (
-                  <div>
-                    <label className={labelClass}>Shipping address</label>
-                    <textarea name="shippingAddress" required rows={3} className={`resize-none ${inputClass}`} data-testid="input-shipping-address" />
-                  </div>
-                )}
-
-                <Button type="submit" size="lg" className="h-11 w-full" disabled={isStarting} data-testid="button-continue-to-payment">
-                  {isStarting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing payment...
-                    </>
-                  ) : (
-                    "Continue to payment"
-                  )}
-                </Button>
-              </form>
-            ) : !stripePromise ? (
-              <p className="text-sm text-destructive">Card payments aren't configured for this store yet.</p>
-            ) : (
-              <Elements stripe={stripePromise} options={{ clientSecret: session.clientSecret }}>
-                <PaymentStep
-                  slug={slug}
-                  orderId={session.orderId}
-                  returnUrl={`${window.location.origin}/store/${slug}/order/${session.orderId}`}
-                />
-              </Elements>
-            )}
           </>
         )}
       </main>

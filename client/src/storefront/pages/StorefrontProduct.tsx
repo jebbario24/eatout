@@ -11,7 +11,6 @@ import { getSaleInfo } from "@/lib/salePricing";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
 import { useCart } from "@/storefront/lib/cartStore";
 import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
-import { CartDrawer } from "@/storefront/components/CartDrawer";
 import { PixelScripts, trackViewContent, trackAddToCart } from "@/components/PixelScripts";
 
 interface StorefrontMerchant {
@@ -58,7 +57,6 @@ interface ProductDetail {
 const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
 
 export function StorefrontProduct({ slug, handle }: { slug: string; handle: string }) {
-  const [cartOpen, setCartOpen] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const [qty, setQty] = useState(1);
@@ -177,7 +175,6 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
     }
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1600);
-    setCartOpen(true);
   };
 
   const pixelScripts = !isPreview && merchant && (
@@ -186,19 +183,6 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
       tiktokPixelId={merchant.tiktokPixelId || undefined}
       googleAnalyticsId={merchant.googleAnalyticsId || undefined}
       googleAdsId={merchant.googleAdsId || undefined}
-    />
-  );
-
-  const cartDrawer = (
-    <CartDrawer
-      open={cartOpen}
-      onOpenChange={setCartOpen}
-      items={cart.items}
-      formatPrice={formatPrice}
-      subtotalCents={cart.subtotalCents}
-      onSetQty={cart.setQty}
-      onRemove={cart.removeItem}
-      slug={slug}
     />
   );
 
@@ -253,7 +237,7 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
       <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
         {pixelScripts}
         {headerSection && (
-          <T.Header storeName={merchant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+          <T.Header storeName={merchant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => window.open(`/store/${slug}/cart`, "_blank")} />
         )}
         <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           {breadcrumb}
@@ -453,7 +437,6 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
         {footerSection && merchant && (
           <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
         )}
-        {cartDrawer}
       </div>
     );
   }
@@ -463,7 +446,7 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
       <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
         {pixelScripts}
         {headerSection && (
-          <T.Header storeName={merchant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+          <T.Header storeName={merchant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => window.open(`/store/${slug}/cart`, "_blank")} />
         )}
         <main className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
           <div className="grid gap-8 md:grid-cols-2">
@@ -600,7 +583,6 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
         {footerSection && merchant && (
           <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
         )}
-        {cartDrawer}
       </div>
     );
   }
@@ -609,7 +591,7 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
     <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
       {pixelScripts}
       {headerSection && (
-        <T.Header storeName={merchant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        <T.Header storeName={merchant!.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => window.open(`/store/${slug}/cart`, "_blank")} />
       )}
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {breadcrumb}
@@ -791,7 +773,6 @@ export function StorefrontProduct({ slug, handle }: { slug: string; handle: stri
       {footerSection && merchant && (
         <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
       )}
-      {cartDrawer}
     </div>
   );
 }

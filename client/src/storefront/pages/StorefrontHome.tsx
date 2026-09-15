@@ -5,9 +5,9 @@ import { convertAndFormatPrice } from "@/lib/currency";
 import { storefrontColorVars } from "@/storefront/lib/colorUtils";
 import { useCart } from "@/storefront/lib/cartStore";
 import { STOREFRONT_THEMES, resolveTheme } from "@/storefront/themeRegistry";
-import { CartDrawer } from "@/storefront/components/CartDrawer";
 import type { StorefrontProduct } from "@/storefront/components/ProductCard";
 import { PixelScripts, trackAddToCart } from "@/components/PixelScripts";
+import { useToast } from "@/hooks/use-toast";
 
 interface StorefrontMerchant {
   id: string;
@@ -34,8 +34,8 @@ const isPreview = typeof window !== "undefined" && new URLSearchParams(window.lo
 
 export function StorefrontHome({ slug }: { slug: string }) {
   const [draft, setDraft] = useState<{ themeSettings?: MerchantThemeSettings } | null>(null);
-  const [cartOpen, setCartOpen] = useState(false);
   const cart = useCart(slug);
+  const { toast } = useToast();
 
   const { data: merchant, isLoading, isError } = useQuery<StorefrontMerchant>({
     queryKey: [`/api/storefront/${slug}`],
@@ -132,7 +132,7 @@ export function StorefrontHome({ slug }: { slug: string }) {
         }
       );
     }
-    setCartOpen(true);
+    toast({ title: "Added to cart", description: item.name });
   };
 
   const pixelScripts = !isPreview && (
@@ -187,22 +187,12 @@ export function StorefrontHome({ slug }: { slug: string }) {
     <div className="min-h-screen bg-background" style={storefrontColorVars(theme)}>
       {pixelScripts}
       {headerSection && (
-        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => setCartOpen(true)} />
+        <T.Header storeName={merchant.name} slug={slug} fields={headerSection.fields as any} cartCount={cart.count} onOpenCart={() => window.open(`${base}/cart`, "_blank")} />
       )}
       <main>{bodySections.map(renderSection)}</main>
       {footerSection && (
         <T.Footer fields={footerSection.fields as any} storeName={merchant.name} socialLinks={merchant.socialLinks} slug={slug} />
       )}
-      <CartDrawer
-        open={cartOpen}
-        onOpenChange={setCartOpen}
-        items={cart.items}
-        formatPrice={formatPrice}
-        subtotalCents={cart.subtotalCents}
-        onSetQty={cart.setQty}
-        onRemove={cart.removeItem}
-        slug={slug}
-      />
     </div>
   );
 }
